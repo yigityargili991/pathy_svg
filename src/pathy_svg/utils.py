@@ -7,13 +7,10 @@ to avoid circular imports).
 
 from __future__ import annotations
 
+import bisect
 import colorsys
 import copy
 import re
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    pass
 
 
 # ---------------------------------------------------------------------------
@@ -57,7 +54,7 @@ def rgb_to_hex(r: int, g: int, b: int) -> str:
     for name, val in (("r", r), ("g", g), ("b", b)):
         if not (0 <= val <= 255):
             raise ValueError(f"Channel {name} out of range [0, 255]: {val}")
-    return f"#{int(r):02x}{int(g):02x}{int(b):02x}"
+    return f"#{round(r):02x}{round(g):02x}{round(b):02x}"
 
 
 def interpolate_color(color1: str, color2: str, t: float) -> str:
@@ -115,7 +112,11 @@ def parse_svg_color(color_str: str) -> tuple[int, int, int]:
     # --- rgb(...) ---
     m = re.fullmatch(r"rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)", s)
     if m:
-        return (int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        channels = (int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        for ch in channels:
+            if not (0 <= ch <= 255):
+                raise ValueError(f"RGB channel out of range [0, 255]: {ch}")
+        return channels
 
     # --- hsl(...) ---
     m = re.fullmatch(
@@ -197,12 +198,7 @@ def bin_values(data: dict[str, float], breaks: list[float]) -> dict[str, int]:
     result: dict[str, int] = {}
     n_bins = len(sorted_breaks) - 1
     for key, val in data.items():
-        # bisect_right equivalent
-        idx = 0
-        for i in range(len(sorted_breaks) - 1):
-            if val >= sorted_breaks[i]:
-                idx = i
-        # clamp to valid bin range
+        idx = bisect.bisect_right(sorted_breaks, val) - 1
         idx = max(0, min(idx, n_bins - 1))
         result[key] = idx
     return result
