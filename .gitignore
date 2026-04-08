@@ -1,17 +1,29 @@
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
+
+# Distribution / packaging
 *.egg-info/
+*.egg
 dist/
 build/
 .eggs/
-*.egg
+
+# Virtual environments
 .venv/
 venv/
+
+# Lock files
+uv.lock
+
+# Tools
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/
-*.so
+
+# OS
 .DS_Store
 *.swp
 *.swo

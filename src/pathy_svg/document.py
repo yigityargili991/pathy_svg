@@ -26,11 +26,12 @@ class SVGDocument:
     Supports method chaining: ``doc.heatmap(...).legend(...).save(...)``.
     """
 
-    __slots__ = ("_tree", "_nsmap", "_last_scale", "_last_heatmap_config", "_last_categorical_palette")
+    __slots__ = ("_tree", "_nsmap", "_last_scale", "_last_heatmap_config", "_last_categorical_palette", "_id_index")
 
     def __init__(self, tree: etree._ElementTree, *, _nsmap: dict[str, str] | None = None):
         self._tree = tree
         self._nsmap = _nsmap if _nsmap is not None else self._detect_namespaces()
+        self._id_index = None
 
     # ------------------------------------------------------------------
     # Constructors
@@ -131,10 +132,25 @@ class SVGDocument:
     # Element lookup
     # ------------------------------------------------------------------
 
+    @property
+    def _element_index(self) -> dict[str, etree._Element]:
+        """Lazy-build index of id -> element for O(1) lookup.
+
+        Note: this cache is NOT invalidated when the tree is mutated.
+        All public mutation methods use _clone() which resets the cache.
+        Do not call _find_by_id after directly mutating _tree.
+        """
+        if self._id_index is None:
+            self._id_index = {}
+            for elem in self._tree.iter():
+                eid = elem.get("id")
+                if eid:
+                    self._id_index.setdefault(eid, elem)
+        return self._id_index
+
     def _find_by_id(self, eid: str) -> etree._Element | None:
-        """Find an element by its id attribute."""
-        results = self._tree.xpath(f'//*[@id="{eid}"]')
-        return results[0] if results else None
+        """Find an element by its id attribute using O(1) index lookup."""
+        return self._element_index.get(eid)
 
     def _find_all_by_tag(self, local_tag: str) -> list[etree._Element]:
         """Find all elements with a given local tag name (ignoring namespace)."""

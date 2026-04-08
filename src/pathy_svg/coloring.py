@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING
 
 import numpy as np
 from lxml import etree
@@ -11,25 +10,17 @@ from lxml import etree
 from pathy_svg.exceptions import ColorScaleError, PathNotFoundError
 from pathy_svg.themes import CategoricalPalette, ColorScale
 
-if TYPE_CHECKING:
-    pass
+COLORABLE_TAGS = frozenset({"path", "rect", "circle", "ellipse", "polygon", "polyline"})
 
 
-def _find_element_by_id(tree: etree._ElementTree, eid: str) -> etree._Element | None:
-    """Find an element by its id attribute."""
-    results = tree.xpath(f'//*[@id="{eid}"]')
-    return results[0] if results else None
-
-
-def _find_colorable_elements(tree: etree._ElementTree) -> list[etree._Element]:
-    """Find all elements that can be colored (paths, rects, circles, etc.)."""
-    colorable_tags = {"path", "rect", "circle", "ellipse", "polygon", "polyline"}
-    elements = []
+def _build_id_index(tree: etree._ElementTree) -> dict[str, etree._Element]:
+    """Build a dict mapping element id -> element. First element wins for duplicate IDs."""
+    index: dict[str, etree._Element] = {}
     for elem in tree.iter():
-        local = _local_tag(elem.tag)
-        if local in colorable_tags and elem.get("id"):
-            elements.append(elem)
-    return elements
+        eid = elem.get("id")
+        if eid:
+            index.setdefault(eid, elem)
+    return index
 
 
 def _local_tag(tag: str) -> str:
@@ -40,15 +31,21 @@ def _local_tag(tag: str) -> str:
 
 def _set_fill(element: etree._Element, color: str, *, opacity: float | None = None, preserve_stroke: bool = True):
     """Set the fill color on an element, handling both style attr and fill attr."""
-    style = element.get("style", "")
+    style = element.get("style")
+
+    # Fast path: no existing style, create minimal style string
+    if style is None:
+        if opacity is not None and opacity < 1.0:
+            style = f"fill:{color};fill-opacity:{opacity}"
+        else:
+            style = f"fill:{color}"
+        element.set("style", style)
+        return
 
     if "fill:" in style or "fill :" in style:
-        # Replace fill in existing style
         style = re.sub(r"fill\s*:\s*[^;]+", f"fill:{color}", style)
-    elif style:
-        style = f"fill:{color};{style}"
     else:
-        style = f"fill:{color}"
+        style = f"fill:{color};{style}"
 
     if opacity is not None and opacity < 1.0:
         if "fill-opacity:" in style:
@@ -61,11 +58,10 @@ def _set_fill(element: etree._Element, color: str, *, opacity: float | None = No
 
 def _set_fill_on_group(element: etree._Element, color: str, **kwargs):
     """Set fill on all colorable children of a group."""
-    colorable_tags = {"path", "rect", "circle", "ellipse", "polygon", "polyline"}
     for child in element.iter():
         if child is element:
             continue
-        if _local_tag(child.tag) in colorable_tags:
+        if _local_tag(child.tag) in COLORABLE_TAGS:
             _set_fill(child, color, **kwargs)
 
 
@@ -83,7 +79,7 @@ def apply_heatmap(
     preserve_stroke: bool = True,
     color_missing: bool = True,
     clip: bool = True,
-) -> None:
+) -> ColorScale:
     """Apply data-driven coloring to SVG elements. Modifies tree in-place."""
     if not data:
         return
@@ -99,10 +95,11 @@ def apply_heatmap(
 
     fill_kwargs = {"opacity": opacity, "preserve_stroke": preserve_stroke}
     protected_ids = set(data.keys())
+    id_to_elem = _build_id_index(tree)
 
     # Color elements that have data
     for eid, value in data.items():
-        elem = _find_element_by_id(tree, eid)
+        elem = id_to_elem.get(eid)
         if elem is None:
             continue
         if np.isfinite(value):
@@ -113,7 +110,7 @@ def apply_heatmap(
             for child in elem.iter():
                 if child is elem:
                     continue
-                if _local_tag(child.tag) in {"path", "rect", "circle", "ellipse", "polygon", "polyline"}:
+                if _local_tag(child.tag) in COLORABLE_TAGS:
                     child_id = child.get("id")
                     if child_id:
                         protected_ids.add(child_id)
@@ -123,10 +120,11 @@ def apply_heatmap(
 
     # Color paths with no data
     if color_missing:
-        for elem in _find_colorable_elements(tree):
-            eid = elem.get("id")
-            if eid and eid not in protected_ids:
-                _set_fill(elem, na_color, **fill_kwargs)
+        for eid, elem in id_to_elem.items():
+            if eid not in protected_ids:
+                local = _local_tag(elem.tag)
+                if local in COLORABLE_TAGS:
+                    _set_fill(elem, na_color, **fill_kwargs)
 
     return scale
 
@@ -140,8 +138,10 @@ def apply_recolor(
 ) -> None:
     """Apply manual color mapping to SVG elements. Modifies tree in-place."""
     fill_kwargs = {"opacity": opacity, "preserve_stroke": preserve_stroke}
+    id_to_elem = _build_id_index(tree)
+
     for eid, color in colors.items():
-        elem = _find_element_by_id(tree, eid)
+        elem = id_to_elem.get(eid)
         if elem is None:
             continue
         if _local_tag(elem.tag) == "g":
@@ -162,9 +162,10 @@ def apply_categorical(
     """Apply categorical coloring to SVG elements. Modifies tree in-place."""
     cat_palette = CategoricalPalette(palette)
     fill_kwargs = {"opacity": opacity, "preserve_stroke": preserve_stroke}
+    id_to_elem = _build_id_index(tree)
 
     for eid, category in data.items():
-        elem = _find_element_by_id(tree, eid)
+        elem = id_to_elem.get(eid)
         if elem is None:
             continue
         color = cat_palette(category)
