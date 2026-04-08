@@ -83,7 +83,7 @@ def apply_heatmap(
     preserve_stroke: bool = True,
     color_missing: bool = True,
     clip: bool = True,
-) -> ColorScale:
+) -> ColorScale | None:
     """Apply data-driven coloring to SVG elements. Modifies tree in-place.
 
     Args:
@@ -101,10 +101,10 @@ def apply_heatmap(
         clip: Whether to clip values outside the `vmin` and `vmax` bounds.
 
     Returns:
-        The fitted ColorScale object used for coloring.
+        The fitted ColorScale object used for coloring, or None if data is empty.
     """
     if not data:
-        return
+        return None
 
     try:
         scale = ColorScale(

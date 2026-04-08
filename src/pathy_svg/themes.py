@@ -82,7 +82,7 @@ class ColorScale:
             value: The numeric value to map.
 
         Returns:
-            The corresponding hex color string from the scale, or the na_color if the value is NaN.
+            The corresponding hex color string from the scale, or "#cccccc" if the value is NaN or infinite.
         """
         if not np.isfinite(value):
             return "#cccccc"
