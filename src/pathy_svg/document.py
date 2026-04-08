@@ -48,9 +48,6 @@ class SVGDocument:
         self._nsmap = _nsmap if _nsmap is not None else self._detect_namespaces()
         self._id_index = None
 
-    # ------------------------------------------------------------------
-    # Constructors
-    # ------------------------------------------------------------------
 
     @classmethod
     def from_file(cls, path: str | PathLike) -> SVGDocument:
@@ -112,9 +109,37 @@ class SVGDocument:
             data = resp.read()
         return cls.from_string(data)
 
-    # ------------------------------------------------------------------
-    # Properties
-    # ------------------------------------------------------------------
+    @classmethod
+    def from_dataframe(
+        cls,
+        path: str | PathLike,
+        df,
+        *,
+        id_col: str,
+        value_col: str,
+    ) -> tuple[SVGDocument, dict[str, float]]:
+        """Load an SVG and extract data from a Pandas DataFrame.
+
+        Args:
+            path: Path to the local SVG file.
+            df: A Pandas DataFrame containing the data.
+            id_col: Column name for element IDs.
+            value_col: Column name for numeric values.
+
+        Returns:
+            A tuple of (SVGDocument, data_dict) where data_dict maps IDs to values.
+
+        Raises:
+            FileNotFoundError: If the SVG file does not exist.
+            SVGParseError: If the SVG markup is invalid.
+            ValueError: If required columns are missing from the DataFrame.
+        """
+        from pathy_svg.utils import dataframe_to_dict
+
+        doc = cls.from_file(path)
+        data = dataframe_to_dict(df, id_col, value_col)
+        return doc, data
+
 
     @property
     def root(self) -> etree._Element:
@@ -176,9 +201,6 @@ class SVGDocument:
             "desc": desc_elem.text if desc_elem is not None else None,
         }
 
-    # ------------------------------------------------------------------
-    # Element lookup
-    # ------------------------------------------------------------------
 
     @property
     def _element_index(self) -> dict[str, etree._Element]:
@@ -213,9 +235,6 @@ class SVGDocument:
                 ids.append(eid)
         return ids
 
-    # ------------------------------------------------------------------
-    # Geometric queries
-    # ------------------------------------------------------------------
 
     def bbox(self, element_id: str) -> BBox:
         """Get the bounding box of an element by ID."""
@@ -237,9 +256,6 @@ class SVGDocument:
         """Get the centroid of an element by ID."""
         return centroid_of_bbox(self.bbox(element_id))
 
-    # ------------------------------------------------------------------
-    # Serialization
-    # ------------------------------------------------------------------
 
     def to_string(self) -> str:
         """Serialize to an SVG string."""
@@ -276,9 +292,6 @@ class SVGDocument:
             )
         )
 
-    # ------------------------------------------------------------------
-    # Jupyter integration
-    # ------------------------------------------------------------------
 
     def _repr_svg_(self) -> str:
         """Render inline in Jupyter notebooks."""
@@ -288,9 +301,6 @@ class SVGDocument:
         """HTML fallback for Jupyter."""
         return self.to_string()
 
-    # ------------------------------------------------------------------
-    # Introspection
-    # ------------------------------------------------------------------
 
     def inspect_paths(self):
         """Return detailed info about all colorable elements."""
@@ -347,9 +357,6 @@ class SVGDocument:
 
         return clone
 
-    # ------------------------------------------------------------------
-    # Coloring
-    # ------------------------------------------------------------------
 
     def heatmap(
         self,
@@ -411,6 +418,63 @@ class SVGDocument:
         }
         return clone
 
+    def heatmap_from_dataframe(
+        self,
+        df,
+        *,
+        id_col: str,
+        value_col: str,
+        palette: str | list[str] = "RdYlBu_r",
+        vmin: float | None = None,
+        vmax: float | None = None,
+        vcenter: float | None = None,
+        na_color: str = "#cccccc",
+        breaks: list[float] | None = None,
+        opacity: float | None = None,
+        preserve_stroke: bool = True,
+        color_missing: bool = True,
+        clip: bool = True,
+    ) -> SVGDocument:
+        """Apply data-driven coloring from a Pandas DataFrame.
+
+        Args:
+            df: A Pandas DataFrame containing the data.
+            id_col: Column name for element IDs.
+            value_col: Column name for numeric values.
+            palette: Name of a matplotlib colormap or a list of hex colors.
+            vmin: Minimum value for the color scale.
+            vmax: Maximum value for the color scale.
+            vcenter: Center value for diverging color scales.
+            na_color: Color to use for missing or NaN values.
+            breaks: List of boundary values for discrete color scales.
+            opacity: Opacity for the filled paths.
+            preserve_stroke: Whether to preserve original stroke styling.
+            color_missing: Whether to color paths that are not in the data with `na_color`.
+            clip: Whether to clip values outside the `vmin` and `vmax` bounds.
+
+        Returns:
+            A new SVGDocument with the heatmap applied.
+
+        Raises:
+            ValueError: If required columns are missing from the DataFrame.
+        """
+        from pathy_svg.utils import dataframe_to_dict
+
+        data = dataframe_to_dict(df, id_col, value_col)
+        return self.heatmap(
+            data,
+            palette=palette,
+            vmin=vmin,
+            vmax=vmax,
+            vcenter=vcenter,
+            na_color=na_color,
+            breaks=breaks,
+            opacity=opacity,
+            preserve_stroke=preserve_stroke,
+            color_missing=color_missing,
+            clip=clip,
+        )
+
     def recolor(
         self,
         colors: dict[str, str],
@@ -471,9 +535,6 @@ class SVGDocument:
         clone._last_categorical_palette = cat_palette
         return clone
 
-    # ------------------------------------------------------------------
-    # Legend
-    # ------------------------------------------------------------------
 
     def legend(
         self,
@@ -654,9 +715,6 @@ class SVGDocument:
         clone.root.append(legend_elem)
         return clone
 
-    # ------------------------------------------------------------------
-    # Diff / Comparison
-    # ------------------------------------------------------------------
 
     def diff(
         self,
@@ -734,9 +792,6 @@ class SVGDocument:
         )
         return SVGDocument(new_tree)
 
-    # ------------------------------------------------------------------
-    # Animation
-    # ------------------------------------------------------------------
 
     def animate(
         self,
@@ -775,9 +830,6 @@ class SVGDocument:
         )
         return clone
 
-    # ------------------------------------------------------------------
-    # Annotations
-    # ------------------------------------------------------------------
 
     def annotate(
         self,
@@ -862,9 +914,6 @@ class SVGDocument:
         replace_text(clone._tree, clone._nsmap, replacements, text_color=text_color)
         return clone
 
-    # ------------------------------------------------------------------
-    # Export (raster)
-    # ------------------------------------------------------------------
 
     def to_png(self, path=None, **kwargs) -> bytes | None:
         """Export to PNG. Requires pathy-svg[export].
@@ -930,9 +979,6 @@ class SVGDocument:
 
         show(self, **kwargs)
 
-    # ------------------------------------------------------------------
-    # Cloning (immutability)
-    # ------------------------------------------------------------------
 
     def _clone(self) -> SVGDocument:
         """Return a deep copy of this document."""
@@ -941,9 +987,6 @@ class SVGDocument:
             _nsmap=dict(self._nsmap),
         )
 
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
 
     def _detect_namespaces(self) -> dict[str, str]:
         """Detect all XML namespaces from the root element."""
@@ -976,3 +1019,17 @@ class SVGDocument:
         if match:
             return float(match.group(1))
         return None
+
+    @staticmethod
+    def _data_from_dataframe(
+        df,
+        id_col: str,
+        value_col: str,
+    ) -> dict[str, float]:
+        """Extract a data dict from a Pandas DataFrame.
+
+        Delegates to :func:`pathy_svg.utils.dataframe_to_dict`.
+        """
+        from pathy_svg.utils import dataframe_to_dict
+
+        return dataframe_to_dict(df, id_col, value_col)

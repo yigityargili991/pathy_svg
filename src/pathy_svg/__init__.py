@@ -28,6 +28,7 @@ from pathy_svg.utils import (
     strip_metadata,
     optimize_svg,
     extract_styles,
+    dataframe_to_dict,
 )
 
 __all__ = [
@@ -65,4 +66,5 @@ __all__ = [
     "strip_metadata",
     "optimize_svg",
     "extract_styles",
+    "dataframe_to_dict",
 ]

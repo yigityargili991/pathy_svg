@@ -7,13 +7,7 @@ from typing import Iterable
 
 from lxml import etree
 
-from pathy_svg.transform import BBox, bbox_of_element
-
-
-def _local_tag(tag: str) -> str:
-    if tag.startswith("{"):
-        return tag.split("}", 1)[1]
-    return tag
+from pathy_svg.transform import BBox, bbox_of_element, _local_tag
 
 
 @dataclass(frozen=True)

@@ -148,10 +148,6 @@ class CategoricalPalette:
         return dict(self._mapping)
 
 
-# ---------------------------------------------------------------------------
-# Theme presets
-# ---------------------------------------------------------------------------
-
 
 @dataclass(frozen=True)
 class ThemePreset:

@@ -181,3 +181,91 @@ class TestGroupedSVG:
         doc = SVGDocument.from_file(grouped_svg_path)
         ids = doc.path_ids
         assert set(ids) == {"north_a", "north_b", "south_a", "south_b"}
+
+
+class TestDataFrameIntegration:
+    """Tests for Pandas DataFrame integration."""
+
+    def test_from_dataframe(self, simple_svg_path):
+        pd = pytest.importorskip("pandas")
+        df = pd.DataFrame(
+            {
+                "id": ["stomach", "liver", "heart"],
+                "value": [1.0, 2.0, 3.0],
+            }
+        )
+        doc, data = SVGDocument.from_dataframe(
+            simple_svg_path, df, id_col="id", value_col="value"
+        )
+        assert isinstance(doc, SVGDocument)
+        assert data == {"stomach": 1.0, "liver": 2.0, "heart": 3.0}
+
+    def test_from_dataframe_missing_columns(self, simple_svg_path):
+        pd = pytest.importorskip("pandas")
+        df = pd.DataFrame({"x": [1], "y": [2]})
+        with pytest.raises(ValueError, match="Column 'id' not found"):
+            SVGDocument.from_dataframe(
+                simple_svg_path, df, id_col="id", value_col="value"
+            )
+
+    def test_from_dataframe_missing_value_column(self, simple_svg_path):
+        pd = pytest.importorskip("pandas")
+        df = pd.DataFrame({"id": ["a"], "other": [1]})
+        with pytest.raises(ValueError, match="Column 'value' not found"):
+            SVGDocument.from_dataframe(
+                simple_svg_path, df, id_col="id", value_col="value"
+            )
+
+    def test_heatmap_from_dataframe(self, simple_svg_path):
+        pd = pytest.importorskip("pandas")
+        doc = SVGDocument.from_file(simple_svg_path)
+        df = pd.DataFrame(
+            {
+                "id": ["stomach", "liver", "heart", "lung_l", "lung_r"],
+                "value": [10, 20, 30, 40, 50],
+            }
+        )
+        result = doc.heatmap_from_dataframe(df, id_col="id", value_col="value")
+        assert isinstance(result, SVGDocument)
+        # Verify colors were applied (fill should be set on elements)
+        stomach = result._find_by_id("stomach")
+        assert stomach.get("style") is not None
+        assert "fill:" in stomach.get("style")
+
+    def test_heatmap_from_dataframe_with_options(self, simple_svg_path):
+        pd = pytest.importorskip("pandas")
+        doc = SVGDocument.from_file(simple_svg_path)
+        df = pd.DataFrame(
+            {
+                "id": ["stomach", "liver"],
+                "value": [0.5, 0.9],
+            }
+        )
+        result = doc.heatmap_from_dataframe(
+            df, id_col="id", value_col="value", palette="viridis", vmin=0, vmax=1
+        )
+        assert isinstance(result, SVGDocument)
+
+    def test_data_from_dataframe_static_method(self, simple_svg_path):
+        pd = pytest.importorskip("pandas")
+        doc = SVGDocument.from_file(simple_svg_path)
+        df = pd.DataFrame(
+            {
+                "region": ["a", "b", "c"],
+                "temp": [10.5, 20.5, 30.5],
+            }
+        )
+        data = doc._data_from_dataframe(df, id_col="region", value_col="temp")
+        assert data == {"a": 10.5, "b": 20.5, "c": 30.5}
+
+    def test_data_from_dataframe_skips_invalid_values(self, simple_svg_path):
+        pd = pytest.importorskip("pandas")
+        df = pd.DataFrame(
+            {
+                "id": ["a", "b", "c"],
+                "value": [1.0, "not_a_number", 3.0],
+            }
+        )
+        doc = SVGDocument.from_file(simple_svg_path)
+        data = doc._data_from_dataframe(df, id_col="id", value_col="value")
+        assert data == {"a": 1.0, "c": 3.0}

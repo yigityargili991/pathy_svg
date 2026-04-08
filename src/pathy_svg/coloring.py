@@ -9,6 +9,7 @@ from lxml import etree
 
 from pathy_svg.exceptions import ColorScaleError, PathNotFoundError
 from pathy_svg.themes import CategoricalPalette, ColorScale
+from pathy_svg.transform import _local_tag
 
 COLORABLE_TAGS = frozenset({"path", "rect", "circle", "ellipse", "polygon", "polyline"})
 
@@ -22,11 +23,6 @@ def _build_id_index(tree: etree._ElementTree) -> dict[str, etree._Element]:
             index.setdefault(eid, elem)
     return index
 
-
-def _local_tag(tag: str) -> str:
-    if tag.startswith("{"):
-        return tag.split("}", 1)[1]
-    return tag
 
 
 def _set_fill(

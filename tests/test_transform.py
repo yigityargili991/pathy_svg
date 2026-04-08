@@ -126,3 +126,162 @@ class TestBBoxOfElement:
         assert bbox is not None
         assert bbox.width == pytest.approx(100)
         assert bbox.height == pytest.approx(50)
+
+
+class TestTransformSupport:
+    """Tests for SVG transform attribute handling in bbox computation."""
+
+    def test_translate(self):
+        from lxml import etree
+        from pathy_svg.transform import _parse_transform, _identity
+        import numpy as np
+
+        elem = etree.Element("rect", x="10", y="20", width="50", height="30")
+        elem.set("transform", "translate(100, 200)")
+        bbox = bbox_of_element(elem, {})
+        assert bbox is not None
+        assert bbox.x == pytest.approx(110)
+        assert bbox.y == pytest.approx(220)
+        assert bbox.width == pytest.approx(50)
+        assert bbox.height == pytest.approx(30)
+
+    def test_scale(self):
+        from lxml import etree
+
+        elem = etree.Element("rect", x="0", y="0", width="10", height="10")
+        elem.set("transform", "scale(2)")
+        bbox = bbox_of_element(elem, {})
+        assert bbox is not None
+        assert bbox.x == pytest.approx(0)
+        assert bbox.y == pytest.approx(0)
+        assert bbox.width == pytest.approx(20)
+        assert bbox.height == pytest.approx(20)
+
+    def test_rotate_90(self):
+        from lxml import etree
+
+        # A rect at (0,0) with w=10, h=5 rotated 90 degrees about origin
+        elem = etree.Element("rect", x="0", y="0", width="10", height="5")
+        elem.set("transform", "rotate(90)")
+        bbox = bbox_of_element(elem, {})
+        assert bbox is not None
+        # After 90° rotation: x goes from -5 to 0, y goes from 0 to 10
+        assert bbox.x == pytest.approx(-5, abs=0.01)
+        assert bbox.y == pytest.approx(0, abs=0.01)
+        assert bbox.width == pytest.approx(5, abs=0.01)
+        assert bbox.height == pytest.approx(10, abs=0.01)
+
+    def test_combined_transforms(self):
+        from lxml import etree
+
+        elem = etree.Element("rect", x="0", y="0", width="10", height="10")
+        elem.set("transform", "translate(50, 50) scale(2)")
+        bbox = bbox_of_element(elem, {})
+        assert bbox is not None
+        assert bbox.x == pytest.approx(50)
+        assert bbox.y == pytest.approx(50)
+        assert bbox.width == pytest.approx(20)
+        assert bbox.height == pytest.approx(20)
+
+    def test_parent_transform(self):
+        from lxml import etree
+
+        group = etree.Element("g")
+        group.set("transform", "translate(100, 100)")
+        child = etree.SubElement(group, "rect", x="10", y="10", width="20", height="20")
+        bbox = bbox_of_element(child, {})
+        assert bbox is not None
+        assert bbox.x == pytest.approx(110)
+        assert bbox.y == pytest.approx(110)
+        assert bbox.width == pytest.approx(20)
+        assert bbox.height == pytest.approx(20)
+
+    def test_nested_group_transforms(self):
+        from lxml import etree
+
+        outer = etree.Element("g")
+        outer.set("transform", "translate(50, 50)")
+        inner = etree.SubElement(outer, "g")
+        inner.set("transform", "translate(30, 30)")
+        child = etree.SubElement(inner, "rect", x="0", y="0", width="10", height="10")
+        bbox = bbox_of_element(child, {})
+        assert bbox is not None
+        assert bbox.x == pytest.approx(80)
+        assert bbox.y == pytest.approx(80)
+        assert bbox.width == pytest.approx(10)
+        assert bbox.height == pytest.approx(10)
+
+    def test_no_transform(self):
+        from lxml import etree
+
+        elem = etree.Element("rect", x="5", y="10", width="100", height="50")
+        bbox = bbox_of_element(elem, {})
+        assert bbox == BBox(5, 10, 100, 50)
+
+    def test_matrix_transform(self):
+        from lxml import etree
+
+        # matrix(1,0,0,1,10,20) is equivalent to translate(10,20)
+        elem = etree.Element("rect", x="0", y="0", width="10", height="10")
+        elem.set("transform", "matrix(1,0,0,1,10,20)")
+        bbox = bbox_of_element(elem, {})
+        assert bbox is not None
+        assert bbox.x == pytest.approx(10)
+        assert bbox.y == pytest.approx(20)
+        assert bbox.width == pytest.approx(10)
+        assert bbox.height == pytest.approx(10)
+
+    def test_skew_x(self):
+        from lxml import etree
+
+        elem = etree.Element("rect", x="0", y="0", width="10", height="10")
+        elem.set("transform", "skewX(45)")
+        bbox = bbox_of_element(elem, {})
+        assert bbox is not None
+        # skewX(45) shifts x by y*tan(45) = y, so top-right corner (10,0) stays at 10,
+        # bottom-right (10,10) shifts to x=20
+        assert bbox.x == pytest.approx(0, abs=0.01)
+        assert bbox.y == pytest.approx(0)
+        assert bbox.width == pytest.approx(20, abs=0.01)
+        assert bbox.height == pytest.approx(10)
+
+    def test_rotate_about_point(self):
+        from lxml import etree
+
+        # Rotate 180° about center (50, 50) of a 10x10 rect at (0,0)
+        elem = etree.Element("rect", x="40", y="40", width="10", height="10")
+        elem.set("transform", "rotate(180, 50, 50)")
+        bbox = bbox_of_element(elem, {})
+        assert bbox is not None
+        # After 180° rotation about (50,50), rect at (40,40)-(50,50) becomes (50,50)-(60,60)
+        assert bbox.x == pytest.approx(50, abs=0.01)
+        assert bbox.y == pytest.approx(50, abs=0.01)
+        assert bbox.width == pytest.approx(10)
+        assert bbox.height == pytest.approx(10)
+
+    def test_parse_translate_single_arg(self):
+        from pathy_svg.transform import _parse_transform
+        import numpy as np
+
+        m = _parse_transform("translate(10)")
+        expected = np.array([[1, 0, 10], [0, 1, 0], [0, 0, 1]], dtype=np.float64)
+        assert np.allclose(m, expected)
+
+    def test_parse_scale_single_arg(self):
+        from pathy_svg.transform import _parse_transform
+        import numpy as np
+
+        m = _parse_transform("scale(3)")
+        expected = np.array([[3, 0, 0], [0, 3, 0], [0, 0, 1]], dtype=np.float64)
+        assert np.allclose(m, expected)
+
+    def test_multiple_transforms(self):
+        from lxml import etree
+
+        elem = etree.Element("rect", x="0", y="0", width="5", height="5")
+        elem.set("transform", "translate(10, 10) rotate(45) scale(2)")
+        bbox = bbox_of_element(elem, {})
+        assert bbox is not None
+        # Should have some non-trivial bounding box
+        assert bbox.width > 0
+        assert bbox.height > 0

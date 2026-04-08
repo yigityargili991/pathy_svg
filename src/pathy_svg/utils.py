@@ -13,9 +13,6 @@ import copy
 import re
 
 
-# ---------------------------------------------------------------------------
-# Colour conversion helpers
-# ---------------------------------------------------------------------------
 
 
 def hex_to_rgb(hex_str: str) -> tuple[int, int, int]:
@@ -127,11 +124,9 @@ def parse_svg_color(color_str: str) -> tuple[int, int, int]:
     """
     s = color_str.strip().lower()
 
-    # --- hex ---
     if s.startswith("#"):
         return hex_to_rgb(s)
 
-    # --- rgb(...) ---
     m = re.fullmatch(r"rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)", s)
     if m:
         channels = (int(m.group(1)), int(m.group(2)), int(m.group(3)))
@@ -140,7 +135,6 @@ def parse_svg_color(color_str: str) -> tuple[int, int, int]:
                 raise ValueError(f"RGB channel out of range [0, 255]: {ch}")
         return channels
 
-    # --- hsl(...) ---
     m = re.fullmatch(
         r"hsl\(\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)%\s*,\s*(\d+(?:\.\d+)?)%\s*\)",
         s,
@@ -152,7 +146,6 @@ def parse_svg_color(color_str: str) -> tuple[int, int, int]:
         r_f, g_f, b_f = colorsys.hls_to_rgb(h, l, sl)
         return (round(r_f * 255), round(g_f * 255), round(b_f * 255))
 
-    # --- named colours via matplotlib ---
     try:
         import matplotlib.colors as mcolors
 
@@ -167,9 +160,6 @@ def parse_svg_color(color_str: str) -> tuple[int, int, int]:
     raise ValueError(f"Unrecognised SVG colour: {color_str!r}")
 
 
-# ---------------------------------------------------------------------------
-# Value normalisation / binning
-# ---------------------------------------------------------------------------
 
 
 def normalize_values(data: dict[str, float]) -> dict[str, float]:
@@ -231,9 +221,6 @@ def bin_values(data: dict[str, float], breaks: list[float]) -> dict[str, int]:
     return result
 
 
-# ---------------------------------------------------------------------------
-# Coordinate conversion
-# ---------------------------------------------------------------------------
 
 
 def viewbox_to_pixel(
@@ -271,10 +258,6 @@ def viewbox_to_pixel(
     return (px, py)
 
 
-# ---------------------------------------------------------------------------
-# SVGDocument-level operations
-# (SVGDocument imported locally to avoid circular imports)
-# ---------------------------------------------------------------------------
 
 
 def merge_svgs(svgs, layout: str = "horizontal", spacing: float = 20):
@@ -548,3 +531,35 @@ def extract_styles(doc):
         del elem.attrib["style"]
 
     return clone
+
+
+def dataframe_to_dict(df, id_col: str, value_col: str) -> dict[str, float]:
+    """Extract a data dict from a Pandas DataFrame.
+
+    Args:
+        df: A Pandas DataFrame.
+        id_col: Column name for element IDs.
+        value_col: Column name for numeric values.
+
+    Returns:
+        A dict mapping IDs to float values.
+
+    Raises:
+        ValueError: If required columns are missing from the DataFrame.
+
+    Examples:
+        >>> import pandas as pd
+        >>> df = pd.DataFrame({"id": ["a", "b"], "value": [1.0, 2.0]})
+        >>> dataframe_to_dict(df, "id", "value")
+        {"a": 1.0, "b": 2.0}
+    """
+    import pandas as pd
+
+    if id_col not in df.columns:
+        raise ValueError(f"Column '{id_col}' not found in DataFrame")
+    if value_col not in df.columns:
+        raise ValueError(f"Column '{value_col}' not found in DataFrame")
+    numeric = pd.to_numeric(df[value_col], errors="coerce")
+    valid = numeric.dropna()
+    return dict(zip(df.loc[valid.index, id_col].astype(str), valid))
+
