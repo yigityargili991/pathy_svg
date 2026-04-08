@@ -29,7 +29,13 @@ def _local_tag(tag: str) -> str:
     return tag
 
 
-def _set_fill(element: etree._Element, color: str, *, opacity: float | None = None, preserve_stroke: bool = True):
+def _set_fill(
+    element: etree._Element,
+    color: str,
+    *,
+    opacity: float | None = None,
+    preserve_stroke: bool = True,
+):
     """Set the fill color on an element, handling both style attr and fill attr."""
     style = element.get("style")
 
@@ -49,7 +55,9 @@ def _set_fill(element: etree._Element, color: str, *, opacity: float | None = No
 
     if opacity is not None and opacity < 1.0:
         if "fill-opacity:" in style:
-            style = re.sub(r"fill-opacity\s*:\s*[^;]+", f"fill-opacity:{opacity}", style)
+            style = re.sub(
+                r"fill-opacity\s*:\s*[^;]+", f"fill-opacity:{opacity}", style
+            )
         else:
             style += f";fill-opacity:{opacity}"
 
@@ -80,7 +88,25 @@ def apply_heatmap(
     color_missing: bool = True,
     clip: bool = True,
 ) -> ColorScale:
-    """Apply data-driven coloring to SVG elements. Modifies tree in-place."""
+    """Apply data-driven coloring to SVG elements. Modifies tree in-place.
+
+    Args:
+        tree: The lxml ElementTree representation of the SVG.
+        data: A dictionary mapping element IDs to numeric values.
+        palette: Name of a matplotlib colormap or a list of hex colors.
+        vmin: Minimum value for the color scale.
+        vmax: Maximum value for the color scale.
+        vcenter: Center value for diverging color scales.
+        na_color: Color to use for missing or NaN values.
+        breaks: List of boundary values for discrete color scales.
+        opacity: Opacity for the filled paths.
+        preserve_stroke: Whether to preserve original stroke styling.
+        color_missing: Whether to color paths that are not in the data with `na_color`.
+        clip: Whether to clip values outside the `vmin` and `vmax` bounds.
+
+    Returns:
+        The fitted ColorScale object used for coloring.
+    """
     if not data:
         return
 
@@ -136,7 +162,14 @@ def apply_recolor(
     opacity: float | None = None,
     preserve_stroke: bool = True,
 ) -> None:
-    """Apply manual color mapping to SVG elements. Modifies tree in-place."""
+    """Apply manual color mapping to SVG elements. Modifies tree in-place.
+
+    Args:
+        tree: The lxml ElementTree representation of the SVG.
+        colors: A dictionary mapping element IDs to hex color strings.
+        opacity: Opacity for the filled paths.
+        preserve_stroke: Whether to preserve original stroke styling.
+    """
     fill_kwargs = {"opacity": opacity, "preserve_stroke": preserve_stroke}
     id_to_elem = _build_id_index(tree)
 
@@ -159,7 +192,19 @@ def apply_categorical(
     opacity: float | None = None,
     preserve_stroke: bool = True,
 ) -> CategoricalPalette:
-    """Apply categorical coloring to SVG elements. Modifies tree in-place."""
+    """Apply categorical coloring to SVG elements. Modifies tree in-place.
+
+    Args:
+        tree: The lxml ElementTree representation of the SVG.
+        data: A dictionary mapping element IDs to categorical labels.
+        palette: A dictionary mapping categories to hex colors, or the name of a matplotlib colormap.
+        na_color: Color to use for missing or NaN categories.
+        opacity: Opacity for the filled paths.
+        preserve_stroke: Whether to preserve original stroke styling.
+
+    Returns:
+        The CategoricalPalette object used for coloring.
+    """
     cat_palette = CategoricalPalette(palette)
     fill_kwargs = {"opacity": opacity, "preserve_stroke": preserve_stroke}
     id_to_elem = _build_id_index(tree)

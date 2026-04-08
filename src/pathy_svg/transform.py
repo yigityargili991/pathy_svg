@@ -23,7 +23,17 @@ class BBox(NamedTuple):
 
 
 def parse_viewbox(attr: str) -> ViewBox:
-    """Parse an SVG viewBox attribute string into a ViewBox."""
+    """Parse an SVG viewBox attribute string into a ViewBox.
+
+    Args:
+        attr: The viewBox string (e.g., "0 0 500 500").
+
+    Returns:
+        A ViewBox instance.
+
+    Raises:
+        ValueError: If the attribute does not contain exactly 4 numbers.
+    """
     parts = re.split(r"[\s,]+", attr.strip())
     if len(parts) != 4:
         raise ValueError(f"Invalid viewBox: {attr!r}")
@@ -31,12 +41,29 @@ def parse_viewbox(attr: str) -> ViewBox:
 
 
 def centroid_of_bbox(bbox: BBox) -> tuple[float, float]:
-    """Return the center point of a bounding box."""
+    """Return the center point of a bounding box.
+
+    Args:
+        bbox: The bounding box to compute the centroid for.
+
+    Returns:
+        A tuple of (x, y) coordinates representing the center.
+    """
     return (bbox.x + bbox.width / 2, bbox.y + bbox.height / 2)
 
 
 def bbox_union(boxes: list[BBox]) -> BBox:
-    """Return the bounding box that encloses all given bounding boxes."""
+    """Return the bounding box that encloses all given bounding boxes.
+
+    Args:
+        boxes: A list of BBox instances.
+
+    Returns:
+        A single BBox enclosing all provided boxes.
+
+    Raises:
+        ValueError: If the boxes list is empty.
+    """
     if not boxes:
         raise ValueError("Cannot compute union of zero bounding boxes")
     xs = [b.x for b in boxes]
@@ -75,6 +102,12 @@ def bbox_from_path_d(d: str) -> BBox:
     Handles M, L, H, V, C, S, Q, T, Z commands (both absolute and relative).
     For curves, uses control points — slightly overestimates but sufficient
     for label placement and centroid calculation.
+
+    Args:
+        d: The SVG path 'd' attribute string.
+
+    Returns:
+        An approximate BBox for the path.
     """
     tokens = _tokenize_path_d(d)
     if not tokens:
@@ -218,7 +251,15 @@ def bbox_from_path_d(d: str) -> BBox:
 
 
 def bbox_of_element(element, nsmap: dict) -> BBox | None:
-    """Compute bounding box for an SVG element (path, rect, circle, etc.)."""
+    """Compute bounding box for an SVG element (path, rect, circle, etc.).
+
+    Args:
+        element: The lxml Element to compute the bounding box for.
+        nsmap: Namespace map to assist in local tag extraction.
+
+    Returns:
+        The computed BBox, or None if it cannot be computed.
+    """
     tag = _local_tag(element.tag)
 
     if tag == "path":

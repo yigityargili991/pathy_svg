@@ -13,6 +13,13 @@ class ColorScale:
     """Maps numeric values to hex colors using matplotlib colormaps and normalization.
 
     Supports continuous, diverging (with vcenter), and discrete (with breaks) modes.
+
+    Args:
+        palette: Name of a matplotlib colormap or a list of hex colors.
+        vmin: Minimum value for the color scale.
+        vmax: Maximum value for the color scale.
+        vcenter: Center value for diverging color scales.
+        breaks: List of boundary values for discrete color scales.
     """
 
     def __init__(
@@ -43,16 +50,18 @@ class ColorScale:
             # Discrete mode: BoundaryNorm
             self._norm = mcolors.BoundaryNorm(breaks, self._cmap.N)
         elif vcenter is not None:
-            self._norm = mcolors.TwoSlopeNorm(
-                vcenter=vcenter, vmin=vmin, vmax=vmax
-            )
+            self._norm = mcolors.TwoSlopeNorm(vcenter=vcenter, vmin=vmin, vmax=vmax)
         else:
             self._norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
 
     def fit(self, values: list[float] | np.ndarray) -> ColorScale:
         """Auto-set vmin/vmax from data if not explicitly provided.
 
-        Returns self for chaining.
+        Args:
+            values: A list or numpy array of numeric values to fit the scale to.
+
+        Returns:
+            The current ColorScale instance for method chaining.
         """
         arr = np.array(values, dtype=float)
         arr = arr[np.isfinite(arr)]
@@ -67,19 +76,37 @@ class ColorScale:
         return self
 
     def __call__(self, value: float) -> str:
-        """Map a single numeric value to a hex color string."""
+        """Map a single numeric value to a hex color string.
+
+        Args:
+            value: The numeric value to map.
+
+        Returns:
+            The corresponding hex color string from the scale, or the na_color if the value is NaN.
+        """
         if not np.isfinite(value):
             return "#cccccc"
         rgba = self._cmap(self._norm(value))
         return mcolors.to_hex(rgba)
 
     def map_values(self, values: dict[str, float]) -> dict[str, str]:
-        """Map a dict of {id: value} to {id: hex_color}."""
+        """Map a dict of {id: value} to {id: hex_color}.
+
+        Args:
+            values: A dictionary mapping identifiers to numeric values.
+
+        Returns:
+            A dictionary mapping the same identifiers to their corresponding hex color strings.
+        """
         return {k: self(v) for k, v in values.items()}
 
 
 class CategoricalPalette:
-    """Maps category labels to distinct colors."""
+    """Maps category labels to distinct colors.
+
+    Args:
+        palette: A dictionary mapping categories to hex colors, or the name of a matplotlib colormap.
+    """
 
     def __init__(
         self,
@@ -94,7 +121,17 @@ class CategoricalPalette:
             self._next_idx = 0
 
     def __call__(self, category: str) -> str:
-        """Get the hex color for a category. Auto-assigns colors if using a colormap."""
+        """Get the hex color for a category. Auto-assigns colors if using a colormap.
+
+        Args:
+            category: The category label to map to a color.
+
+        Returns:
+            The hex color string associated with the category.
+
+        Raises:
+            KeyError: If the category is unknown and a predefined dictionary mapping was provided instead of a colormap.
+        """
         if category in self._mapping:
             return self._mapping[category]
         if self._cmap is not None:

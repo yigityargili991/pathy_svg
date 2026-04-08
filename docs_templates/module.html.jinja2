@@ -1,0 +1,5 @@
+{% extends "default/module.html.jinja2" %}
+{% block title %}pathy-svg API Reference{% endblock %}
+{% block nav_members %}
+{{ super() | replace("API Documentation", "pathy-svg") }}
+{% endblock %}

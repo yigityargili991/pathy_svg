@@ -17,17 +17,26 @@ import re
 # Colour conversion helpers
 # ---------------------------------------------------------------------------
 
+
 def hex_to_rgb(hex_str: str) -> tuple[int, int, int]:
     """Convert a CSS hex colour string to an (R, G, B) int tuple.
 
     Supports both 6-digit (#rrggbb) and 3-digit (#rgb) shorthand forms.
     The leading ``#`` is optional.
 
-    Examples::
+    Args:
+        hex_str: The hex color string to convert.
 
-        hex_to_rgb("#ff0000")  # (255, 0, 0)
-        hex_to_rgb("#f00")     # (255, 0, 0)
-        hex_to_rgb("00ff00")   # (0, 255, 0)
+    Returns:
+        A tuple of (R, G, B) integers in the range [0, 255].
+
+    Raises:
+        ValueError: If the hex string is invalid.
+
+    Examples:
+        >>> hex_to_rgb("#ff0000")  # (255, 0, 0)
+        >>> hex_to_rgb("#f00")     # (255, 0, 0)
+        >>> hex_to_rgb("00ff00")   # (0, 255, 0)
     """
     h = hex_str.strip().lstrip("#")
     if len(h) == 3:
@@ -44,12 +53,22 @@ def hex_to_rgb(hex_str: str) -> tuple[int, int, int]:
 
 
 def rgb_to_hex(r: int, g: int, b: int) -> str:
-    """Convert (R, G, B) integers (0–255) to a lowercase CSS hex string.
+    """Convert (R, G, B) integers (0-255) to a lowercase CSS hex string.
 
-    Examples::
+    Args:
+        r: Red channel value (0-255).
+        g: Green channel value (0-255).
+        b: Blue channel value (0-255).
 
-        rgb_to_hex(255, 0, 0)    # "#ff0000"
-        rgb_to_hex(0, 128, 255)  # "#0080ff"
+    Returns:
+        A lowercase CSS hex string (e.g., "#ff0000").
+
+    Raises:
+        ValueError: If any channel is out of the range [0, 255].
+
+    Examples:
+        >>> rgb_to_hex(255, 0, 0)    # "#ff0000"
+        >>> rgb_to_hex(0, 128, 255)  # "#0080ff"
     """
     for name, val in (("r", r), ("g", g), ("b", b)):
         if not (0 <= val <= 255):
@@ -60,20 +79,16 @@ def rgb_to_hex(r: int, g: int, b: int) -> str:
 def interpolate_color(color1: str, color2: str, t: float) -> str:
     """Linearly interpolate between two hex colours.
 
-    Parameters
-    ----------
-    color1:
-        Starting colour (hex string, e.g. ``"#ff0000"``).
-    color2:
-        Ending colour (hex string).
-    t:
-        Interpolation factor in [0, 1].  ``t=0`` returns *color1*,
-        ``t=1`` returns *color2*.
+    Args:
+        color1: Starting colour (hex string, e.g. ``"#ff0000"``).
+        color2: Ending colour (hex string).
+        t: Interpolation factor in [0, 1]. ``t=0`` returns *color1*, ``t=1`` returns *color2*.
 
-    Returns
-    -------
-    str
+    Returns:
         Interpolated colour as a lowercase hex string.
+
+    Raises:
+        ValueError: If t is not in [0, 1].
     """
     if not (0.0 <= t <= 1.0):
         raise ValueError(f"Interpolation factor t must be in [0, 1], got {t}")
@@ -89,19 +104,26 @@ def parse_svg_color(color_str: str) -> tuple[int, int, int]:
     """Parse a CSS/SVG colour string into an (R, G, B) int tuple.
 
     Supported formats:
-
     * Hex: ``"#rrggbb"`` or ``"#rgb"``
     * RGB function: ``"rgb(255, 0, 0)"``
     * HSL function: ``"hsl(0, 100%, 50%)"``
     * Named colours: ``"red"``, ``"blue"``, ``"transparent"``, etc.
-      (all 140 CSS named colours via :mod:`matplotlib.colors`).
+      (all 140 CSS named colours via `matplotlib.colors`).
 
-    Examples::
+    Args:
+        color_str: The SVG color string to parse.
 
-        parse_svg_color("red")              # (255, 0, 0)
-        parse_svg_color("#00ff00")          # (0, 255, 0)
-        parse_svg_color("rgb(0, 0, 255)")   # (0, 0, 255)
-        parse_svg_color("hsl(120, 100%, 50%)")  # (0, 255, 0)
+    Returns:
+        A tuple of (R, G, B) integers in the range [0, 255].
+
+    Raises:
+        ValueError: If the SVG color string is unrecognized or invalid.
+
+    Examples:
+        >>> parse_svg_color("red")              # (255, 0, 0)
+        >>> parse_svg_color("#00ff00")          # (0, 255, 0)
+        >>> parse_svg_color("rgb(0, 0, 255)")   # (0, 0, 255)
+        >>> parse_svg_color("hsl(120, 100%, 50%)")  # (0, 255, 0)
     """
     s = color_str.strip().lower()
 
@@ -149,15 +171,20 @@ def parse_svg_color(color_str: str) -> tuple[int, int, int]:
 # Value normalisation / binning
 # ---------------------------------------------------------------------------
 
+
 def normalize_values(data: dict[str, float]) -> dict[str, float]:
     """Min-max normalise a dict of float values to the range [0, 1].
 
-    If all values are identical the function returns all zeros to avoid
-    division-by-zero.
+    If all values are identical the function returns all zeros to avoid division-by-zero.
 
-    Examples::
+    Args:
+        data: A dictionary mapping identifiers to numeric values.
 
-        normalize_values({"a": 0, "b": 5, "c": 10})
+    Returns:
+        A dictionary with the same keys, mapped to normalized values in [0, 1].
+
+    Examples:
+        >>> normalize_values({"a": 0, "b": 5, "c": 10})
         # {"a": 0.0, "b": 0.5, "c": 1.0}
     """
     if not data:
@@ -172,24 +199,24 @@ def normalize_values(data: dict[str, float]) -> dict[str, float]:
 
 
 def bin_values(data: dict[str, float], breaks: list[float]) -> dict[str, int]:
-    """Assign each value in *data* to a bin index defined by *breaks*.
+    """Assign each value in data to a bin index defined by breaks.
 
-    Bin indices are 0-based.  A value ``v`` falls into bin ``i`` when
-    ``breaks[i] <= v < breaks[i+1]``.  Values below the first break are
-    placed in bin 0; values at or above the last break are placed in the
-    last bin.
+    Bin indices are 0-based. A value ``v`` falls into bin ``i`` when
+    ``breaks[i] <= v < breaks[i+1]``. Values below the first break are
+    placed in bin 0; values at or above the last break are placed in the last bin.
 
-    Parameters
-    ----------
-    data:
-        Mapping of key -> numeric value.
-    breaks:
-        Ordered sequence of N boundary values that define N-1 bins.  Must
-        contain at least two elements.
+    Args:
+        data: Mapping of key to numeric value.
+        breaks: Ordered sequence of boundary values that define bins. Must contain at least two elements.
 
-    Examples::
+    Returns:
+        A dictionary mapping the same keys to integer bin indices.
 
-        bin_values({"a": 1, "b": 5, "c": 9}, [0, 3, 6, 10])
+    Raises:
+        ValueError: If breaks contains fewer than two values.
+
+    Examples:
+        >>> bin_values({"a": 1, "b": 5, "c": 9}, [0, 3, 6, 10])
         # {"a": 0, "b": 1, "c": 2}
     """
     if len(breaks) < 2:
@@ -208,6 +235,7 @@ def bin_values(data: dict[str, float], breaks: list[float]) -> dict[str, int]:
 # Coordinate conversion
 # ---------------------------------------------------------------------------
 
+
 def viewbox_to_pixel(
     vb_x: float,
     vb_y: float,
@@ -217,25 +245,22 @@ def viewbox_to_pixel(
 ) -> tuple[float, float]:
     """Convert viewBox-relative coordinates to pixel coordinates.
 
-    Parameters
-    ----------
-    vb_x, vb_y:
-        Point in viewBox coordinate space.
-    viewbox:
-        A :class:`~pathy_svg.transform.ViewBox` (or any 4-tuple
-        ``(x, y, width, height)``) describing the viewBox.
-    width_px, height_px:
-        Pixel dimensions of the rendered SVG.
+    Args:
+        vb_x: X coordinate in viewBox space.
+        vb_y: Y coordinate in viewBox space.
+        viewbox: A ViewBox object or a 4-tuple (x, y, width, height) describing the viewBox.
+        width_px: Pixel width of the rendered SVG.
+        height_px: Pixel height of the rendered SVG.
 
-    Returns
-    -------
-    tuple[float, float]
-        ``(pixel_x, pixel_y)``
+    Returns:
+        A tuple of (pixel_x, pixel_y) coordinates.
 
-    Examples::
+    Raises:
+        ValueError: If viewBox width or height is zero.
 
-        from pathy_svg.transform import ViewBox
-        viewbox_to_pixel(250, 200, ViewBox(0, 0, 500, 400), 1000, 800)
+    Examples:
+        >>> from pathy_svg.transform import ViewBox
+        >>> viewbox_to_pixel(250, 200, ViewBox(0, 0, 500, 400), 1000, 800)
         # (500.0, 400.0)
     """
     vb_ox, vb_oy, vb_w, vb_h = viewbox[0], viewbox[1], viewbox[2], viewbox[3]
@@ -251,23 +276,20 @@ def viewbox_to_pixel(
 # (SVGDocument imported locally to avoid circular imports)
 # ---------------------------------------------------------------------------
 
+
 def merge_svgs(svgs, layout: str = "horizontal", spacing: float = 20):
     """Combine multiple SVGDocument instances into a single SVGDocument.
 
-    Parameters
-    ----------
-    svgs:
-        Iterable of :class:`~pathy_svg.document.SVGDocument` instances.
-    layout:
-        ``"horizontal"`` (side-by-side, default) or ``"vertical"``
-        (stacked top-to-bottom).
-    spacing:
-        Gap in viewBox units between adjacent SVGs.
+    Args:
+        svgs: Iterable of SVGDocument instances.
+        layout: "horizontal" (side-by-side) or "vertical" (stacked top-to-bottom).
+        spacing: Gap in viewBox units between adjacent SVGs.
 
-    Returns
-    -------
-    SVGDocument
-        A new document containing all inputs arranged according to *layout*.
+    Returns:
+        A new SVGDocument containing all inputs arranged according to layout.
+
+    Raises:
+        ValueError: If the svgs iterable is empty.
     """
     from pathy_svg.document import SVGDocument
     from lxml import etree
@@ -332,25 +354,20 @@ def strip_metadata(doc):
     """Return a new SVGDocument with Inkscape/Illustrator namespace elements removed.
 
     Removes elements from these namespaces:
+    * `sodipodi:*`
+    * `inkscape:*`
+    * `dc:*`
+    * `cc:*`
+    * `rdf:*`
+    * `<metadata>` elements
 
-    * ``sodipodi:*``
-    * ``inkscape:*``
-    * ``dc:*``
-    * ``cc:*``
-    * ``rdf:*``
-    * ``<metadata>`` elements
+    Also strips the corresponding `xmlns:` declarations from the root.
 
-    Also strips the corresponding ``xmlns:…`` declarations from the root.
+    Args:
+        doc: The SVGDocument to process.
 
-    Parameters
-    ----------
-    doc:
-        A :class:`~pathy_svg.document.SVGDocument`.
-
-    Returns
-    -------
-    SVGDocument
-        A new document without the cruft.
+    Returns:
+        A new SVGDocument without the metadata elements.
     """
     from pathy_svg.document import SVGDocument
     from lxml import etree
@@ -407,22 +424,17 @@ def optimize_svg(doc):
     """Return a new SVGDocument with XML comments removed and whitespace collapsed.
 
     Specifically:
-
-    * Removes all XML comment nodes (``<!-- … -->``)
+    * Removes all XML comment nodes (`<!-- ... -->`)
     * Strips leading/trailing whitespace from text content in elements
     * Removes elements that are completely empty and carry no attributes
-      (excluding ``<defs>``, ``<g>``, ``<svg>`` which may be intentionally
+      (excluding `<defs>`, `<g>`, `<svg>` which may be intentionally
       empty containers).
 
-    Parameters
-    ----------
-    doc:
-        A :class:`~pathy_svg.document.SVGDocument`.
+    Args:
+        doc: The SVGDocument to optimize.
 
-    Returns
-    -------
-    SVGDocument
-        A new optimised document.
+    Returns:
+        A new optimized SVGDocument.
     """
     from pathy_svg.document import SVGDocument
     from lxml import etree
@@ -472,23 +484,18 @@ def optimize_svg(doc):
 
 
 def extract_styles(doc):
-    """Pull inline ``style="..."`` attributes into a single ``<style>`` block.
+    """Pull inline `style="..."` attributes into a single `<style>` block.
 
     Each unique inline style string is assigned a generated class name
-    (``pathy-s0``, ``pathy-s1``, …).  The element's ``style`` attribute is
-    removed and replaced with a ``class`` attribute referencing the generated
-    class.  A ``<style>`` element is inserted into ``<defs>`` (created if
-    absent).
+    (`pathy-s0`, `pathy-s1`, ...). The element's `style` attribute is
+    removed and replaced with a `class` attribute referencing the generated
+    class. A `<style>` element is inserted into `<defs>` (created if absent).
 
-    Parameters
-    ----------
-    doc:
-        A :class:`~pathy_svg.document.SVGDocument`.
+    Args:
+        doc: The SVGDocument to process.
 
-    Returns
-    -------
-    SVGDocument
-        A new document with a ``<style>`` block in ``<defs>``.
+    Returns:
+        A new SVGDocument with a `<style>` block in `<defs>`.
     """
     from pathy_svg.document import SVGDocument
     from lxml import etree

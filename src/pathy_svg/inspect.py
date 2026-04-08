@@ -18,7 +18,18 @@ def _local_tag(tag: str) -> str:
 
 @dataclass(frozen=True)
 class PathInfo:
-    """Detailed info about a single SVG element."""
+    """Detailed info about a single SVG element.
+
+    Args:
+        id: The element's ID.
+        tag: The element's local tag name (e.g., 'path', 'g').
+        bbox: The bounding box of the element, if it could be calculated.
+        fill: The extracted fill color, if any.
+        stroke: The extracted stroke color, if any.
+        classes: List of CSS classes applied to the element.
+        parent_group: The ID of the parent <g> element, if any.
+        d_length: Length of the 'd' attribute string for paths.
+    """
 
     id: str
     tag: str
@@ -32,7 +43,13 @@ class PathInfo:
 
 @dataclass(frozen=True)
 class ValidationResult:
-    """Result of validating data IDs against SVG element IDs."""
+    """Result of validating data IDs against SVG element IDs.
+
+    Args:
+        matched: List of IDs present in both data and SVG.
+        unmatched: List of IDs present in data but not in SVG.
+        unused: List of IDs present in SVG but not in data.
+    """
 
     matched: list[str]
     unmatched: list[str]  # in data but not in SVG
@@ -84,7 +101,15 @@ def _get_parent_group_id(elem: etree._Element) -> str | None:
 
 
 def inspect_paths(tree: etree._ElementTree, nsmap: dict) -> list[PathInfo]:
-    """Return detailed info about all elements with IDs in the SVG."""
+    """Return detailed info about all elements with IDs in the SVG.
+
+    Args:
+        tree: The ElementTree of the SVG.
+        nsmap: Namespace map of the document.
+
+    Returns:
+        A list of PathInfo objects describing each colorable element.
+    """
     colorable_tags = {"path", "rect", "circle", "ellipse", "polygon", "polyline"}
     results = []
 
@@ -116,7 +141,16 @@ def inspect_paths(tree: etree._ElementTree, nsmap: dict) -> list[PathInfo]:
 def validate_ids(
     tree: etree._ElementTree, nsmap: dict, ids: Iterable[str]
 ) -> ValidationResult:
-    """Check which data IDs match elements in the SVG."""
+    """Check which data IDs match elements in the SVG.
+
+    Args:
+        tree: The ElementTree of the SVG.
+        nsmap: Namespace map of the document.
+        ids: An iterable of IDs from the dataset.
+
+    Returns:
+        A ValidationResult containing matched, unmatched, and unused IDs.
+    """
     svg_ids = set()
     for elem in tree.iter():
         eid = elem.get("id")

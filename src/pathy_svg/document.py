@@ -11,7 +11,13 @@ from typing import TYPE_CHECKING
 from lxml import etree
 
 from pathy_svg.exceptions import PathNotFoundError, SVGParseError
-from pathy_svg.transform import BBox, ViewBox, bbox_of_element, centroid_of_bbox, parse_viewbox
+from pathy_svg.transform import (
+    BBox,
+    ViewBox,
+    bbox_of_element,
+    centroid_of_bbox,
+    parse_viewbox,
+)
 
 if TYPE_CHECKING:
     from os import PathLike
@@ -26,9 +32,18 @@ class SVGDocument:
     Supports method chaining: ``doc.heatmap(...).legend(...).save(...)``.
     """
 
-    __slots__ = ("_tree", "_nsmap", "_last_scale", "_last_heatmap_config", "_last_categorical_palette", "_id_index")
+    __slots__ = (
+        "_tree",
+        "_nsmap",
+        "_last_scale",
+        "_last_heatmap_config",
+        "_last_categorical_palette",
+        "_id_index",
+    )
 
-    def __init__(self, tree: etree._ElementTree, *, _nsmap: dict[str, str] | None = None):
+    def __init__(
+        self, tree: etree._ElementTree, *, _nsmap: dict[str, str] | None = None
+    ):
         self._tree = tree
         self._nsmap = _nsmap if _nsmap is not None else self._detect_namespaces()
         self._id_index = None
@@ -39,7 +54,18 @@ class SVGDocument:
 
     @classmethod
     def from_file(cls, path: str | PathLike) -> SVGDocument:
-        """Load from a local SVG file."""
+        """Load from a local SVG file.
+
+        Args:
+            path: Path to the local SVG file.
+
+        Returns:
+            A new SVGDocument instance parsed from the file.
+
+        Raises:
+            FileNotFoundError: If the file does not exist.
+            SVGParseError: If the SVG markup is invalid.
+        """
         path = Path(path)
         if not path.exists():
             raise FileNotFoundError(f"SVG file not found: {path}")
@@ -51,7 +77,17 @@ class SVGDocument:
 
     @classmethod
     def from_string(cls, svg: str | bytes) -> SVGDocument:
-        """Parse raw SVG markup."""
+        """Parse raw SVG markup.
+
+        Args:
+            svg: The SVG markup as a string or bytes.
+
+        Returns:
+            A new SVGDocument instance parsed from the string.
+
+        Raises:
+            SVGParseError: If the SVG markup is invalid.
+        """
         if isinstance(svg, str):
             svg = svg.encode("utf-8")
         try:
@@ -62,7 +98,15 @@ class SVGDocument:
 
     @classmethod
     def from_url(cls, url: str, *, timeout: float = 10.0) -> SVGDocument:
-        """Fetch and parse a remote SVG."""
+        """Fetch and parse a remote SVG.
+
+        Args:
+            url: The URL pointing to the SVG file.
+            timeout: Request timeout in seconds.
+
+        Returns:
+            A new SVGDocument instance parsed from the response.
+        """
         req = urllib.request.Request(url)
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             data = resp.read()
@@ -121,8 +165,12 @@ class SVGDocument:
     def metadata(self) -> dict[str, str | None]:
         """Title and description from the SVG, if present."""
         ns = self._svg_ns_prefix()
-        title_elem = self.root.find(f"{ns}title", self._nsmap) if ns else self.root.find("title")
-        desc_elem = self.root.find(f"{ns}desc", self._nsmap) if ns else self.root.find("desc")
+        title_elem = (
+            self.root.find(f"{ns}title", self._nsmap) if ns else self.root.find("title")
+        )
+        desc_elem = (
+            self.root.find(f"{ns}desc", self._nsmap) if ns else self.root.find("desc")
+        )
         return {
             "title": title_elem.text if title_elem is not None else None,
             "desc": desc_elem.text if desc_elem is not None else None,
@@ -154,9 +202,7 @@ class SVGDocument:
 
     def _find_all_by_tag(self, local_tag: str) -> list[etree._Element]:
         """Find all elements with a given local tag name (ignoring namespace)."""
-        return self._tree.xpath(
-            f"//*[local-name()='{local_tag}']"
-        )
+        return self._tree.xpath(f"//*[local-name()='{local_tag}']")
 
     def _ids_for_tag(self, local_tag: str) -> list[str]:
         """Get all IDs for elements with a given tag name."""
@@ -212,7 +258,13 @@ class SVGDocument:
             encoding="utf-8",
         )
 
-    def save(self, path: str | PathLike, *, pretty_print: bool = True, xml_declaration: bool = True) -> None:
+    def save(
+        self,
+        path: str | PathLike,
+        *,
+        pretty_print: bool = True,
+        xml_declaration: bool = True,
+    ) -> None:
         """Write the SVG to a file."""
         path = Path(path)
         path.write_bytes(
@@ -314,7 +366,24 @@ class SVGDocument:
         color_missing: bool = True,
         clip: bool = True,
     ) -> SVGDocument:
-        """Apply data-driven coloring to paths. Returns a new SVGDocument."""
+        """Apply data-driven coloring to paths.
+
+        Args:
+            data: Data dict mapping path IDs to numeric values.
+            palette: Name of a matplotlib colormap or a list of hex colors.
+            vmin: Minimum value for the color scale.
+            vmax: Maximum value for the color scale.
+            vcenter: Center value for diverging color scales.
+            na_color: Color to use for missing or NaN values.
+            breaks: List of boundary values for discrete color scales.
+            opacity: Opacity for the filled paths.
+            preserve_stroke: Whether to preserve original stroke styling.
+            color_missing: Whether to color paths that are not in the data with `na_color`.
+            clip: Whether to clip values outside the `vmin` and `vmax` bounds.
+
+        Returns:
+            A new SVGDocument with the heatmap applied.
+        """
         from pathy_svg.coloring import apply_heatmap
 
         clone = self._clone()
@@ -334,8 +403,11 @@ class SVGDocument:
         )
         clone._last_scale = scale
         clone._last_heatmap_config = {
-            "palette": palette, "vmin": vmin, "vmax": vmax,
-            "vcenter": vcenter, "breaks": breaks,
+            "palette": palette,
+            "vmin": vmin,
+            "vmax": vmax,
+            "vcenter": vcenter,
+            "breaks": breaks,
         }
         return clone
 
@@ -346,7 +418,16 @@ class SVGDocument:
         opacity: float | None = None,
         preserve_stroke: bool = True,
     ) -> SVGDocument:
-        """Apply manual color mapping to paths. Returns a new SVGDocument."""
+        """Apply manual color mapping to paths.
+
+        Args:
+            colors: A dictionary mapping path IDs to hex color strings.
+            opacity: Opacity for the filled paths.
+            preserve_stroke: Whether to preserve original stroke styling.
+
+        Returns:
+            A new SVGDocument with the updated colors applied.
+        """
         from pathy_svg.coloring import apply_recolor
 
         clone = self._clone()
@@ -364,13 +445,28 @@ class SVGDocument:
         opacity: float | None = None,
         preserve_stroke: bool = True,
     ) -> SVGDocument:
-        """Apply categorical coloring to paths. Returns a new SVGDocument."""
+        """Apply categorical coloring to paths.
+
+        Args:
+            data: A dictionary mapping path IDs to category labels.
+            palette: A dictionary mapping categories to colors, or the name of a matplotlib colormap.
+            na_color: Color to use for missing categories.
+            opacity: Opacity for the filled paths.
+            preserve_stroke: Whether to preserve original stroke styling.
+
+        Returns:
+            A new SVGDocument with the categorical coloring applied.
+        """
         from pathy_svg.coloring import apply_categorical
 
         clone = self._clone()
         cat_palette = apply_categorical(
-            clone._tree, data, palette=palette, na_color=na_color,
-            opacity=opacity, preserve_stroke=preserve_stroke,
+            clone._tree,
+            data,
+            palette=palette,
+            na_color=na_color,
+            opacity=opacity,
+            preserve_stroke=preserve_stroke,
         )
         clone._last_categorical_palette = cat_palette
         return clone
@@ -399,13 +495,36 @@ class SVGDocument:
         background: str | None = None,
         padding: float = 5,
     ) -> SVGDocument:
-        """Add a legend to the SVG. Returns a new SVGDocument."""
+        """Add a legend to the SVG.
+
+        Args:
+            kind: Type of legend to add ("auto", "gradient", "discrete", "categorical").
+            position: Relative (x, y) coordinates for the legend origin (0-1 range).
+            size: Relative (width, height) for the legend bounds (0-1 range).
+            direction: Legend orientation ("vertical" or "horizontal").
+            num_ticks: Number of ticks for continuous scales.
+            tick_format: Formatting string for the tick labels.
+            labels: Optional custom list of labels.
+            font_size: Font size for labels.
+            font_color: Font color for labels.
+            font_family: CSS font family.
+            title: Title for the legend.
+            title_size: Font size for the title.
+            border: Whether to draw a border around the legend.
+            border_color: Color of the legend border.
+            background: Background color of the legend area.
+            padding: Padding inside the legend area.
+
+        Returns:
+            A new SVGDocument containing the legend element.
+        """
         from pathy_svg.legend import build_discrete_legend, build_gradient_legend
 
         clone = self._clone()
         vb = clone.viewbox
         if vb is None:
             from pathy_svg.transform import ViewBox
+
             vb = ViewBox(0, 0, 500, 500)
 
         scale = getattr(self, "_last_scale", None)
@@ -421,64 +540,115 @@ class SVGDocument:
 
         if kind == "gradient" and scale is not None:
             legend_elem = build_gradient_legend(
-                scale, vb,
-                position=position, size=size, direction=direction,
-                num_ticks=num_ticks, tick_format=tick_format, labels=labels,
-                font_size=font_size, font_color=font_color, font_family=font_family,
-                title=title, title_size=title_size,
-                border=border, border_color=border_color,
-                background=background, padding=padding,
+                scale,
+                vb,
+                position=position,
+                size=size,
+                direction=direction,
+                num_ticks=num_ticks,
+                tick_format=tick_format,
+                labels=labels,
+                font_size=font_size,
+                font_color=font_color,
+                font_family=font_family,
+                title=title,
+                title_size=title_size,
+                border=border,
+                border_color=border_color,
+                background=background,
+                padding=padding,
             )
         elif kind in ("discrete", "categorical") and cat_pal is not None:
             colors = list(cat_pal.mapping.values())
             cat_labels = labels or list(cat_pal.mapping.keys())
             legend_elem = build_discrete_legend(
-                colors, cat_labels, vb,
-                position=position, size=size, direction=direction,
-                font_size=font_size, font_color=font_color, font_family=font_family,
-                title=title, title_size=title_size,
-                border=border, border_color=border_color,
+                colors,
+                cat_labels,
+                vb,
+                position=position,
+                size=size,
+                direction=direction,
+                font_size=font_size,
+                font_color=font_color,
+                font_family=font_family,
+                title=title,
+                title_size=title_size,
+                border=border,
+                border_color=border_color,
             )
         elif kind == "gradient":
             # Fallback: create a default scale
             from pathy_svg.themes import ColorScale
+
             fallback_scale = ColorScale("viridis", vmin=0, vmax=1)
             legend_elem = build_gradient_legend(
-                fallback_scale, vb,
-                position=position, size=size, direction=direction,
-                num_ticks=num_ticks, tick_format=tick_format, labels=labels,
-                font_size=font_size, font_color=font_color, font_family=font_family,
-                title=title, title_size=title_size,
-                border=border, border_color=border_color,
-                background=background, padding=padding,
+                fallback_scale,
+                vb,
+                position=position,
+                size=size,
+                direction=direction,
+                num_ticks=num_ticks,
+                tick_format=tick_format,
+                labels=labels,
+                font_size=font_size,
+                font_color=font_color,
+                font_family=font_family,
+                title=title,
+                title_size=title_size,
+                border=border,
+                border_color=border_color,
+                background=background,
+                padding=padding,
             )
         else:
             # Discrete with scale breaks
             if scale is not None and scale.breaks is not None:
                 breaks = scale.breaks
-                colors = [scale((breaks[i] + breaks[i + 1]) / 2) for i in range(len(breaks) - 1)]
+                colors = [
+                    scale((breaks[i] + breaks[i + 1]) / 2)
+                    for i in range(len(breaks) - 1)
+                ]
                 bin_labels = labels or [
-                    f"{tick_format.format(breaks[i])} – {tick_format.format(breaks[i+1])}"
+                    f"{tick_format.format(breaks[i])} – {tick_format.format(breaks[i + 1])}"
                     for i in range(len(breaks) - 1)
                 ]
                 legend_elem = build_discrete_legend(
-                    colors, bin_labels, vb,
-                    position=position, size=size, direction=direction,
-                    font_size=font_size, font_color=font_color, font_family=font_family,
-                    title=title, title_size=title_size,
-                    border=border, border_color=border_color,
+                    colors,
+                    bin_labels,
+                    vb,
+                    position=position,
+                    size=size,
+                    direction=direction,
+                    font_size=font_size,
+                    font_color=font_color,
+                    font_family=font_family,
+                    title=title,
+                    title_size=title_size,
+                    border=border,
+                    border_color=border_color,
                 )
             else:
                 from pathy_svg.themes import ColorScale
+
                 fallback_scale = ColorScale("viridis", vmin=0, vmax=1)
                 legend_elem = build_gradient_legend(
-                    fallback_scale, vb,
-                    position=position, size=size, direction=direction,
-                    num_ticks=num_ticks, tick_format=tick_format, labels=labels,
-                    font_size=font_size, font_color=font_color, font_family=font_family,
-                    title=title, title_size=title_size,
-                    border=border, border_color=border_color,
-                    background=background, padding=padding,
+                    fallback_scale,
+                    vb,
+                    position=position,
+                    size=size,
+                    direction=direction,
+                    num_ticks=num_ticks,
+                    tick_format=tick_format,
+                    labels=labels,
+                    font_size=font_size,
+                    font_color=font_color,
+                    font_family=font_family,
+                    title=title,
+                    title_size=title_size,
+                    border=border,
+                    border_color=border_color,
+                    background=background,
+                    padding=padding,
                 )
 
         clone.root.append(legend_elem)
@@ -500,12 +670,30 @@ class SVGDocument:
         vmax: float | None = None,
         **heatmap_kwargs,
     ) -> SVGDocument:
-        """Compute per-path differences and apply as a heatmap. Returns a new SVGDocument."""
+        """Compute per-path differences and apply as a heatmap.
+
+        Args:
+            baseline: Data dict for the baseline state.
+            treatment: Data dict for the treatment state.
+            mode: The difference mode ("delta", "percent", or "ratio").
+            palette: Name of a matplotlib diverging colormap or a list of hex colors.
+            vcenter: Center value for the diverging color scale (typically 0).
+            vmin: Minimum value for the color scale.
+            vmax: Maximum value for the color scale.
+            **heatmap_kwargs: Additional arguments passed to `heatmap`.
+
+        Returns:
+            A new SVGDocument with the diff heatmap applied.
+        """
         from pathy_svg.diff import compute_diff
 
         diff_data = compute_diff(baseline, treatment, mode=mode)
         return self.heatmap(
-            diff_data, palette=palette, vcenter=vcenter, vmin=vmin, vmax=vmax,
+            diff_data,
+            palette=palette,
+            vcenter=vcenter,
+            vmin=vmin,
+            vmax=vmax,
             **heatmap_kwargs,
         )
 
@@ -518,7 +706,18 @@ class SVGDocument:
         spacing: float = 20,
         **heatmap_kwargs,
     ) -> SVGDocument:
-        """Create side-by-side comparison of multiple datasets. Returns a new SVGDocument."""
+        """Create side-by-side comparison of multiple datasets.
+
+        Args:
+            datasets: A mapping of dataset names to data dicts.
+            palette: Name of a matplotlib colormap or a list of hex colors.
+            layout: Layout orientation ("horizontal" or "vertical").
+            spacing: Spacing between SVGs in viewBox units.
+            **heatmap_kwargs: Additional arguments passed to `heatmap`.
+
+        Returns:
+            A new merged SVGDocument containing the compared maps.
+        """
         from pathy_svg.diff import compose_side_by_side
 
         colored_docs = []
@@ -528,7 +727,10 @@ class SVGDocument:
             colored_docs.append(self.heatmap(data, palette=palette, **heatmap_kwargs))
 
         new_tree = compose_side_by_side(
-            colored_docs, titles=titles, layout=layout, spacing=spacing,
+            colored_docs,
+            titles=titles,
+            layout=layout,
+            spacing=spacing,
         )
         return SVGDocument(new_tree)
 
@@ -544,7 +746,17 @@ class SVGDocument:
         delay_by: str = "value",
         loop: bool = True,
     ) -> SVGDocument:
-        """Inject CSS animation into the SVG. Returns a new SVGDocument."""
+        """Inject CSS animation into the SVG.
+
+        Args:
+            effect: The animation effect to apply (e.g. "pulse").
+            duration: Animation duration in seconds.
+            delay_by: Strategy for stagger delays ("value" or None).
+            loop: Whether the animation should loop infinitely.
+
+        Returns:
+            A new SVGDocument with the CSS animation injected.
+        """
         from pathy_svg.animation import inject_animation
 
         clone = self._clone()
@@ -553,9 +765,13 @@ class SVGDocument:
             # Try to get ordered IDs from last heatmap
             data_order = None  # Would need stored data; use default for now
         inject_animation(
-            clone._tree, clone._nsmap,
-            effect=effect, duration=duration, delay_by=delay_by,
-            loop=loop, data_order=data_order,
+            clone._tree,
+            clone._nsmap,
+            effect=effect,
+            duration=duration,
+            delay_by=delay_by,
+            loop=loop,
+            data_order=data_order,
         )
         return clone
 
@@ -574,14 +790,33 @@ class SVGDocument:
         background: str | None = None,
         offset: tuple[float, float] = (0, 0),
     ) -> SVGDocument:
-        """Add text labels to paths. Returns a new SVGDocument."""
+        """Add text labels to paths.
+
+        Args:
+            labels: A dictionary mapping path IDs to text labels.
+            placement: Placement strategy for the text ("centroid" or other supported strategies).
+            font_size: Font size for the labels.
+            font_color: Font color for the labels.
+            font_family: CSS font-family string.
+            background: Optional background color for the text (creates a bounding box).
+            offset: An (x, y) tuple specifying offset for the text placement.
+
+        Returns:
+            A new SVGDocument with the text labels added.
+        """
         from pathy_svg.annotations import add_text_labels
 
         clone = self._clone()
         add_text_labels(
-            clone._tree, clone._nsmap, labels,
-            placement=placement, font_size=font_size, font_color=font_color,
-            font_family=font_family, background=background, offset=offset,
+            clone._tree,
+            clone._nsmap,
+            labels,
+            placement=placement,
+            font_size=font_size,
+            font_color=font_color,
+            font_family=font_family,
+            background=background,
+            offset=offset,
         )
         return clone
 
@@ -591,7 +826,15 @@ class SVGDocument:
         *,
         method: str = "title",
     ) -> SVGDocument:
-        """Add tooltips to paths. Returns a new SVGDocument."""
+        """Add tooltips to paths.
+
+        Args:
+            tips: A dictionary mapping path IDs to tooltip text.
+            method: The method to inject tooltips ("title" for `<title>` tags).
+
+        Returns:
+            A new SVGDocument with the tooltips injected.
+        """
         from pathy_svg.annotations import add_tooltips
 
         clone = self._clone()
@@ -604,7 +847,15 @@ class SVGDocument:
         *,
         text_color: str | None = None,
     ) -> SVGDocument:
-        """Replace text content in <text> elements. Returns a new SVGDocument."""
+        """Replace text content in <text> elements.
+
+        Args:
+            replacements: A dictionary mapping existing text content to new text.
+            text_color: Optional hex color string to apply to the modified text.
+
+        Returns:
+            A new SVGDocument with the text replaced.
+        """
         from pathy_svg.annotations import replace_text
 
         clone = self._clone()
@@ -616,28 +867,67 @@ class SVGDocument:
     # ------------------------------------------------------------------
 
     def to_png(self, path=None, **kwargs) -> bytes | None:
-        """Export to PNG. Requires pathy-svg[export]."""
+        """Export to PNG. Requires pathy-svg[export].
+
+        Args:
+            path: File path to save the PNG to. If None, returns the PNG bytes.
+            **kwargs: Additional parameters passed to `cairosvg.svg2png`.
+
+        Returns:
+            The exported PNG as bytes if `path` is None, otherwise `None`.
+        """
         from pathy_svg.export import to_png
+
         return to_png(self, path, **kwargs)
 
     def to_pdf(self, path=None) -> bytes | None:
-        """Export to PDF. Requires pathy-svg[export]."""
+        """Export to PDF. Requires pathy-svg[export].
+
+        Args:
+            path: File path to save the PDF to. If None, returns the PDF bytes.
+
+        Returns:
+            The exported PDF as bytes if `path` is None, otherwise `None`.
+        """
         from pathy_svg.export import to_pdf
+
         return to_pdf(self, path)
 
     def to_jpeg(self, path=None, **kwargs) -> bytes | None:
-        """Export to JPEG. Requires pathy-svg[export]."""
+        """Export to JPEG. Requires pathy-svg[export].
+
+        Args:
+            path: File path to save the JPEG to. If None, returns the JPEG bytes.
+            **kwargs: Additional parameters passed to `cairosvg.svg2png` and Pillow `Image.save`.
+
+        Returns:
+            The exported JPEG as bytes if `path` is None, otherwise `None`.
+        """
         from pathy_svg.export import to_jpeg
+
         return to_jpeg(self, path, **kwargs)
 
     def thumbnail(self, **kwargs):
-        """Return a PIL Image thumbnail. Requires pathy-svg[export]."""
+        """Return a PIL Image thumbnail. Requires pathy-svg[export].
+
+        Args:
+            **kwargs: Arguments passed to PIL Image.thumbnail (e.g. `size`).
+
+        Returns:
+            A PIL Image representing the SVG.
+        """
         from pathy_svg.export import thumbnail
+
         return thumbnail(self, **kwargs)
 
     def show(self, **kwargs):
-        """Display in Jupyter. Requires pathy-svg[full]."""
+        """Display in Jupyter. Requires pathy-svg[full].
+
+        Args:
+            **kwargs: Additional arguments passed to IPython display.
+        """
         from pathy_svg.export import show
+
         show(self, **kwargs)
 
     # ------------------------------------------------------------------

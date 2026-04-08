@@ -2,7 +2,12 @@
 
 
 class PathySVGError(Exception):
-    """Base exception for all pathy_svg errors."""
+    """Base exception for all pathy_svg errors.
+
+    Args:
+        message: The error message.
+        details: Optional dictionary containing context or additional details.
+    """
 
     def __init__(self, message: str, *, details: dict | None = None):
         super().__init__(message)
