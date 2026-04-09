@@ -4,7 +4,22 @@ from __future__ import annotations
 
 import copy
 
-from pathy_svg._constants import SVG_NS
+from pathy_svg._constants import SVG_NS, Layout, local_tag
+
+_CRUFT_NS = frozenset({
+    "http://sodipodi.sourceforge.net/DTD/sodipodi-0.0.dtd",
+    "http://www.inkscape.org/namespaces/inkscape",
+    "http://purl.org/dc/elements/1.1/",
+    "http://creativecommons.org/ns#",
+    "http://web.resource.org/cc/",
+    "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+})
+
+_METADATA_TAG = f"{{{SVG_NS}}}metadata"
+
+_KEEP_EMPTY = frozenset({
+    "defs", "g", "svg", "symbol", "marker", "clipPath", "mask", "pattern",
+})
 
 __all__ = [
     "viewbox_to_pixel",
@@ -42,7 +57,7 @@ def viewbox_to_pixel(
         >>> viewbox_to_pixel(250, 200, ViewBox(0, 0, 500, 400), 1000, 800)
         # (500.0, 400.0)
     """
-    vb_ox, vb_oy, vb_w, vb_h = viewbox[0], viewbox[1], viewbox[2], viewbox[3]
+    vb_ox, vb_oy, vb_w, vb_h = viewbox
     if vb_w == 0 or vb_h == 0:
         raise ValueError("viewBox width and height must be non-zero")
     px = (vb_x - vb_ox) / vb_w * width_px
@@ -50,7 +65,7 @@ def viewbox_to_pixel(
     return (px, py)
 
 
-def merge_svgs(svgs, layout: str = "horizontal", spacing: float = 20):
+def merge_svgs(svgs, layout: Layout = "horizontal", spacing: float = 20):
     """Combine multiple SVGDocument instances into a single SVGDocument.
 
     Args:
@@ -138,16 +153,6 @@ def strip_metadata(doc):
     from pathy_svg.document import SVGDocument
     from lxml import etree
 
-    CRUFT_NS = {
-        "http://sodipodi.sourceforge.net/DTD/sodipodi-0.0.dtd",
-        "http://www.inkscape.org/namespaces/inkscape",
-        "http://purl.org/dc/elements/1.1/",
-        "http://creativecommons.org/ns#",
-        "http://web.resource.org/cc/",
-        "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
-    }
-    METADATA_TAG = f"{{{SVG_NS}}}metadata"
-
     clone = doc._clone()
     root = clone.root
 
@@ -155,11 +160,11 @@ def strip_metadata(doc):
         tag = elem.tag
         if not isinstance(tag, str):
             return False
-        if tag == METADATA_TAG:
+        if tag == _METADATA_TAG:
             return True
         if tag.startswith("{"):
             ns = tag[1 : tag.index("}")]
-            return ns in CRUFT_NS
+            return ns in _CRUFT_NS
         return False
 
     def _strip_from(parent):
@@ -171,8 +176,8 @@ def strip_metadata(doc):
 
     _strip_from(root)
 
-    dirty_nsmap = {k: v for k, v in root.nsmap.items() if v not in CRUFT_NS}
-    if dirty_nsmap != dict(root.nsmap):
+    dirty_nsmap = {k: v for k, v in root.nsmap.items() if v not in _CRUFT_NS}
+    if len(dirty_nsmap) < len(root.nsmap):
         new_root = etree.Element(root.tag, attrib=dict(root.attrib), nsmap=dirty_nsmap)
         for child in root:
             new_root.append(copy.deepcopy(child))
@@ -198,14 +203,7 @@ def optimize_svg(doc):
     Returns:
         A new optimized SVGDocument.
     """
-    KEEP_EMPTY = {"defs", "g", "svg", "symbol", "marker", "clipPath", "mask", "pattern"}
-
     clone = doc._clone()
-
-    def _local(tag):
-        if isinstance(tag, str) and tag.startswith("{"):
-            return tag.split("}", 1)[1]
-        return tag if isinstance(tag, str) else ""
 
     def _optimize(parent):
         to_remove = []
@@ -214,19 +212,18 @@ def optimize_svg(doc):
                 to_remove.append(child)
                 continue
             _optimize(child)
-            if child.text and child.text.strip() == "":
+            if child.text is not None and not child.text.strip():
                 child.text = None
             elif child.text:
                 child.text = child.text.strip()
-            if child.tail and child.tail.strip() == "":
+            if child.tail is not None and not child.tail.strip():
                 child.tail = None
             elif child.tail:
                 child.tail = child.tail.strip()
-            local = _local(child.tag)
             if (
-                local not in KEEP_EMPTY
+                local_tag(child.tag) not in _KEEP_EMPTY
                 and len(child) == 0
-                and not dict(child.attrib)
+                and not child.attrib
                 and not (child.text or "").strip()
             ):
                 to_remove.append(child)

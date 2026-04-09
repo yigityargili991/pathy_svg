@@ -30,7 +30,7 @@ def to_png(
             output_height=height,
             dpi=dpi,
         )
-    except Exception as exc:
+    except (OSError, ValueError, RuntimeError) as exc:
         raise ExportError(f"PNG export failed: {exc}") from exc
 
     if path is not None:
@@ -48,7 +48,7 @@ def to_pdf(
     svg_bytes = doc.to_bytes()
     try:
         pdf_data = cairosvg.svg2pdf(bytestring=svg_bytes)
-    except Exception as exc:
+    except (OSError, ValueError, RuntimeError) as exc:
         raise ExportError(f"PDF export failed: {exc}") from exc
 
     if path is not None:
@@ -72,7 +72,8 @@ def to_jpeg(
     PIL = require_pillow()
     png_data = to_png(doc, width=width, height=height, dpi=dpi)
 
-    assert png_data is not None
+    if png_data is None:
+        raise ExportError("PNG rendering returned no data")
     img = PIL.Image.open(io.BytesIO(png_data))
     if img.mode == "RGBA":
         bg = PIL.Image.new("RGB", img.size, (255, 255, 255))
@@ -99,7 +100,8 @@ def thumbnail(
 
     PIL = require_pillow()
     png_data = to_png(doc, width=width)
-    assert png_data is not None
+    if png_data is None:
+        raise ExportError("PNG rendering returned no data")
     return PIL.Image.open(io.BytesIO(png_data))
 
 

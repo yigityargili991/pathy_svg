@@ -2,18 +2,20 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from lxml import etree
 
-from pathy_svg._constants import SVG_NS
+from pathy_svg._constants import COLORABLE_TAGS, SVG_NS
+
+AnimationEffect = Literal["pulse", "fade_in", "blink", "sequential"]
 
 
 def inject_animation(
     tree: etree._ElementTree,
-    nsmap: dict,
     *,
-    effect: str = "pulse",
+    effect: AnimationEffect = "pulse",
     duration: float = 2.0,
-    delay_by: str = "value",
     loop: bool = True,
     data_order: list[str] | None = None,
 ) -> None:
@@ -87,7 +89,7 @@ def inject_animation(
     else:
         raise ValueError(f"Unknown animation effect: {effect!r}")
 
-    # Apply to all colorable elements with fill set
-    css = f"{keyframes}\npath, rect, circle, ellipse, polygon {{ {rule} }}"
+    selector = ", ".join(sorted(COLORABLE_TAGS))
+    css = f"{keyframes}\n{selector} {{ {rule} }}"
     style = etree.SubElement(defs, f"{{{SVG_NS}}}style")
     style.text = css

@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import re
 
-import numpy as np
-
 from pathy_svg.transform import BBox
 
 _PATH_CMD_RE = re.compile(
@@ -171,7 +169,7 @@ def bbox_from_path_d(d: str) -> BBox:
     if not points:
         return BBox(0, 0, 0, 0)
 
-    arr = np.array(points)
-    x_min, y_min = arr.min(axis=0)
-    x_max, y_max = arr.max(axis=0)
-    return BBox(float(x_min), float(y_min), float(x_max - x_min), float(y_max - y_min))
+    xs, ys = zip(*points)
+    x_min, x_max = min(xs), max(xs)
+    y_min, y_max = min(ys), max(ys)
+    return BBox(x_min, y_min, x_max - x_min, y_max - y_min)

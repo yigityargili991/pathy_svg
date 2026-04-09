@@ -21,7 +21,6 @@ class ColoringMixin:
         opacity: float | None = None,
         preserve_stroke: bool = True,
         color_missing: bool = True,
-        clip: bool = True,
     ):
         """Apply data-driven coloring to paths.
 
@@ -36,7 +35,7 @@ class ColoringMixin:
             opacity: Opacity for the filled paths.
             preserve_stroke: Whether to preserve original stroke styling.
             color_missing: Whether to color paths that are not in the data with `na_color`.
-            clip: Whether to clip values outside the `vmin` and `vmax` bounds.
+
 
         Returns:
             A new SVGDocument with the heatmap applied.
@@ -56,17 +55,9 @@ class ColoringMixin:
             opacity=opacity,
             preserve_stroke=preserve_stroke,
             color_missing=color_missing,
-            clip=clip,
             id_to_elem=clone._element_index,
         )
         clone._last_scale = scale
-        clone._last_heatmap_config = {
-            "palette": palette,
-            "vmin": vmin,
-            "vmax": vmax,
-            "vcenter": vcenter,
-            "breaks": breaks,
-        }
         return clone
 
     def heatmap_from_dataframe(
@@ -84,7 +75,6 @@ class ColoringMixin:
         opacity: float | None = None,
         preserve_stroke: bool = True,
         color_missing: bool = True,
-        clip: bool = True,
     ):
         """Apply data-driven coloring from a Pandas DataFrame.
 
@@ -101,7 +91,7 @@ class ColoringMixin:
             opacity: Opacity for the filled paths.
             preserve_stroke: Whether to preserve original stroke styling.
             color_missing: Whether to color paths that are not in the data with `na_color`.
-            clip: Whether to clip values outside the `vmin` and `vmax` bounds.
+
 
         Returns:
             A new SVGDocument with the heatmap applied.
@@ -123,7 +113,6 @@ class ColoringMixin:
             opacity=opacity,
             preserve_stroke=preserve_stroke,
             color_missing=color_missing,
-            clip=clip,
         )
 
     def recolor(

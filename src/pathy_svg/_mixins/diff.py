@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from pathy_svg._constants import Layout
+from pathy_svg.diff import DiffMode
+
 
 class DiffMixin:
     """Diff and side-by-side comparison methods."""
@@ -13,7 +16,7 @@ class DiffMixin:
         baseline: dict[str, float],
         treatment: dict[str, float],
         *,
-        mode: str = "delta",
+        mode: DiffMode = "delta",
         palette: str | list[str] = "coolwarm",
         vcenter: float | None = 0,
         vmin: float | None = None,
@@ -25,7 +28,7 @@ class DiffMixin:
         Args:
             baseline: Data dict for the baseline state.
             treatment: Data dict for the treatment state.
-            mode: The difference mode ("delta", "percent", or "ratio").
+            mode: The difference mode ("delta", "ratio", "log2ratio", or "percent_change").
             palette: Name of a matplotlib diverging colormap or a list of hex colors.
             vcenter: Center value for the diverging color scale (typically 0).
             vmin: Minimum value for the color scale.
@@ -52,7 +55,7 @@ class DiffMixin:
         datasets: dict[str, dict[str, float]],
         *,
         palette: str | list[str] = "YlOrRd",
-        layout: str = "horizontal",
+        layout: Layout = "horizontal",
         spacing: float = 20,
         **heatmap_kwargs,
     ):

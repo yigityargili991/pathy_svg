@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import uuid
+from typing import Literal
 
 from lxml import etree
 
 from pathy_svg._constants import SVG_NS, svg_sub
 from pathy_svg.themes import CategoricalPalette, ColorScale
 from pathy_svg.transform import ViewBox
+
+Direction = Literal["vertical", "horizontal"]
+LegendKind = Literal["auto", "gradient", "discrete", "categorical"]
 
 
 def build_gradient_legend(
@@ -17,7 +21,7 @@ def build_gradient_legend(
     *,
     position: tuple[float, float] = (0.85, 0.1),
     size: tuple[float, float] = (0.04, 0.4),
-    direction: str = "vertical",
+    direction: Direction = "vertical",
     num_ticks: int = 5,
     tick_format: str = "{:.2f}",
     labels: list[str] | None = None,
@@ -153,7 +157,7 @@ def build_discrete_legend(
     *,
     position: tuple[float, float] = (0.85, 0.1),
     size: tuple[float, float] = (0.04, 0.4),
-    direction: str = "vertical",
+    direction: Direction = "vertical",
     font_size: float | None = None,
     font_color: str = "black",
     font_family: str = "sans-serif",
@@ -210,10 +214,10 @@ def build_discrete_legend(
 
 
 def resolve_legend_kind(
-    kind: str,
+    kind: LegendKind,
     scale: ColorScale | None,
     cat_pal: CategoricalPalette | None,
-) -> str:
+) -> LegendKind:
     """Resolve ``"auto"`` to a concrete legend kind.
 
     Raises:
@@ -236,14 +240,14 @@ def resolve_legend_kind(
 
 
 def build_legend(
-    kind: str,
+    kind: LegendKind,
     scale: ColorScale | None,
     cat_pal: CategoricalPalette | None,
     vb: ViewBox,
     *,
     position: tuple[float, float] = (0.85, 0.1),
     size: tuple[float, float] = (0.04, 0.4),
-    direction: str = "vertical",
+    direction: Direction = "vertical",
     num_ticks: int = 5,
     tick_format: str = "{:.2f}",
     labels: list[str] | None = None,

@@ -34,7 +34,6 @@ class SVGDocumentBase:
         "_tree",
         "_nsmap",
         "_last_scale",
-        "_last_heatmap_config",
         "_last_categorical_palette",
         "_id_index",
     )
@@ -45,7 +44,6 @@ class SVGDocumentBase:
         self._tree = tree
         self._nsmap = _nsmap if _nsmap is not None else self._detect_namespaces()
         self._last_scale = None
-        self._last_heatmap_config = None
         self._last_categorical_palette = None
         self._id_index = None
 
@@ -106,8 +104,7 @@ class SVGDocumentBase:
         """
         if not url.startswith(("http://", "https://")):
             raise ValueError("Only http and https URLs are supported")
-        req = urllib.request.Request(url)
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with urllib.request.urlopen(url, timeout=timeout) as resp:
             data = resp.read()
         return cls.from_string(data)
 
@@ -160,12 +157,7 @@ class SVGDocumentBase:
     @property
     def element_ids(self) -> list[str]:
         """All element IDs in the document."""
-        ids = []
-        for elem in self._tree.iter():
-            eid = elem.get("id")
-            if eid:
-                ids.append(eid)
-        return ids
+        return list(self._element_index.keys())
 
     @property
     def viewbox(self) -> ViewBox | None:
@@ -178,8 +170,8 @@ class SVGDocumentBase:
     @property
     def dimensions(self) -> tuple[float | None, float | None]:
         """(width, height) in pixels, or (None, None) if not set."""
-        w = self._parse_dimension(self.root.get("width"))
-        h = self._parse_dimension(self.root.get("height"))
+        w = _parse_dimension(self.root.get("width"))
+        h = _parse_dimension(self.root.get("height"))
         return (w, h)
 
     @property
@@ -224,12 +216,7 @@ class SVGDocumentBase:
 
     def _ids_for_tag(self, local_tag: str) -> list[str]:
         """Get all IDs for elements with a given tag name."""
-        ids = []
-        for elem in self._find_all_by_tag(local_tag):
-            eid = elem.get("id")
-            if eid:
-                ids.append(eid)
-        return ids
+        return [eid for elem in self._find_all_by_tag(local_tag) if (eid := elem.get("id"))]
 
     def bbox(self, element_id: str) -> BBox:
         """Get the bounding box of an element by ID."""
@@ -261,25 +248,27 @@ class SVGDocumentBase:
         """Check which data IDs match elements in the SVG."""
         from pathy_svg.inspect import validate_ids
 
-        return validate_ids(self._tree, self._nsmap, ids)
+        return validate_ids(self._tree, ids)
 
     def _clone(self):
         """Return a deep copy of this document."""
-        return type(self)(
+        new = type(self)(
             copy.deepcopy(self._tree),
             _nsmap=dict(self._nsmap),
         )
+        new._last_scale = self._last_scale
+        new._last_categorical_palette = self._last_categorical_palette
+        return new
 
     def _detect_namespaces(self) -> dict[str, str]:
         """Detect all XML namespaces from the root element."""
         root = self._tree.getroot()
-        nsmap = {}
-        if root.nsmap:
-            for prefix, uri in root.nsmap.items():
-                if prefix is None:
-                    nsmap["svg"] = uri
-                else:
-                    nsmap[prefix] = uri
+        if not root.nsmap:
+            return {"svg": SVG_NS}
+        nsmap = {
+            ("svg" if prefix is None else prefix): uri
+            for prefix, uri in root.nsmap.items()
+        }
         if "svg" not in nsmap and SVG_NS not in nsmap.values():
             nsmap["svg"] = SVG_NS
         return nsmap
@@ -291,12 +280,11 @@ class SVGDocumentBase:
                 return f"{prefix}:"
         return ""
 
-    @staticmethod
-    def _parse_dimension(val: str | None) -> float | None:
-        """Parse a dimension like '500', '500px', '50%' into a float (ignoring units)."""
-        if val is None:
-            return None
-        match = re.match(r"([+-]?\d*\.?\d+)", val.strip())
-        if match:
-            return float(match.group(1))
+
+
+def _parse_dimension(val: str | None) -> float | None:
+    """Parse a dimension like '500', '500px', '50%' into a float (ignoring units)."""
+    if val is None:
         return None
+    match = re.match(r"([+-]?\d*\.?\d+)", val.strip())
+    return float(match.group(1)) if match else None

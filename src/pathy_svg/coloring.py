@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import re
-
 import numpy as np
 from lxml import etree
 
 from pathy_svg._constants import COLORABLE_TAGS, build_id_index, local_tag
+from pathy_svg._css import set_style_property, style_property as _style_property
 from pathy_svg.exceptions import ColorScaleError
 from pathy_svg.themes import CategoricalPalette, ColorScale
 
@@ -20,60 +19,33 @@ def _set_fill(
     preserve_stroke: bool = True,
 ):
     """Set the fill color on an element, handling both style attr and fill attr."""
-    style = element.get("style")
-
     # Keep SVG presentation attributes aligned with CSS so renderers that
     # sanitize inline styles still preserve the intended fill color.
     element.set("fill", color)
     if opacity is not None and opacity < 1.0:
         element.set("fill-opacity", str(opacity))
 
-    if style is None:
-        if opacity is not None and opacity < 1.0:
-            style = f"fill:{color};fill-opacity:{opacity}"
-        else:
-            style = f"fill:{color}"
-    else:
-        if "fill:" in style or "fill :" in style:
-            style = re.sub(r"fill\s*:\s*[^;]+", f"fill:{color}", style)
-        else:
-            style = f"fill:{color};{style}"
-
-        if opacity is not None and opacity < 1.0:
-            if "fill-opacity:" in style:
-                style = re.sub(
-                    r"fill-opacity\s*:\s*[^;]+", f"fill-opacity:{opacity}", style
-                )
-            else:
-                style += f";fill-opacity:{opacity}"
-
+    style = set_style_property(element.get("style"), "fill", color)
+    if opacity is not None and opacity < 1.0:
+        style = set_style_property(style, "fill-opacity", str(opacity))
     if not preserve_stroke:
         element.set("stroke", "none")
-        if re.search(r"(?:^|;)\s*stroke\s*:", style):
-            style = re.sub(r"(?:^|(?<=;))\s*stroke\s*:\s*[^;]+", "stroke:none", style)
-        else:
-            style = f"{style};stroke:none"
+        style = set_style_property(style, "stroke", "none")
 
     element.set("style", style)
 
 
+def _colorable_children(element: etree._Element):
+    """Yield all colorable descendant elements of a group."""
+    for child in element.iter():
+        if child is not element and local_tag(child.tag) in COLORABLE_TAGS:
+            yield child
+
+
 def _set_fill_on_group(element: etree._Element, color: str, **kwargs):
     """Set fill on all colorable children of a group."""
-    for child in element.iter():
-        if child is element:
-            continue
-        if local_tag(child.tag) in COLORABLE_TAGS:
-            _set_fill(child, color, **kwargs)
-
-
-def _style_property(style: str | None, prop: str) -> str | None:
-    """Return a CSS property value from an inline style string."""
-    if not style:
-        return None
-    match = re.search(rf"(?:^|;)\s*{re.escape(prop)}\s*:\s*([^;]+)", style)
-    if match is None:
-        return None
-    return match.group(1).strip()
+    for child in _colorable_children(element):
+        _set_fill(child, color, **kwargs)
 
 
 def _has_explicit_none_fill(element: etree._Element) -> bool:
@@ -102,7 +74,6 @@ def apply_heatmap(
     opacity: float | None = None,
     preserve_stroke: bool = True,
     color_missing: bool = True,
-    clip: bool = True,
     id_to_elem: dict[str, etree._Element] | None = None,
 ) -> ColorScale | None:
     """Apply data-driven coloring to SVG elements. Modifies tree in-place.
@@ -119,7 +90,6 @@ def apply_heatmap(
         opacity: Opacity for the filled paths.
         preserve_stroke: Whether to preserve original stroke styling.
         color_missing: Whether to color paths that are not in the data with `na_color`.
-        clip: Whether to clip values outside the `vmin` and `vmax` bounds.
 
     Returns:
         The fitted ColorScale object used for coloring, or None if data is empty.
@@ -151,13 +121,10 @@ def apply_heatmap(
         else:
             color = na_color
         if local_tag(elem.tag) == "g":
-            for child in elem.iter():
-                if child is elem:
-                    continue
-                if local_tag(child.tag) in COLORABLE_TAGS:
-                    child_id = child.get("id")
-                    if child_id:
-                        protected_ids.add(child_id)
+            for child in _colorable_children(elem):
+                child_id = child.get("id")
+                if child_id:
+                    protected_ids.add(child_id)
             _set_fill_on_group(elem, color, **fill_kwargs)
         else:
             _set_fill(elem, color, **fill_kwargs)

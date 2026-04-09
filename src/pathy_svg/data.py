@@ -55,13 +55,11 @@ def bin_values(data: dict[str, float], breaks: list[float]) -> dict[str, int]:
     if len(breaks) < 2:
         raise ValueError("breaks must contain at least two values")
     sorted_breaks = sorted(breaks)
-    result: dict[str, int] = {}
     n_bins = len(sorted_breaks) - 1
-    for key, val in data.items():
-        idx = bisect.bisect_right(sorted_breaks, val) - 1
-        idx = max(0, min(idx, n_bins - 1))
-        result[key] = idx
-    return result
+    return {
+        key: max(0, min(bisect.bisect_right(sorted_breaks, val) - 1, n_bins - 1))
+        for key, val in data.items()
+    }
 
 
 def dataframe_to_dict(df, id_col: str, value_col: str) -> dict[str, float]:

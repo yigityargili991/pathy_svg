@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
-import re
+from typing import Literal
 
 from lxml import etree
 
 from pathy_svg._constants import SVG_NS, build_id_index, svg_sub
+from pathy_svg._css import set_style_property
 from pathy_svg.transform import bbox_of_element, centroid_of_bbox
+
+Placement = Literal["centroid", "above", "below", "bbox_corner"]
+TooltipMethod = Literal["title", "css"]
 
 
 def add_text_labels(
@@ -15,7 +19,7 @@ def add_text_labels(
     nsmap: dict,
     labels: dict[str, str],
     *,
-    placement: str = "centroid",
+    placement: Placement = "centroid",
     font_size: float = 12,
     font_color: str = "black",
     font_family: str = "sans-serif",
@@ -77,7 +81,7 @@ def add_tooltips(
     nsmap: dict,
     tips: dict[str, str],
     *,
-    method: str = "title",
+    method: TooltipMethod = "title",
 ) -> None:
     """Add tooltips to SVG elements. Modifies tree in-place.
 
@@ -169,7 +173,6 @@ def add_tooltips(
 
 def replace_text(
     tree: etree._ElementTree,
-    nsmap: dict,
     replacements: dict[str, str],
     *,
     text_color: str | None = None,
@@ -181,13 +184,6 @@ def replace_text(
             if elem.text and elem.text.strip() in replacements:
                 elem.text = replacements[elem.text.strip()]
                 if text_color:
-                    style = elem.get("style", "")
-                    if "fill:" in style:
-                        style = re.sub(r"fill:\s*[^;]+", f"fill:{text_color}", style)
-                    else:
-                        style = (
-                            f"fill:{text_color};{style}"
-                            if style
-                            else f"fill:{text_color}"
-                        )
-                    elem.set("style", style)
+                    elem.set("style", set_style_property(
+                        elem.get("style"), "fill", text_color,
+                    ))

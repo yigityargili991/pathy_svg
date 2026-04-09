@@ -4,54 +4,48 @@ from __future__ import annotations
 
 import copy
 import math
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable, Literal
 
 from lxml import etree
 
-from pathy_svg._constants import SVG_NS
+from pathy_svg._constants import SVG_NS, Layout
 from pathy_svg.transform import ViewBox
 
 if TYPE_CHECKING:
     from pathy_svg.document import SVGDocument
+
+DiffMode = Literal["delta", "ratio", "log2ratio", "percent_change"]
+
+_DIFF_OPS: dict[str, Callable[[float, float], float]] = {
+    "delta": lambda b, t: t - b,
+    "ratio": lambda b, t: t / b if b != 0 else float("inf"),
+    "log2ratio": lambda b, t: math.log2(t / b) if b > 0 and t > 0 else float("nan"),
+    "percent_change": lambda b, t: ((t - b) / b * 100) if b != 0 else float("inf"),
+}
 
 
 def compute_diff(
     baseline: dict[str, float],
     treatment: dict[str, float],
     *,
-    mode: str = "delta",
+    mode: DiffMode = "delta",
 ) -> dict[str, float]:
     """Compute per-key differences between two datasets.
 
     Modes: "delta" (t-b), "ratio" (t/b), "log2ratio" (log2(t/b)), "percent_change" ((t-b)/b * 100).
     """
-    common = set(baseline) & set(treatment)
-    result = {}
-
-    for k in common:
-        b, t = baseline[k], treatment[k]
-        if mode == "delta":
-            result[k] = t - b
-        elif mode == "ratio":
-            result[k] = t / b if b != 0 else float("inf")
-        elif mode == "log2ratio":
-            if b > 0 and t > 0:
-                result[k] = math.log2(t / b)
-            else:
-                result[k] = float("nan")
-        elif mode == "percent_change":
-            result[k] = ((t - b) / b * 100) if b != 0 else float("inf")
-        else:
-            raise ValueError(f"Unknown diff mode: {mode!r}")
-
-    return result
+    op = _DIFF_OPS.get(mode)
+    if op is None:
+        raise ValueError(f"Unknown diff mode: {mode!r}")
+    common = baseline.keys() & treatment.keys()
+    return {k: op(baseline[k], treatment[k]) for k in common}
 
 
 def compose_side_by_side(
     docs: list[SVGDocument],
     titles: list[str] | None = None,
     *,
-    layout: str = "horizontal",
+    layout: Layout = "horizontal",
     spacing: float = 20,
     title_size: float = 14,
 ) -> etree._ElementTree:

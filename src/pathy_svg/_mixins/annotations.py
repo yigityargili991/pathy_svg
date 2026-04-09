@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathy_svg.annotations import Placement, TooltipMethod
+
 
 class AnnotationMixin:
     """Annotate, tooltip, and text replacement methods."""
@@ -12,7 +14,7 @@ class AnnotationMixin:
         self,
         labels: dict[str, str],
         *,
-        placement: str = "centroid",
+        placement: Placement = "centroid",
         font_size: float = 12,
         font_color: str = "black",
         font_family: str = "sans-serif",
@@ -53,7 +55,7 @@ class AnnotationMixin:
         self,
         tips: dict[str, str],
         *,
-        method: str = "title",
+        method: TooltipMethod = "title",
     ):
         """Add tooltips to paths.
 
@@ -88,5 +90,5 @@ class AnnotationMixin:
         from pathy_svg.annotations import replace_text
 
         clone = self._clone()
-        replace_text(clone._tree, clone._nsmap, replacements, text_color=text_color)
+        replace_text(clone._tree, replacements, text_color=text_color)
         return clone

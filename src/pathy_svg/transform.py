@@ -69,16 +69,15 @@ def bbox_union(boxes: list[BBox]) -> BBox:
     """
     if not boxes:
         raise ValueError("Cannot compute union of zero bounding boxes")
-    xs = [b.x for b in boxes]
-    ys = [b.y for b in boxes]
-    x_min = min(xs)
-    y_min = min(ys)
+    x_min = min(b.x for b in boxes)
+    y_min = min(b.y for b in boxes)
     x_max = max(b.x + b.width for b in boxes)
     y_max = max(b.y + b.height for b in boxes)
     return BBox(x_min, y_min, x_max - x_min, y_max - y_min)
 
 
-# Re-export from path_parser for backward compatibility
+# Re-export: placed here (not at top) to break a circular import
+# (path_parser imports BBox from this module).
 from pathy_svg.path_parser import bbox_from_path_d as bbox_from_path_d  # noqa: E402
 
 
@@ -133,6 +132,19 @@ def bbox_of_element(
             rx = float(element.get("rx", 0))
             ry = float(element.get("ry", 0))
             box = BBox(cx - rx, cy - ry, 2 * rx, 2 * ry)
+    elif tag in ("polygon", "polyline"):
+        points_attr = element.get("points", "")
+        coords = re.split(r"[\s,]+", points_attr.strip())
+        if len(coords) >= 2:
+            floats = [float(c) for c in coords if c]
+            xs = floats[0::2]
+            ys = floats[1::2]
+            if xs and ys:
+                box = BBox(min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys))
+            else:
+                return None
+        else:
+            return None
     elif tag == "g":
         child_boxes = []
         for child in element:

@@ -1,5 +1,7 @@
 """Custom exception hierarchy for pathy_svg."""
 
+from __future__ import annotations
+
 
 class PathySVGError(Exception):
     """Base exception for all pathy_svg errors.

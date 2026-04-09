@@ -2,10 +2,19 @@
 
 from __future__ import annotations
 
+from pathy_svg.legend import Direction, LegendKind
+
 from lxml import etree
 
 from pathy_svg._constants import SVG_NS
 from pathy_svg.transform import ViewBox
+
+
+def _frange(start: float, stop: float, step: float):
+    """Yield floats from start to stop (inclusive) in fixed steps."""
+    n = int((stop - start) / step) + 1
+    for i in range(n):
+        yield start + i * step
 
 
 class LegendMixin:
@@ -16,10 +25,10 @@ class LegendMixin:
     def legend(
         self,
         *,
-        kind: str = "auto",
+        kind: LegendKind = "auto",
         position: tuple[float, float] = (0.85, 0.1),
         size: tuple[float, float] = (0.04, 0.4),
-        direction: str = "vertical",
+        direction: Direction = "vertical",
         num_ticks: int = 5,
         tick_format: str = "{:.2f}",
         labels: list[str] | None = None,
@@ -99,8 +108,7 @@ class LegendMixin:
         g = etree.SubElement(root, f"{{{ns}}}g" if ns else "g", id="pathy-guide")
         g.set("style", f"stroke:{color};stroke-width:0.5;fill:none;opacity:0.5")
 
-        x = vb.x
-        while x <= vb.x + vb.width:
+        for x in _frange(vb.x, vb.x + vb.width, step):
             line = etree.SubElement(g, f"{{{ns}}}line" if ns else "line")
             line.set("x1", str(x))
             line.set("y1", str(vb.y))
@@ -111,10 +119,8 @@ class LegendMixin:
             txt.set("y", str(vb.y + 12))
             txt.set("style", f"fill:{color};font-size:8px;stroke:none")
             txt.text = str(int(x))
-            x += step
 
-        y = vb.y
-        while y <= vb.y + vb.height:
+        for y in _frange(vb.y, vb.y + vb.height, step):
             line = etree.SubElement(g, f"{{{ns}}}line" if ns else "line")
             line.set("x1", str(vb.x))
             line.set("y1", str(y))
@@ -125,6 +131,5 @@ class LegendMixin:
             txt.set("y", str(y - 2))
             txt.set("style", f"fill:{color};font-size:8px;stroke:none")
             txt.text = str(int(y))
-            y += step
 
         return clone

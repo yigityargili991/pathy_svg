@@ -8,6 +8,7 @@ from typing import Iterable
 from lxml import etree
 
 from pathy_svg._constants import COLORABLE_TAGS, local_tag
+from pathy_svg._css import style_property
 from pathy_svg.transform import BBox, bbox_of_element
 
 
@@ -52,31 +53,17 @@ class ValidationResult:
 
     @property
     def is_valid(self) -> bool:
-        return len(self.unmatched) == 0
+        return not self.unmatched
 
 
 def _get_fill(elem: etree._Element) -> str | None:
     """Extract fill color from an element (style attr or fill attr)."""
-    style = elem.get("style", "")
-    if "fill:" in style:
-        import re
-
-        m = re.search(r"fill:\s*([^;]+)", style)
-        if m:
-            return m.group(1).strip()
-    return elem.get("fill")
+    return style_property(elem.get("style"), "fill") or elem.get("fill")
 
 
 def _get_stroke(elem: etree._Element) -> str | None:
     """Extract stroke color from an element."""
-    style = elem.get("style", "")
-    if "stroke:" in style:
-        import re
-
-        m = re.search(r"stroke:\s*([^;]+)", style)
-        if m:
-            return m.group(1).strip()
-    return elem.get("stroke")
+    return style_property(elem.get("style"), "stroke") or elem.get("stroke")
 
 
 def _get_classes(elem: etree._Element) -> list[str]:
@@ -133,29 +120,24 @@ def inspect_paths(tree: etree._ElementTree, nsmap: dict) -> list[PathInfo]:
 
 
 def validate_ids(
-    tree: etree._ElementTree, nsmap: dict, ids: Iterable[str]
+    tree: etree._ElementTree, ids: Iterable[str]
 ) -> ValidationResult:
     """Check which data IDs match elements in the SVG.
 
     Args:
         tree: The ElementTree of the SVG.
-        nsmap: Namespace map of the document.
         ids: An iterable of IDs from the dataset.
 
     Returns:
         A ValidationResult containing matched, unmatched, and unused IDs.
     """
-    svg_ids = set()
-    for elem in tree.iter():
-        eid = elem.get("id")
-        if eid:
-            svg_ids.add(eid)
+    svg_ids = {eid for elem in tree.iter() if (eid := elem.get("id"))}
 
     data_ids = list(ids)
     data_set = set(data_ids)
-
-    matched = [i for i in data_ids if i in svg_ids]
-    unmatched = [i for i in data_ids if i not in svg_ids]
+    matched, unmatched = [], []
+    for i in data_ids:
+        (matched if i in svg_ids else unmatched).append(i)
     unused = sorted(svg_ids - data_set)
 
     return ValidationResult(matched=matched, unmatched=unmatched, unused=unused)

@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import csv
+import logging
 import sys
 from pathlib import Path
 
 import click
+
+logger = logging.getLogger(__name__)
 
 
 @click.group()
@@ -178,13 +181,21 @@ def _read_csv_data(path: Path, id_col: str, value_col: str) -> dict[str, float]:
     """Read a CSV/TSV and return {id: value} dict."""
     delimiter = "\t" if path.suffix in (".tsv", ".tab") else ","
     data = {}
-    with open(path) as f:
+    skipped = 0
+    with path.open(encoding="utf-8") as f:
         reader = csv.DictReader(f, delimiter=delimiter)
+        if reader.fieldnames and id_col not in reader.fieldnames:
+            raise click.BadParameter(f"Column '{id_col}' not found in {path}")
+        if reader.fieldnames and value_col not in reader.fieldnames:
+            raise click.BadParameter(f"Column '{value_col}' not found in {path}")
         for row in reader:
             try:
                 data[row[id_col]] = float(row[value_col])
-            except (KeyError, ValueError):
+            except ValueError:
+                skipped += 1
                 continue
+    if skipped:
+        logger.warning("Skipped %d rows with non-numeric values in %s", skipped, path)
     return data
 
 
@@ -199,10 +210,6 @@ def _read_ids(path: str, id_col: str) -> list[str]:
     """Read a CSV/TSV and return list of IDs."""
     p = Path(path)
     delimiter = "\t" if p.suffix in (".tsv", ".tab") else ","
-    ids = []
-    with open(p) as f:
+    with p.open(encoding="utf-8") as f:
         reader = csv.DictReader(f, delimiter=delimiter)
-        for row in reader:
-            if id_col in row:
-                ids.append(row[id_col])
-    return ids
+        return [row[id_col] for row in reader if id_col in row]

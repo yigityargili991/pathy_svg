@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, fields
+from dataclasses import asdict, dataclass
 
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
@@ -169,27 +169,30 @@ class ThemePreset:
     preserve_stroke: bool = True
 
     def to_dict(self) -> dict:
-        return {f.name: getattr(self, f.name) for f in fields(self)}
+        return asdict(self)
 
 
-class _MedicalThemes:
-    sequential = ThemePreset(palette="YlOrRd")
-    diverging = ThemePreset(palette="RdBu_r")
-    categorical = ThemePreset(palette="Set2")
+@dataclass(frozen=True)
+class MedicalThemes:
+    sequential: ThemePreset = ThemePreset(palette="YlOrRd")
+    diverging: ThemePreset = ThemePreset(palette="RdBu_r")
+    categorical: ThemePreset = ThemePreset(palette="Set2")
 
 
-class _GeographicThemes:
-    choropleth = ThemePreset(palette="YlGnBu")
-    density = ThemePreset(palette="hot_r")
-    categorical = ThemePreset(palette="tab20")
+@dataclass(frozen=True)
+class GeographicThemes:
+    choropleth: ThemePreset = ThemePreset(palette="YlGnBu")
+    density: ThemePreset = ThemePreset(palette="hot_r")
+    categorical: ThemePreset = ThemePreset(palette="tab20")
 
 
-class _HeatmapClassicThemes:
-    red_blue = ThemePreset(palette="RdYlBu_r")
-    viridis = ThemePreset(palette="viridis")
-    hot_cold = ThemePreset(palette="coolwarm")
+@dataclass(frozen=True)
+class HeatmapClassicThemes:
+    red_blue: ThemePreset = ThemePreset(palette="RdYlBu_r")
+    viridis: ThemePreset = ThemePreset(palette="viridis")
+    hot_cold: ThemePreset = ThemePreset(palette="coolwarm")
 
 
-medical = _MedicalThemes()
-geographic = _GeographicThemes()
-heatmap_classic = _HeatmapClassicThemes()
+medical = MedicalThemes()
+geographic = GeographicThemes()
+heatmap_classic = HeatmapClassicThemes()

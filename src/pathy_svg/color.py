@@ -5,6 +5,8 @@ from __future__ import annotations
 import colorsys
 import re
 
+import matplotlib.colors as _mcolors
+
 
 def hex_to_rgb(hex_str: str) -> tuple[int, int, int]:
     """Convert a CSS hex colour string to an (R, G, B) int tuple.
@@ -32,11 +34,9 @@ def hex_to_rgb(hex_str: str) -> tuple[int, int, int]:
     if len(h) != 6:
         raise ValueError(f"Invalid hex colour: {hex_str!r}")
     try:
-        r = int(h[0:2], 16)
-        g = int(h[2:4], 16)
-        b = int(h[4:6], 16)
-    except ValueError:
-        raise ValueError(f"Invalid hex colour: {hex_str!r}")
+        r, g, b = bytes.fromhex(h)
+    except ValueError as exc:
+        raise ValueError(f"Invalid hex colour: {hex_str!r}") from exc
     return (r, g, b)
 
 
@@ -61,7 +61,7 @@ def rgb_to_hex(r: int, g: int, b: int) -> str:
     for name, val in (("r", r), ("g", g), ("b", b)):
         if not (0 <= val <= 255):
             raise ValueError(f"Channel {name} out of range [0, 255]: {val}")
-    return f"#{round(r):02x}{round(g):02x}{round(b):02x}"
+    return f"#{r:02x}{g:02x}{b:02x}"
 
 
 def interpolate_color(color1: str, color2: str, t: float) -> str:
@@ -120,11 +120,11 @@ def parse_svg_color(color_str: str) -> tuple[int, int, int]:
 
     m = re.fullmatch(r"rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)", s)
     if m:
-        channels = (int(m.group(1)), int(m.group(2)), int(m.group(3)))
-        for ch in channels:
+        r, g, b = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        for ch in (r, g, b):
             if not (0 <= ch <= 255):
                 raise ValueError(f"RGB channel out of range [0, 255]: {ch}")
-        return channels
+        return (r, g, b)
 
     m = re.fullmatch(
         r"hsl\(\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)%\s*,\s*(\d+(?:\.\d+)?)%\s*\)",
@@ -138,9 +138,7 @@ def parse_svg_color(color_str: str) -> tuple[int, int, int]:
         return (round(r_f * 255), round(g_f * 255), round(b_f * 255))
 
     try:
-        import matplotlib.colors as mcolors
-
-        rgba = mcolors.to_rgba(s)
+        rgba = _mcolors.to_rgba(s)
         r = round(rgba[0] * 255)
         g = round(rgba[1] * 255)
         b = round(rgba[2] * 255)
