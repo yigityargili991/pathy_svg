@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import uuid
 
-import matplotlib.colors as mcolors
 from lxml import etree
 
 from pathy_svg.themes import ColorScale
@@ -84,8 +83,8 @@ def build_gradient_legend(
 
     # Add color stops
     n_stops = 20
-    vmin = scale._norm.vmin if hasattr(scale._norm, "vmin") else 0
-    vmax = scale._norm.vmax if hasattr(scale._norm, "vmax") else 1
+    vmin = float(scale._norm.vmin or 0) if hasattr(scale._norm, "vmin") else 0.0
+    vmax = float(scale._norm.vmax or 1) if hasattr(scale._norm, "vmax") else 1.0
     for i in range(n_stops + 1):
         t = i / n_stops
         val = vmin + t * (vmax - vmin)

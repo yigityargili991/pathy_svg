@@ -37,28 +37,28 @@ def inject_animation(
 
     if effect == "pulse":
         keyframes = (
-            f"@keyframes pathy-pulse {{"
-            f"  0%, 100% {{ transform: scale(1); transform-origin: center; }}"
-            f"  50% {{ transform: scale(1.05); transform-origin: center; }}"
-            f"}}"
+            "@keyframes pathy-pulse {"
+            "  0%, 100% { transform: scale(1); transform-origin: center; }"
+            "  50% { transform: scale(1.05); transform-origin: center; }"
+            "}"
         )
         rule = f"animation: pathy-pulse {duration}s ease-in-out {iteration};"
 
     elif effect == "fade_in":
         keyframes = (
-            f"@keyframes pathy-fade {{"
-            f"  0% {{ opacity: 0; }}"
-            f"  100% {{ opacity: 1; }}"
-            f"}}"
+            "@keyframes pathy-fade {"
+            "  0% { opacity: 0; }"
+            "  100% { opacity: 1; }"
+            "}"
         )
         rule = f"animation: pathy-fade {duration}s ease-in {iteration};"
 
     elif effect == "blink":
         keyframes = (
-            f"@keyframes pathy-blink {{"
-            f"  0%, 100% {{ opacity: 1; }}"
-            f"  50% {{ opacity: 0.2; }}"
-            f"}}"
+            "@keyframes pathy-blink {"
+            "  0%, 100% { opacity: 1; }"
+            "  50% { opacity: 0.2; }"
+            "}"
         )
         rule = f"animation: pathy-blink {duration}s step-start {iteration};"
 
@@ -67,11 +67,11 @@ def inject_animation(
         if data_order:
             n = len(data_order)
             keyframes = (
-                f"@keyframes pathy-seq {{"
-                f"  0% {{ opacity: 0; }}"
-                f"  10% {{ opacity: 1; }}"
-                f"  100% {{ opacity: 1; }}"
-                f"}}"
+                "@keyframes pathy-seq {"
+                "  0% { opacity: 0; }"
+                "  10% { opacity: 1; }"
+                "  100% { opacity: 1; }"
+                "}"
             )
             css_parts = [keyframes]
             for i, eid in enumerate(data_order):
@@ -85,11 +85,11 @@ def inject_animation(
             return
         else:
             keyframes = (
-                f"@keyframes pathy-seq {{"
-                f"  0% {{ opacity: 0; }}"
-                f"  10% {{ opacity: 1; }}"
-                f"  100% {{ opacity: 1; }}"
-                f"}}"
+                "@keyframes pathy-seq {"
+                "  0% { opacity: 0; }"
+                "  10% { opacity: 1; }"
+                "  100% { opacity: 1; }"
+                "}"
             )
             rule = f"animation: pathy-seq {duration}s ease-in {iteration};"
     else:

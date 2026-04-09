@@ -6,7 +6,7 @@ import math
 
 from lxml import etree
 
-from pathy_svg.transform import ViewBox, parse_viewbox
+from pathy_svg.transform import ViewBox
 
 SVG_NS = "http://www.w3.org/2000/svg"
 

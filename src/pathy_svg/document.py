@@ -46,6 +46,9 @@ class SVGDocument:
     ):
         self._tree = tree
         self._nsmap = _nsmap if _nsmap is not None else self._detect_namespaces()
+        self._last_scale = None
+        self._last_heatmap_config = None
+        self._last_categorical_palette = None
         self._id_index = None
 
 

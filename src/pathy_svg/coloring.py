@@ -7,7 +7,7 @@ import re
 import numpy as np
 from lxml import etree
 
-from pathy_svg.exceptions import ColorScaleError, PathNotFoundError
+from pathy_svg.exceptions import ColorScaleError
 from pathy_svg.themes import CategoricalPalette, ColorScale
 from pathy_svg.transform import _local_tag
 

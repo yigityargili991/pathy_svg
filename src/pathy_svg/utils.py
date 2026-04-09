@@ -419,8 +419,6 @@ def optimize_svg(doc):
     Returns:
         A new optimized SVGDocument.
     """
-    from pathy_svg.document import SVGDocument
-    from lxml import etree
 
     KEEP_EMPTY = {"defs", "g", "svg", "symbol", "marker", "clipPath", "mask", "pattern"}
 
@@ -480,7 +478,6 @@ def extract_styles(doc):
     Returns:
         A new SVGDocument with a `<style>` block in `<defs>`.
     """
-    from pathy_svg.document import SVGDocument
     from lxml import etree
 
     SVG_NS = "http://www.w3.org/2000/svg"
