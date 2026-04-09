@@ -63,3 +63,8 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 88
 target-version = "py310"
+
+[dependency-groups]
+dev = [
+    "cairosvg>=2.9.0",
+]

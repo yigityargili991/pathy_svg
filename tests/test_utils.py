@@ -4,16 +4,12 @@ from __future__ import annotations
 
 import pytest
 
-from pathy_svg.utils import (
-    bin_values,
+from pathy_svg.color import hex_to_rgb, interpolate_color, parse_svg_color, rgb_to_hex
+from pathy_svg.data import bin_values, normalize_values
+from pathy_svg.svg_tools import (
     extract_styles,
-    hex_to_rgb,
-    interpolate_color,
     merge_svgs,
-    normalize_values,
     optimize_svg,
-    parse_svg_color,
-    rgb_to_hex,
     strip_metadata,
     viewbox_to_pixel,
 )
