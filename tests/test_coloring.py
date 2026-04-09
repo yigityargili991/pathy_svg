@@ -2,8 +2,17 @@
 
 import re
 
+import numpy as np
 
 from pathy_svg.document import SVGDocument
+from pathy_svg.themes import ColorScale
+
+
+def _extract_fill(result, eid):
+    """Extract the fill hex color from an element's style."""
+    style = result._find_by_id(eid).get("style", "")
+    m = re.search(r"fill:(#[0-9a-fA-F]{6})", style)
+    return m.group(1) if m else None
 
 
 class TestHeatmap:
@@ -12,28 +21,56 @@ class TestHeatmap:
         data = {"stomach": 0.0, "liver": 0.5, "heart": 1.0}
         result = doc.heatmap(data)
 
-        # Original unchanged
         orig_fill = doc._find_by_id("stomach").get("style", "")
         assert "fill:" not in orig_fill or "fill:#ffffff" in orig_fill
 
-        # Result has colors applied
         for pid in data:
             elem = result._find_by_id(pid)
             style = elem.get("style", "")
             assert "fill:" in style
+
+    def test_color_correctness_viridis(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        data = {"stomach": 0.0, "liver": 0.5, "heart": 1.0}
+        result = doc.heatmap(data, palette="viridis")
+
+        scale = ColorScale("viridis", vmin=0, vmax=1)
+        for eid, val in data.items():
+            expected = scale(val)
+            actual = _extract_fill(result, eid)
+            assert actual == expected, f"{eid}: expected {expected}, got {actual}"
+
+    def test_color_correctness_diverging(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        data = {"stomach": -1.0, "liver": 0.0, "heart": 1.0}
+        result = doc.heatmap(data, palette="coolwarm", vcenter=0, vmin=-1, vmax=1)
+
+        scale = ColorScale("coolwarm", vmin=-1, vmax=1, vcenter=0)
+        for eid, val in data.items():
+            expected = scale(val)
+            actual = _extract_fill(result, eid)
+            assert actual == expected, f"{eid}: expected {expected}, got {actual}"
+
+    def test_color_ordering(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        data = {"stomach": 0.0, "liver": 0.5, "heart": 1.0}
+        result = doc.heatmap(data, palette="viridis")
+
+        c0 = _extract_fill(result, "stomach")
+        c5 = _extract_fill(result, "liver")
+        c10 = _extract_fill(result, "heart")
+        assert c0 != c5 != c10
+        assert c0 != c10
 
     def test_different_values_get_different_colors(self, simple_svg_path):
         doc = SVGDocument.from_file(simple_svg_path)
         data = {"stomach": 0.0, "liver": 1.0}
         result = doc.heatmap(data)
 
-        s_style = result._find_by_id("stomach").get("style", "")
-        l_style = result._find_by_id("liver").get("style", "")
-        # Extract fill colors
-        s_fill = re.search(r"fill:(#[0-9a-fA-F]{6})", s_style)
-        l_fill = re.search(r"fill:(#[0-9a-fA-F]{6})", l_style)
+        s_fill = _extract_fill(result, "stomach")
+        l_fill = _extract_fill(result, "liver")
         assert s_fill and l_fill
-        assert s_fill.group(1) != l_fill.group(1)
+        assert s_fill != l_fill
 
     def test_na_color_applied(self, simple_svg_path):
         doc = SVGDocument.from_file(simple_svg_path)
@@ -64,10 +101,11 @@ class TestHeatmap:
         doc = SVGDocument.from_file(simple_svg_path)
         data = {"stomach": 50, "liver": 100}
         result = doc.heatmap(data, vmin=0, vmax=200)
-        # Should not raise, colors should be applied
-        for pid in data:
-            style = result._find_by_id(pid).get("style", "")
-            assert "fill:" in style
+        scale = ColorScale("RdYlBu_r", vmin=0, vmax=200)
+        for eid, val in data.items():
+            expected = scale(val)
+            actual = _extract_fill(result, eid)
+            assert actual == expected
 
     def test_diverging_with_vcenter(self, simple_svg_path):
         doc = SVGDocument.from_file(simple_svg_path)
@@ -76,6 +114,50 @@ class TestHeatmap:
         for pid in data:
             style = result._find_by_id(pid).get("style", "")
             assert "fill:" in style
+
+    def test_empty_data(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        result = doc.heatmap({})
+        assert isinstance(result, SVGDocument)
+        assert result.path_ids == doc.path_ids
+        assert result._find_by_id("stomach").get("fill") == "#ffffff"
+
+    def test_nan_value_gets_na_color(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        result = doc.heatmap(
+            {"stomach": float("nan"), "liver": 0.5},
+            na_color="#aabbcc",
+        )
+        stomach_style = result._find_by_id("stomach").get("style", "")
+        assert "#aabbcc" in stomach_style
+        liver_fill = _extract_fill(result, "liver")
+        assert liver_fill != "#aabbcc"
+
+    def test_inf_value_gets_na_color(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        result = doc.heatmap(
+            {"stomach": float("inf"), "liver": 0.5},
+            na_color="#aabbcc",
+        )
+        stomach_style = result._find_by_id("stomach").get("style", "")
+        assert "#aabbcc" in stomach_style
+
+    def test_breaks_discrete_coloring(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        data = {"stomach": 10, "liver": 50, "heart": 90}
+        result = doc.heatmap(data, breaks=[0, 33, 66, 100])
+        c_low = _extract_fill(result, "stomach")
+        c_mid = _extract_fill(result, "liver")
+        c_high = _extract_fill(result, "heart")
+        assert c_low != c_mid
+        assert c_mid != c_high
+        assert c_low != c_high
+
+    def test_breaks_same_bin_same_color(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        data = {"stomach": 10, "liver": 20}
+        result = doc.heatmap(data, breaks=[0, 50, 100])
+        assert _extract_fill(result, "stomach") == _extract_fill(result, "liver")
 
     def test_method_chaining(self, simple_svg_path):
         doc = SVGDocument.from_file(simple_svg_path)

@@ -78,11 +78,10 @@ class TestTooltips:
 class TestReplaceText:
     def test_replace_legend_text(self, simple_svg_path):
         doc = SVGDocument.from_file(simple_svg_path)
-        # First add a legend with text
         result = doc.heatmap({"stomach": 0.0, "liver": 1.0}).legend(num_ticks=3)
-        # Now replace text in the legend
         svg_before = result.to_string()
+        assert "0.00" in svg_before, "Precondition: legend should contain '0.00'"
         replaced = result.replace_text({"0.00": "Low", "1.00": "High"})
         svg_after = replaced.to_string()
-        if "0.00" in svg_before:
-            assert "Low" in svg_after
+        assert "Low" in svg_after
+        assert "High" in svg_after

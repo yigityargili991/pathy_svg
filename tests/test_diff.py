@@ -58,6 +58,25 @@ class TestDocDiff:
         assert "fill:" in style
 
 
+class TestComputeDiffEdgeCases:
+    def test_ratio_division_by_zero(self):
+        result = compute_diff({"a": 0}, {"a": 10}, mode="ratio")
+        assert result["a"] == float("inf")
+
+    def test_log2ratio_zero_baseline(self):
+        import math
+        result = compute_diff({"a": 0}, {"a": 10}, mode="log2ratio")
+        assert math.isnan(result["a"])
+
+    def test_percent_change_zero_baseline(self):
+        result = compute_diff({"a": 0}, {"a": 10}, mode="percent_change")
+        assert result["a"] == float("inf")
+
+    def test_empty_dicts(self):
+        result = compute_diff({}, {}, mode="delta")
+        assert result == {}
+
+
 class TestDocCompare:
     def test_compare_returns_doc(self, simple_svg_path):
         doc = SVGDocument.from_file(simple_svg_path)
@@ -70,6 +89,19 @@ class TestDocCompare:
         svg_str = result.to_string()
         assert "Baseline" in svg_str
         assert "Treatment" in svg_str
+
+    def test_compare_vertical_layout(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        result = doc.compare(
+            {
+                "A": {"stomach": 0.3},
+                "B": {"stomach": 0.9},
+            },
+            layout="vertical",
+        )
+        vb = result.viewbox
+        assert vb is not None
+        assert vb.height > doc.viewbox.height
 
     def test_compose_rebases_non_zero_viewbox(self):
         doc = SVGDocument.from_string(

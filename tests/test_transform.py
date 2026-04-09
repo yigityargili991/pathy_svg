@@ -102,6 +102,84 @@ class TestBBoxFromPathD:
         assert bbox.width == pytest.approx(40)
         assert bbox.height == pytest.approx(20)
 
+    def test_relative_cubic(self):
+        d = "M 10 10 c 10 -10 30 -10 40 0 c 10 10 30 10 40 0"
+        bbox = bbox_from_path_d(d)
+        assert bbox.x == pytest.approx(10)
+        assert bbox.y == pytest.approx(0)
+        assert bbox.width == pytest.approx(80)
+        assert bbox.height == pytest.approx(20)
+
+    def test_smooth_cubic_absolute(self):
+        d = "M 0 0 S 50 50 100 0"
+        bbox = bbox_from_path_d(d)
+        assert bbox.x == pytest.approx(0)
+        assert bbox.y == pytest.approx(0)
+        assert bbox.width == pytest.approx(100)
+        assert bbox.height == pytest.approx(50)
+
+    def test_smooth_cubic_relative(self):
+        d = "M 0 0 s 50 50 100 0"
+        bbox = bbox_from_path_d(d)
+        assert bbox.x == pytest.approx(0)
+        assert bbox.y == pytest.approx(0)
+        assert bbox.width == pytest.approx(100)
+        assert bbox.height == pytest.approx(50)
+
+    def test_quadratic_absolute(self):
+        d = "M 0 0 Q 50 100 100 0"
+        bbox = bbox_from_path_d(d)
+        assert bbox.x == pytest.approx(0)
+        assert bbox.y == pytest.approx(0)
+        assert bbox.width == pytest.approx(100)
+        assert bbox.height == pytest.approx(100)
+
+    def test_quadratic_relative(self):
+        d = "M 0 0 q 50 100 100 0"
+        bbox = bbox_from_path_d(d)
+        assert bbox.x == pytest.approx(0)
+        assert bbox.y == pytest.approx(0)
+        assert bbox.width == pytest.approx(100)
+        assert bbox.height == pytest.approx(100)
+
+    def test_shorthand_quadratic_absolute(self):
+        d = "M 0 0 T 100 50"
+        bbox = bbox_from_path_d(d)
+        assert bbox.x == pytest.approx(0)
+        assert bbox.y == pytest.approx(0)
+        assert bbox.width == pytest.approx(100)
+        assert bbox.height == pytest.approx(50)
+
+    def test_shorthand_quadratic_relative(self):
+        d = "M 10 10 t 90 40"
+        bbox = bbox_from_path_d(d)
+        assert bbox.x == pytest.approx(10)
+        assert bbox.y == pytest.approx(10)
+        assert bbox.width == pytest.approx(90)
+        assert bbox.height == pytest.approx(40)
+
+    def test_arc_absolute(self):
+        d = "M 0 0 A 50 50 0 0 1 100 0"
+        bbox = bbox_from_path_d(d)
+        assert bbox.x == pytest.approx(0)
+        assert bbox.y == pytest.approx(0)
+        assert bbox.width == pytest.approx(100)
+
+    def test_arc_relative(self):
+        d = "M 0 0 a 50 50 0 0 1 100 0"
+        bbox = bbox_from_path_d(d)
+        assert bbox.x == pytest.approx(0)
+        assert bbox.y == pytest.approx(0)
+        assert bbox.width == pytest.approx(100)
+
+    def test_relative_moveto(self):
+        d = "M 10 10 m 20 20 L 50 50"
+        bbox = bbox_from_path_d(d)
+        assert bbox.x == pytest.approx(10)
+        assert bbox.y == pytest.approx(10)
+        assert bbox.width == pytest.approx(40)
+        assert bbox.height == pytest.approx(40)
+
 
 class TestBBoxOfElement:
     def test_rect_element(self):

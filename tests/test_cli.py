@@ -113,6 +113,38 @@ class TestValidateCommand:
         assert "not found" in result.output
 
 
+class TestDiffCommand:
+    def test_diff(self, runner, simple_svg_path, tmp_path):
+        baseline = tmp_path / "baseline.csv"
+        treatment = tmp_path / "treatment.csv"
+        for p, vals in [(baseline, [0.5, 0.3, 0.2]), (treatment, [0.9, 0.1, 0.8])]:
+            with open(p, "w", newline="") as f:
+                w = csv.writer(f)
+                w.writerow(["organ", "expression"])
+                for organ, val in zip(["stomach", "liver", "heart"], vals):
+                    w.writerow([organ, str(val)])
+        out = str(tmp_path / "diff.svg")
+        result = runner.invoke(
+            main,
+            [
+                "diff",
+                str(simple_svg_path),
+                str(baseline),
+                str(treatment),
+                "--id-col",
+                "organ",
+                "--value-col",
+                "expression",
+                "--mode",
+                "delta",
+                "-o",
+                out,
+            ],
+        )
+        assert result.exit_code == 0
+        assert "Diff saved" in result.output
+
+
 class TestGuideCommand:
     def test_guide(self, runner, simple_svg_path, tmp_path):
         out = str(tmp_path / "guide.svg")

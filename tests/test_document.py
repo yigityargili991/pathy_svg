@@ -1,5 +1,7 @@
 """Tests for pathy_svg.document module."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 
 from pathy_svg.document import SVGDocument
@@ -31,6 +33,43 @@ class TestConstruction:
     def test_from_minimal(self, minimal_svg_string):
         doc = SVGDocument.from_string(minimal_svg_string)
         assert "p1" in doc.path_ids
+
+
+class TestFromUrl:
+    def test_valid_url(self, simple_svg_string):
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = simple_svg_string.encode("utf-8")
+        mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+        mock_resp.__exit__ = MagicMock(return_value=False)
+
+        with patch("urllib.request.urlopen", return_value=mock_resp) as mock_urlopen:
+            doc = SVGDocument.from_url("https://example.com/test.svg")
+            mock_urlopen.assert_called_once_with("https://example.com/test.svg", timeout=10.0)
+        assert doc.root is not None
+        assert "stomach" in doc.path_ids
+
+    def test_custom_timeout(self, simple_svg_string):
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = simple_svg_string.encode("utf-8")
+        mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+        mock_resp.__exit__ = MagicMock(return_value=False)
+
+        with patch("urllib.request.urlopen", return_value=mock_resp) as mock_urlopen:
+            SVGDocument.from_url("http://example.com/test.svg", timeout=30.0)
+            mock_urlopen.assert_called_once_with("http://example.com/test.svg", timeout=30.0)
+
+    def test_invalid_scheme_raises(self):
+        with pytest.raises(ValueError, match="http"):
+            SVGDocument.from_url("ftp://example.com/test.svg")
+
+    def test_file_scheme_raises(self):
+        with pytest.raises(ValueError, match="http"):
+            SVGDocument.from_url("file:///etc/passwd")
+
+    def test_network_error_propagates(self):
+        with patch("urllib.request.urlopen", side_effect=OSError("Connection refused")):
+            with pytest.raises(OSError):
+                SVGDocument.from_url("https://example.com/test.svg")
 
 
 class TestProperties:
@@ -68,6 +107,33 @@ class TestProperties:
         w, h = doc.dimensions
         assert w == 500
         assert h == 400
+
+    def test_dimensions_with_px_units(self):
+        doc = SVGDocument.from_string(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="200px" height="100px">'
+            '<path id="p" d="M 0 0 L 1 1"/></svg>'
+        )
+        w, h = doc.dimensions
+        assert w == 200
+        assert h == 100
+
+    def test_dimensions_with_percent(self):
+        doc = SVGDocument.from_string(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="50%" height="75%">'
+            '<path id="p" d="M 0 0 L 1 1"/></svg>'
+        )
+        w, h = doc.dimensions
+        assert w == 50
+        assert h == 75
+
+    def test_dimensions_none_when_missing(self):
+        doc = SVGDocument.from_string(
+            '<svg xmlns="http://www.w3.org/2000/svg">'
+            '<path id="p" d="M 0 0 L 1 1"/></svg>'
+        )
+        w, h = doc.dimensions
+        assert w is None
+        assert h is None
 
     def test_namespaces(self, simple_svg_path):
         doc = SVGDocument.from_file(simple_svg_path)
