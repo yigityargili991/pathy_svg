@@ -35,6 +35,12 @@ def _set_fill(
     """Set the fill color on an element, handling both style attr and fill attr."""
     style = element.get("style")
 
+    # Keep SVG presentation attributes aligned with CSS so renderers that
+    # sanitize inline styles still preserve the intended fill color.
+    element.set("fill", color)
+    if opacity is not None and opacity < 1.0:
+        element.set("fill-opacity", str(opacity))
+
     # Fast path: no existing style, create minimal style string
     if style is None:
         if opacity is not None and opacity < 1.0:
@@ -67,6 +73,29 @@ def _set_fill_on_group(element: etree._Element, color: str, **kwargs):
             continue
         if _local_tag(child.tag) in COLORABLE_TAGS:
             _set_fill(child, color, **kwargs)
+
+
+def _style_property(style: str | None, prop: str) -> str | None:
+    """Return a CSS property value from an inline style string."""
+    if not style:
+        return None
+    match = re.search(rf"(?:^|;)\s*{re.escape(prop)}\s*:\s*([^;]+)", style)
+    if match is None:
+        return None
+    return match.group(1).strip()
+
+
+def _has_explicit_none_fill(element: etree._Element) -> bool:
+    """Whether the element is explicitly marked as unfilled."""
+    style_fill = _style_property(element.get("style"), "fill")
+    if style_fill is not None:
+        return style_fill.lower() == "none"
+
+    attr_fill = element.get("fill")
+    if attr_fill is not None:
+        return attr_fill.lower() == "none"
+
+    return False
 
 
 def apply_heatmap(
@@ -145,7 +174,7 @@ def apply_heatmap(
         for eid, elem in id_to_elem.items():
             if eid not in protected_ids:
                 local = _local_tag(elem.tag)
-                if local in COLORABLE_TAGS:
+                if local in COLORABLE_TAGS and not _has_explicit_none_fill(elem):
                     _set_fill(elem, na_color, **fill_kwargs)
 
     return scale

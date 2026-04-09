@@ -54,6 +54,14 @@ class TestHeatmap:
         liver_style = result._find_by_id("liver").get("style", "")
         assert "#cccccc" not in liver_style
 
+    def test_color_missing_skips_explicitly_unfilled_elements(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        result = doc.heatmap({"stomach": 0.5}, na_color="#aabbcc", color_missing=True)
+
+        border = result._find_by_id("border")
+        assert border.get("fill") == "none"
+        assert "#aabbcc" not in (border.get("style", ""))
+
     def test_custom_vmin_vmax(self, simple_svg_path):
         doc = SVGDocument.from_file(simple_svg_path)
         data = {"stomach": 50, "liver": 100}
@@ -90,6 +98,17 @@ class TestHeatmap:
         style = result._find_by_id("stomach").get("style", "")
         assert "fill-opacity:0.7" in style
 
+    def test_heatmap_syncs_fill_attribute_with_style(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        result = doc.heatmap({"stomach": 0.5})
+
+        elem = result._find_by_id("stomach")
+        style = elem.get("style", "")
+        fill_match = re.search(r"fill:(#[0-9a-fA-F]{6})", style)
+
+        assert fill_match is not None
+        assert elem.get("fill") == fill_match.group(1)
+
 
 class TestRecolor:
     def test_basic_recolor(self, simple_svg_path):
@@ -98,8 +117,10 @@ class TestRecolor:
 
         stomach_style = result._find_by_id("stomach").get("style", "")
         assert "#ff0000" in stomach_style
+        assert result._find_by_id("stomach").get("fill") == "#ff0000"
         liver_style = result._find_by_id("liver").get("style", "")
         assert "blue" in liver_style
+        assert result._find_by_id("liver").get("fill") == "blue"
 
     def test_recolor_preserves_original(self, simple_svg_path):
         doc = SVGDocument.from_file(simple_svg_path)

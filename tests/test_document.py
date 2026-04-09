@@ -128,6 +128,12 @@ class TestSerialization:
         assert isinstance(svg, str)
         assert "<svg" in svg
 
+    def test_repr_mimebundle_prefers_svg(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        bundle = doc._repr_mimebundle_()
+        assert bundle["image/svg+xml"] == doc.to_string()
+        assert "text/html" not in bundle
+
 
 class TestElementLookup:
     def test_find_by_id(self, simple_svg_path):

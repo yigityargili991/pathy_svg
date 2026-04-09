@@ -297,6 +297,14 @@ class SVGDocument:
         """Render inline in Jupyter notebooks."""
         return self.to_string()
 
+    def _repr_mimebundle_(self, include=None, exclude=None) -> dict[str, str]:
+        """Prefer raw SVG output in rich frontends."""
+        if include is not None and "image/svg+xml" not in include:
+            return {}
+        if exclude is not None and "image/svg+xml" in exclude:
+            return {}
+        return {"image/svg+xml": self.to_string()}
+
     def _repr_html_(self) -> str:
         """HTML fallback for Jupyter."""
         return self.to_string()
