@@ -6,9 +6,7 @@ import csv
 import sys
 from pathlib import Path
 
-from pathy_svg._compat import require_click
-
-click = require_click()
+import click
 
 
 @click.group()

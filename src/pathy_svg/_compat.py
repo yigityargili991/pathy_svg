@@ -30,8 +30,3 @@ def require_pillow():
 def require_ipython_display():
     """Import and return IPython.display, or raise with install instructions."""
     return _lazy_import("IPython.display", "full")
-
-
-def require_click():
-    """Import and return click, or raise with install instructions."""
-    return _lazy_import("click", "cli")

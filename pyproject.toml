@@ -1,10 +1,28 @@
 [project]
 name = "pathy-svg"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Color arbitrary SVG paths by data values — turn any SVG into a heatmap"
 readme = "README.md"
-license = "MIT"
+license = "GPL-3.0-or-later"
 requires-python = ">=3.10,<3.14"
+authors = [
+    {name = "Yigit Yargili", email = "160510618+yigityargili991@users.noreply.github.com"},
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Multimedia :: Graphics",
+    "Topic :: Scientific/Engineering :: Visualization",
+    "Typing :: Typed",
+]
 dependencies = [
     "click>=8.0",
     "lxml>=5.0",
@@ -12,10 +30,15 @@ dependencies = [
     "numpy>=1.24",
 ]
 
+[project.urls]
+Homepage = "https://github.com/yigityargili991/pathy_svg"
+Repository = "https://github.com/yigityargili991/pathy_svg"
+Issues = "https://github.com/yigityargili991/pathy_svg/issues"
+Changelog = "https://github.com/yigityargili991/pathy_svg/blob/main/CHANGELOG.md"
+
 [project.optional-dependencies]
 export = ["cairosvg>=2.7", "Pillow>=10.0"]
 full = ["cairosvg>=2.7", "Pillow>=10.0", "IPython>=8.0"]
-cli = ["click>=8.0"]
 
 [project.scripts]
 pathy-svg = "pathy_svg.cli:main"
@@ -23,6 +46,9 @@ pathy-svg = "pathy_svg.cli:main"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/pathy_svg/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pathy_svg"]
