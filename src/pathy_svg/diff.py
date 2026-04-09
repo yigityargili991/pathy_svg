@@ -100,7 +100,10 @@ def compose_side_by_side(
                 txt.set("x", str(vb.width / 2))
                 txt.set("y", str(y_offset + title_size))
             txt.set("text-anchor", "middle")
-            txt.set("style", f"font-size:{title_size}px;font-family:sans-serif;font-weight:bold")
+            txt.set(
+                "style",
+                f"font-size:{title_size}px;font-family:sans-serif;font-weight:bold",
+            )
             txt.text = titles[i]
 
         g = etree.SubElement(new_root, f"{{{SVG_NS}}}g")

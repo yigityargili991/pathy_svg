@@ -76,7 +76,6 @@ def bbox_union(boxes: list[BBox]) -> BBox:
     return BBox(x_min, y_min, x_max - x_min, y_max - y_min)
 
 
-
 _PATH_CMD_RE = re.compile(
     r"([MmZzLlHhVvCcSsQqTtAa])|([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)"
 )
@@ -248,7 +247,9 @@ def bbox_from_path_d(d: str) -> BBox:
     return BBox(float(x_min), float(y_min), float(x_max - x_min), float(y_max - y_min))
 
 
-def bbox_of_element(element, nsmap: dict, _accumulated_transform: np.ndarray | None = None) -> BBox | None:
+def bbox_of_element(
+    element, nsmap: dict, _accumulated_transform: np.ndarray | None = None
+) -> BBox | None:
     """Compute bounding box for an SVG element (path, rect, circle, etc.).
 
     Accounts for SVG transform attributes on the element and all ancestor elements.
@@ -300,7 +301,9 @@ def bbox_of_element(element, nsmap: dict, _accumulated_transform: np.ndarray | N
     elif tag == "g":
         child_boxes = []
         for child in element:
-            child_box = bbox_of_element(child, nsmap, _accumulated_transform=current_transform)
+            child_box = bbox_of_element(
+                child, nsmap, _accumulated_transform=current_transform
+            )
             if child_box is not None:
                 child_boxes.append(child_box)
         if child_boxes:
@@ -320,7 +323,6 @@ def _local_tag(tag: str) -> str:
     if tag.startswith("{"):
         return tag.split("}", 1)[1]
     return tag
-
 
 
 _TRANSFORM_RE = re.compile(

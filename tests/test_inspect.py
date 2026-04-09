@@ -1,7 +1,5 @@
 """Tests for pathy_svg.inspect module."""
 
-import pytest
-
 from pathy_svg.document import SVGDocument
 
 

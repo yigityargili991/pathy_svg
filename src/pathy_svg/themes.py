@@ -148,7 +148,6 @@ class CategoricalPalette:
         return dict(self._mapping)
 
 
-
 @dataclass(frozen=True)
 class ThemePreset:
     """A bundle of heatmap kwargs that can be unpacked with **."""

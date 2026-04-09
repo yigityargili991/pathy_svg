@@ -1,8 +1,5 @@
 """Tests for pathy_svg.legend module."""
 
-import pytest
-from lxml import etree
-
 from pathy_svg.document import SVGDocument
 
 
@@ -70,9 +67,8 @@ class TestCategoricalLegend:
 class TestLegendChaining:
     def test_full_chain(self, simple_svg_path):
         doc = SVGDocument.from_file(simple_svg_path)
-        result = (
-            doc.heatmap({"stomach": 0.3, "liver": 0.7, "heart": 0.9})
-            .legend(title="Gene Expression", num_ticks=4)
+        result = doc.heatmap({"stomach": 0.3, "liver": 0.7, "heart": 0.9}).legend(
+            title="Gene Expression", num_ticks=4
         )
         assert result._find_by_id("pathy-legend") is not None
         # Can still save

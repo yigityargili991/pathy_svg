@@ -133,8 +133,6 @@ class TestTransformSupport:
 
     def test_translate(self):
         from lxml import etree
-        from pathy_svg.transform import _parse_transform, _identity
-        import numpy as np
 
         elem = etree.Element("rect", x="10", y="20", width="50", height="30")
         elem.set("transform", "translate(100, 200)")

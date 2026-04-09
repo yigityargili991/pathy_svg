@@ -97,15 +97,15 @@ pathy-svg export map.svg -o map.png --width 1200
 | `.compare(datasets, layout=...)` | Side-by-side comparison |
 | `.annotate(labels)` | Add text labels |
 | `.add_tooltips(texts)` | Add hover tooltips |
-| `.animate(effect=..., targets=...)` | CSS animations |
+| `.animate(effect=..., duration=..., loop=...)` | CSS animations |
 
 ### Inspection
 
 | Method | Description |
 |--------|-------------|
-| `.path_ids` | Set of all path element IDs |
-| `.group_ids` | Set of all group element IDs |
-| `.element_ids` | Set of all element IDs |
+| `.path_ids` | List of all path element IDs |
+| `.group_ids` | List of all group element IDs |
+| `.element_ids` | List of all element IDs |
 | `.viewbox` | SVG viewBox as `ViewBox` namedtuple |
 | `.dimensions` | `(width, height)` tuple |
 | `.inspect_paths()` | Detailed metadata for all colorable elements |

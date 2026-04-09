@@ -1,7 +1,5 @@
 """Tests for pathy_svg.annotations module."""
 
-import pytest
-
 from pathy_svg.document import SVGDocument
 
 
@@ -44,9 +42,8 @@ class TestAnnotate:
 
     def test_chaining_with_heatmap(self, simple_svg_path):
         doc = SVGDocument.from_file(simple_svg_path)
-        result = (
-            doc.heatmap({"stomach": 0.5, "liver": 0.8})
-            .annotate({"stomach": "50%", "liver": "80%"})
+        result = doc.heatmap({"stomach": 0.5, "liver": 0.8}).annotate(
+            {"stomach": "50%", "liver": "80%"}
         )
         svg_str = result.to_string()
         assert "50%" in svg_str
@@ -62,9 +59,7 @@ class TestTooltips:
 
     def test_css_tooltips(self, simple_svg_path):
         doc = SVGDocument.from_file(simple_svg_path)
-        result = doc.add_tooltips(
-            {"stomach": "Stomach info"}, method="css"
-        )
+        result = doc.add_tooltips({"stomach": "Stomach info"}, method="css")
         elem = result._find_by_id("stomach")
         tooltip = result.root.xpath('//*[@data-tooltip-for="stomach"]')
         assert elem.get("data-tooltip") == "Stomach info"
@@ -73,12 +68,10 @@ class TestTooltips:
 
     def test_immutability(self, simple_svg_path):
         doc = SVGDocument.from_file(simple_svg_path)
-        result = doc.add_tooltips({"stomach": "tip"})
+        doc.add_tooltips({"stomach": "tip"})
         # Original should not have tooltip
         orig_stomach = doc._find_by_id("stomach")
-        has_title = any(
-            c.tag.endswith("title") for c in orig_stomach
-        )
+        has_title = any(c.tag.endswith("title") for c in orig_stomach)
         assert not has_title
 
 

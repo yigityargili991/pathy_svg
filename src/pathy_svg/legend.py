@@ -69,13 +69,17 @@ def build_gradient_legend(
     defs = _sub(g, "defs")
 
     if direction == "vertical":
-        grad = etree.SubElement(defs, f"{{{SVG_NS}}}linearGradient", id=f"pathy-grad-{uid}")
+        grad = etree.SubElement(
+            defs, f"{{{SVG_NS}}}linearGradient", id=f"pathy-grad-{uid}"
+        )
         grad.set("x1", "0")
         grad.set("y1", "1")
         grad.set("x2", "0")
         grad.set("y2", "0")
     else:
-        grad = etree.SubElement(defs, f"{{{SVG_NS}}}linearGradient", id=f"pathy-grad-{uid}")
+        grad = etree.SubElement(
+            defs, f"{{{SVG_NS}}}linearGradient", id=f"pathy-grad-{uid}"
+        )
         grad.set("x1", "0")
         grad.set("y1", "0")
         grad.set("x2", "1")
@@ -115,7 +119,9 @@ def build_gradient_legend(
         if num_ticks == 1:
             tick_values = [(vmin + vmax) / 2]
         else:
-            tick_values = [vmin + i / (num_ticks - 1) * (vmax - vmin) for i in range(num_ticks)]
+            tick_values = [
+                vmin + i / (num_ticks - 1) * (vmax - vmin) for i in range(num_ticks)
+            ]
         labels = [tick_format.format(v) for v in tick_values]
 
     for i, label in enumerate(labels):
@@ -130,7 +136,9 @@ def build_gradient_legend(
         txt = _sub(g, "text")
         txt.set("x", str(tx))
         txt.set("y", str(ty))
-        txt.set("style", f"fill:{font_color};font-size:{fs}px;font-family:{font_family}")
+        txt.set(
+            "style", f"fill:{font_color};font-size:{fs}px;font-family:{font_family}"
+        )
         txt.text = label
 
     # Title
@@ -142,7 +150,10 @@ def build_gradient_legend(
         else:
             ttl.set("x", str(x))
             ttl.set("y", str(y - 6))
-        ttl.set("style", f"fill:{font_color};font-size:{ts}px;font-family:{font_family};font-weight:bold")
+        ttl.set(
+            "style",
+            f"fill:{font_color};font-size:{ts}px;font-family:{font_family};font-weight:bold",
+        )
         ttl.text = title
 
     return g
@@ -181,7 +192,10 @@ def build_discrete_legend(
         ttl = _sub(g, "text")
         ttl.set("x", str(x))
         ttl.set("y", str(y - 6))
-        ttl.set("style", f"fill:{font_color};font-size:{ts}px;font-family:{font_family};font-weight:bold")
+        ttl.set(
+            "style",
+            f"fill:{font_color};font-size:{ts}px;font-family:{font_family};font-weight:bold",
+        )
         ttl.text = title
 
     for i, (color, label) in enumerate(zip(colors, labels)):
@@ -200,7 +214,9 @@ def build_discrete_legend(
         txt = _sub(g, "text")
         txt.set("x", str(x + w + 4))
         txt.set("y", str(sy + swatch_h / 2 + fs / 3))
-        txt.set("style", f"fill:{font_color};font-size:{fs}px;font-family:{font_family}")
+        txt.set(
+            "style", f"fill:{font_color};font-size:{fs}px;font-family:{font_family}"
+        )
         txt.text = label
 
     return g

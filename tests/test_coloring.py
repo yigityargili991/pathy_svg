@@ -2,8 +2,6 @@
 
 import re
 
-import pytest
-from lxml import etree
 
 from pathy_svg.document import SVGDocument
 
@@ -81,9 +79,8 @@ class TestHeatmap:
 
     def test_method_chaining(self, simple_svg_path):
         doc = SVGDocument.from_file(simple_svg_path)
-        result = (
-            doc.heatmap({"stomach": 0.5, "liver": 0.8})
-            .recolor({"lung_l": "#ff0000"})
+        result = doc.heatmap({"stomach": 0.5, "liver": 0.8}).recolor(
+            {"lung_l": "#ff0000"}
         )
         # heatmap colors should be present
         stomach_style = result._find_by_id("stomach").get("style", "")

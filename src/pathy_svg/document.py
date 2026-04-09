@@ -51,7 +51,6 @@ class SVGDocument:
         self._last_categorical_palette = None
         self._id_index = None
 
-
     @classmethod
     def from_file(cls, path: str | PathLike) -> SVGDocument:
         """Load from a local SVG file.
@@ -107,6 +106,8 @@ class SVGDocument:
         Returns:
             A new SVGDocument instance parsed from the response.
         """
+        if not url.startswith(("http://", "https://")):
+            raise ValueError("Only http and https URLs are supported")
         req = urllib.request.Request(url)
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             data = resp.read()
@@ -142,7 +143,6 @@ class SVGDocument:
         doc = cls.from_file(path)
         data = dataframe_to_dict(df, id_col, value_col)
         return doc, data
-
 
     @property
     def root(self) -> etree._Element:
@@ -204,7 +204,6 @@ class SVGDocument:
             "desc": desc_elem.text if desc_elem is not None else None,
         }
 
-
     @property
     def _element_index(self) -> dict[str, etree._Element]:
         """Lazy-build index of id -> element for O(1) lookup.
@@ -238,7 +237,6 @@ class SVGDocument:
                 ids.append(eid)
         return ids
 
-
     def bbox(self, element_id: str) -> BBox:
         """Get the bounding box of an element by ID."""
         elem = self._find_by_id(element_id)
@@ -258,7 +256,6 @@ class SVGDocument:
     def centroid(self, element_id: str) -> tuple[float, float]:
         """Get the centroid of an element by ID."""
         return centroid_of_bbox(self.bbox(element_id))
-
 
     def to_string(self) -> str:
         """Serialize to an SVG string."""
@@ -295,7 +292,6 @@ class SVGDocument:
             )
         )
 
-
     def _repr_svg_(self) -> str:
         """Render inline in Jupyter notebooks."""
         return self.to_string()
@@ -311,7 +307,6 @@ class SVGDocument:
     def _repr_html_(self) -> str:
         """HTML fallback for Jupyter."""
         return self.to_string()
-
 
     def inspect_paths(self):
         """Return detailed info about all colorable elements."""
@@ -367,7 +362,6 @@ class SVGDocument:
             y += step
 
         return clone
-
 
     def heatmap(
         self,
@@ -545,7 +539,6 @@ class SVGDocument:
         )
         clone._last_categorical_palette = cat_palette
         return clone
-
 
     def legend(
         self,
@@ -726,7 +719,6 @@ class SVGDocument:
         clone.root.append(legend_elem)
         return clone
 
-
     def diff(
         self,
         baseline: dict[str, float],
@@ -803,7 +795,6 @@ class SVGDocument:
         )
         return SVGDocument(new_tree)
 
-
     def animate(
         self,
         *,
@@ -840,7 +831,6 @@ class SVGDocument:
             data_order=data_order,
         )
         return clone
-
 
     def annotate(
         self,
@@ -925,7 +915,6 @@ class SVGDocument:
         replace_text(clone._tree, clone._nsmap, replacements, text_color=text_color)
         return clone
 
-
     def to_png(self, path=None, **kwargs) -> bytes | None:
         """Export to PNG. Requires pathy-svg[export].
 
@@ -990,14 +979,12 @@ class SVGDocument:
 
         show(self, **kwargs)
 
-
     def _clone(self) -> SVGDocument:
         """Return a deep copy of this document."""
         return SVGDocument(
             copy.deepcopy(self._tree),
             _nsmap=dict(self._nsmap),
         )
-
 
     def _detect_namespaces(self) -> dict[str, str]:
         """Detect all XML namespaces from the root element."""

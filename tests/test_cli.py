@@ -37,31 +37,59 @@ class TestInspectCommand:
 class TestHeatmapCommand:
     def test_heatmap(self, runner, simple_svg_path, data_csv, tmp_path):
         out = str(tmp_path / "result.svg")
-        result = runner.invoke(main, [
-            "heatmap", str(simple_svg_path), data_csv,
-            "--id-col", "organ", "--value-col", "expression",
-            "--palette", "viridis", "-o", out,
-        ])
+        result = runner.invoke(
+            main,
+            [
+                "heatmap",
+                str(simple_svg_path),
+                data_csv,
+                "--id-col",
+                "organ",
+                "--value-col",
+                "expression",
+                "--palette",
+                "viridis",
+                "-o",
+                out,
+            ],
+        )
         assert result.exit_code == 0
         assert "Saved to" in result.output
 
     def test_heatmap_with_legend(self, runner, simple_svg_path, data_csv, tmp_path):
         out = str(tmp_path / "result.svg")
-        result = runner.invoke(main, [
-            "heatmap", str(simple_svg_path), data_csv,
-            "--id-col", "organ", "--value-col", "expression",
-            "--legend", "--legend-title", "Score",
-            "-o", out,
-        ])
+        result = runner.invoke(
+            main,
+            [
+                "heatmap",
+                str(simple_svg_path),
+                data_csv,
+                "--id-col",
+                "organ",
+                "--value-col",
+                "expression",
+                "--legend",
+                "--legend-title",
+                "Score",
+                "-o",
+                out,
+            ],
+        )
         assert result.exit_code == 0
 
 
 class TestValidateCommand:
     def test_validate_success(self, runner, simple_svg_path, data_csv):
-        result = runner.invoke(main, [
-            "validate", str(simple_svg_path), data_csv,
-            "--id-col", "organ",
-        ])
+        result = runner.invoke(
+            main,
+            [
+                "validate",
+                str(simple_svg_path),
+                data_csv,
+                "--id-col",
+                "organ",
+            ],
+        )
         assert result.exit_code == 0
         assert "All data IDs found" in result.output
 
@@ -71,10 +99,16 @@ class TestValidateCommand:
             writer = csv.writer(f)
             writer.writerow(["organ"])
             writer.writerow(["typo_organ"])
-        result = runner.invoke(main, [
-            "validate", str(simple_svg_path), str(p),
-            "--id-col", "organ",
-        ])
+        result = runner.invoke(
+            main,
+            [
+                "validate",
+                str(simple_svg_path),
+                str(p),
+                "--id-col",
+                "organ",
+            ],
+        )
         assert result.exit_code == 1
         assert "not found" in result.output
 
@@ -82,8 +116,14 @@ class TestValidateCommand:
 class TestGuideCommand:
     def test_guide(self, runner, simple_svg_path, tmp_path):
         out = str(tmp_path / "guide.svg")
-        result = runner.invoke(main, [
-            "guide", str(simple_svg_path), "-o", out,
-        ])
+        result = runner.invoke(
+            main,
+            [
+                "guide",
+                str(simple_svg_path),
+                "-o",
+                out,
+            ],
+        )
         assert result.exit_code == 0
         assert "Guide saved" in result.output

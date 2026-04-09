@@ -23,6 +23,7 @@ from pathy_svg.utils import (
 # hex_to_rgb
 # ---------------------------------------------------------------------------
 
+
 class TestHexToRgb:
     def test_six_digit_lowercase(self):
         assert hex_to_rgb("#ff0000") == (255, 0, 0)
@@ -67,6 +68,7 @@ class TestHexToRgb:
 # rgb_to_hex
 # ---------------------------------------------------------------------------
 
+
 class TestRgbToHex:
     def test_red(self):
         assert rgb_to_hex(255, 0, 0) == "#ff0000"
@@ -107,6 +109,7 @@ class TestRgbToHex:
 # interpolate_color
 # ---------------------------------------------------------------------------
 
+
 class TestInterpolateColor:
     def test_t0_returns_color1(self):
         assert interpolate_color("#000000", "#ffffff", 0.0) == "#000000"
@@ -141,6 +144,7 @@ class TestInterpolateColor:
 # ---------------------------------------------------------------------------
 # parse_svg_color
 # ---------------------------------------------------------------------------
+
 
 class TestParseSvgColor:
     def test_hex_six(self):
@@ -199,6 +203,7 @@ class TestParseSvgColor:
 # normalize_values
 # ---------------------------------------------------------------------------
 
+
 class TestNormalizeValues:
     def test_basic(self):
         result = normalize_values({"a": 0, "b": 5, "c": 10})
@@ -236,6 +241,7 @@ class TestNormalizeValues:
 # ---------------------------------------------------------------------------
 # bin_values
 # ---------------------------------------------------------------------------
+
 
 class TestBinValues:
     def test_basic(self):
@@ -277,27 +283,32 @@ class TestBinValues:
 # viewbox_to_pixel
 # ---------------------------------------------------------------------------
 
+
 class TestViewboxToPixel:
     def test_origin(self):
         from pathy_svg.transform import ViewBox
+
         px, py = viewbox_to_pixel(0, 0, ViewBox(0, 0, 500, 400), 1000, 800)
         assert px == pytest.approx(0.0)
         assert py == pytest.approx(0.0)
 
     def test_midpoint(self):
         from pathy_svg.transform import ViewBox
+
         px, py = viewbox_to_pixel(250, 200, ViewBox(0, 0, 500, 400), 1000, 800)
         assert px == pytest.approx(500.0)
         assert py == pytest.approx(400.0)
 
     def test_full_extent(self):
         from pathy_svg.transform import ViewBox
+
         px, py = viewbox_to_pixel(500, 400, ViewBox(0, 0, 500, 400), 1000, 800)
         assert px == pytest.approx(1000.0)
         assert py == pytest.approx(800.0)
 
     def test_nonzero_viewbox_origin(self):
         from pathy_svg.transform import ViewBox
+
         # viewBox starts at (100, 100)
         px, py = viewbox_to_pixel(100, 100, ViewBox(100, 100, 400, 300), 400, 300)
         assert px == pytest.approx(0.0)
@@ -317,16 +328,19 @@ class TestViewboxToPixel:
 # merge_svgs
 # ---------------------------------------------------------------------------
 
+
 class TestMergeSvgs:
     SVG_A = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100"><rect id="a" width="100" height="100" fill="red"/></svg>'
     SVG_B = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100" width="200" height="100"><rect id="b" width="200" height="100" fill="blue"/></svg>'
 
     def _docs(self):
         from pathy_svg.document import SVGDocument
+
         return SVGDocument.from_string(self.SVG_A), SVGDocument.from_string(self.SVG_B)
 
     def test_returns_svgdocument(self):
         from pathy_svg.document import SVGDocument
+
         a, b = self._docs()
         result = merge_svgs([a, b])
         assert isinstance(result, SVGDocument)
@@ -355,6 +369,7 @@ class TestMergeSvgs:
 
     def test_single_svg(self):
         from pathy_svg.document import SVGDocument
+
         a, _ = self._docs()
         result = merge_svgs([a])
         assert isinstance(result, SVGDocument)
@@ -373,8 +388,9 @@ class TestMergeSvgs:
 # strip_metadata
 # ---------------------------------------------------------------------------
 
+
 class TestStripMetadata:
-    INKSCAPE_SVG = '''<?xml version="1.0" encoding="UTF-8"?>
+    INKSCAPE_SVG = """<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg"
      xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
      xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.0.dtd"
@@ -392,10 +408,11 @@ class TestStripMetadata:
   <inkscape:label>Test label</inkscape:label>
   <sodipodi:namedview/>
   <rect id="r1" width="100" height="100" fill="green"/>
-</svg>'''
+</svg>"""
 
     def test_removes_metadata_element(self):
         from pathy_svg.document import SVGDocument
+
         doc = SVGDocument.from_string(self.INKSCAPE_SVG)
         result = strip_metadata(doc)
         svg_str = result.to_string()
@@ -403,6 +420,7 @@ class TestStripMetadata:
 
     def test_removes_sodipodi_elements(self):
         from pathy_svg.document import SVGDocument
+
         doc = SVGDocument.from_string(self.INKSCAPE_SVG)
         result = strip_metadata(doc)
         svg_str = result.to_string()
@@ -410,6 +428,7 @@ class TestStripMetadata:
 
     def test_removes_inkscape_elements(self):
         from pathy_svg.document import SVGDocument
+
         doc = SVGDocument.from_string(self.INKSCAPE_SVG)
         result = strip_metadata(doc)
         svg_str = result.to_string()
@@ -417,6 +436,7 @@ class TestStripMetadata:
 
     def test_keeps_regular_elements(self):
         from pathy_svg.document import SVGDocument
+
         doc = SVGDocument.from_string(self.INKSCAPE_SVG)
         result = strip_metadata(doc)
         svg_str = result.to_string()
@@ -424,12 +444,14 @@ class TestStripMetadata:
 
     def test_returns_svgdocument(self):
         from pathy_svg.document import SVGDocument
+
         doc = SVGDocument.from_string(self.INKSCAPE_SVG)
         result = strip_metadata(doc)
         assert isinstance(result, SVGDocument)
 
     def test_clean_svg_unchanged(self, simple_svg_path):
         from pathy_svg.document import SVGDocument
+
         doc = SVGDocument.from_file(simple_svg_path)
         result = strip_metadata(doc)
         # The rect and paths should still be there
@@ -440,8 +462,9 @@ class TestStripMetadata:
 # optimize_svg
 # ---------------------------------------------------------------------------
 
+
 class TestOptimizeSvg:
-    COMMENTED_SVG = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+    COMMENTED_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
   <!-- This is a comment -->
   <!-- Another comment -->
   <rect id="r" width="100" height="100" fill="red"/>
@@ -449,10 +472,11 @@ class TestOptimizeSvg:
     <!-- nested comment -->
     <path id="p" d="M 0 0 L 10 10"/>
   </g>
-</svg>'''
+</svg>"""
 
     def test_removes_comments(self):
         from pathy_svg.document import SVGDocument
+
         doc = SVGDocument.from_string(self.COMMENTED_SVG)
         result = optimize_svg(doc)
         svg_str = result.to_string()
@@ -461,6 +485,7 @@ class TestOptimizeSvg:
 
     def test_preserves_elements(self):
         from pathy_svg.document import SVGDocument
+
         doc = SVGDocument.from_string(self.COMMENTED_SVG)
         result = optimize_svg(doc)
         svg_str = result.to_string()
@@ -469,12 +494,14 @@ class TestOptimizeSvg:
 
     def test_returns_svgdocument(self):
         from pathy_svg.document import SVGDocument
+
         doc = SVGDocument.from_string(self.COMMENTED_SVG)
         result = optimize_svg(doc)
         assert isinstance(result, SVGDocument)
 
     def test_no_comments_svg_unchanged_structurally(self, simple_svg_path):
         from pathy_svg.document import SVGDocument
+
         doc = SVGDocument.from_file(simple_svg_path)
         result = optimize_svg(doc)
         # All path IDs should still be present
@@ -483,6 +510,7 @@ class TestOptimizeSvg:
 
     def test_does_not_modify_original(self):
         from pathy_svg.document import SVGDocument
+
         doc = SVGDocument.from_string(self.COMMENTED_SVG)
         _ = optimize_svg(doc)
         # Original should still have comments
@@ -494,15 +522,17 @@ class TestOptimizeSvg:
 # extract_styles
 # ---------------------------------------------------------------------------
 
+
 class TestExtractStyles:
-    INLINE_SVG = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100">
+    INLINE_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100">
   <rect id="r1" style="fill:red;stroke:black" width="100" height="100"/>
   <rect id="r2" style="fill:blue" width="50" height="50"/>
   <rect id="r3" style="fill:red;stroke:black" width="30" height="30"/>
-</svg>'''
+</svg>"""
 
     def test_creates_style_element(self):
         from pathy_svg.document import SVGDocument
+
         doc = SVGDocument.from_string(self.INLINE_SVG)
         result = extract_styles(doc)
         svg_str = result.to_string()
@@ -510,14 +540,16 @@ class TestExtractStyles:
 
     def test_removes_inline_style_attrs(self):
         from pathy_svg.document import SVGDocument
+
         doc = SVGDocument.from_string(self.INLINE_SVG)
         result = extract_styles(doc)
-        from lxml import etree
+
         for elem in result.root.iter():
             assert elem.get("style") is None, f"Found inline style on {elem.tag}"
 
     def test_adds_class_attrs(self):
         from pathy_svg.document import SVGDocument
+
         doc = SVGDocument.from_string(self.INLINE_SVG)
         result = extract_styles(doc)
         svg_str = result.to_string()
@@ -525,12 +557,14 @@ class TestExtractStyles:
 
     def test_deduplicates_identical_styles(self):
         from pathy_svg.document import SVGDocument
+
         doc = SVGDocument.from_string(self.INLINE_SVG)
         result = extract_styles(doc)
         svg_str = result.to_string()
         # r1 and r3 share the same style, so only one class definition
         # Count occurrences of "fill:red;stroke:black" (should be 1 in <style>)
         import re
+
         style_block_match = re.search(r"<style[^>]*>(.*?)</style>", svg_str, re.DOTALL)
         assert style_block_match is not None
         style_content = style_block_match.group(1)
@@ -538,6 +572,7 @@ class TestExtractStyles:
 
     def test_places_style_in_defs(self):
         from pathy_svg.document import SVGDocument
+
         doc = SVGDocument.from_string(self.INLINE_SVG)
         result = extract_styles(doc)
         svg_str = result.to_string()
@@ -549,12 +584,14 @@ class TestExtractStyles:
 
     def test_returns_svgdocument(self):
         from pathy_svg.document import SVGDocument
+
         doc = SVGDocument.from_string(self.INLINE_SVG)
         result = extract_styles(doc)
         assert isinstance(result, SVGDocument)
 
     def test_no_styles_returns_unchanged(self):
         from pathy_svg.document import SVGDocument
+
         svg = '<svg xmlns="http://www.w3.org/2000/svg"><rect id="r" fill="red"/></svg>'
         doc = SVGDocument.from_string(svg)
         result = extract_styles(doc)
@@ -563,6 +600,7 @@ class TestExtractStyles:
 
     def test_does_not_modify_original(self):
         from pathy_svg.document import SVGDocument
+
         doc = SVGDocument.from_string(self.INLINE_SVG)
         _ = extract_styles(doc)
         original_str = doc.to_string()
@@ -573,13 +611,22 @@ class TestExtractStyles:
 # Top-level import check
 # ---------------------------------------------------------------------------
 
+
 class TestTopLevelImports:
     def test_all_utils_importable_from_package(self):
         import pathy_svg
 
         for name in [
-            "hex_to_rgb", "rgb_to_hex", "interpolate_color", "parse_svg_color",
-            "normalize_values", "bin_values", "viewbox_to_pixel",
-            "merge_svgs", "strip_metadata", "optimize_svg", "extract_styles",
+            "hex_to_rgb",
+            "rgb_to_hex",
+            "interpolate_color",
+            "parse_svg_color",
+            "normalize_values",
+            "bin_values",
+            "viewbox_to_pixel",
+            "merge_svgs",
+            "strip_metadata",
+            "optimize_svg",
+            "extract_styles",
         ]:
             assert hasattr(pathy_svg, name), f"Missing from pathy_svg: {name}"

@@ -45,20 +45,12 @@ def inject_animation(
         rule = f"animation: pathy-pulse {duration}s ease-in-out {iteration};"
 
     elif effect == "fade_in":
-        keyframes = (
-            "@keyframes pathy-fade {"
-            "  0% { opacity: 0; }"
-            "  100% { opacity: 1; }"
-            "}"
-        )
+        keyframes = "@keyframes pathy-fade {  0% { opacity: 0; }  100% { opacity: 1; }}"
         rule = f"animation: pathy-fade {duration}s ease-in {iteration};"
 
     elif effect == "blink":
         keyframes = (
-            "@keyframes pathy-blink {"
-            "  0%, 100% { opacity: 1; }"
-            "  50% { opacity: 0.2; }"
-            "}"
+            "@keyframes pathy-blink {  0%, 100% { opacity: 1; }  50% { opacity: 0.2; }}"
         )
         rule = f"animation: pathy-blink {duration}s step-start {iteration};"
 

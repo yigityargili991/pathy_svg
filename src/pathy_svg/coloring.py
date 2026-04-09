@@ -24,7 +24,6 @@ def _build_id_index(tree: etree._ElementTree) -> dict[str, etree._Element]:
     return index
 
 
-
 def _set_fill(
     element: etree._Element,
     color: str,

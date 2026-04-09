@@ -1,9 +1,6 @@
 """Tests for pathy_svg.diff module."""
 
-import math
-
 import pytest
-from lxml import etree
 
 from pathy_svg.diff import compose_side_by_side, compute_diff
 from pathy_svg.document import SVGDocument
@@ -64,10 +61,12 @@ class TestDocDiff:
 class TestDocCompare:
     def test_compare_returns_doc(self, simple_svg_path):
         doc = SVGDocument.from_file(simple_svg_path)
-        result = doc.compare({
-            "Baseline": {"stomach": 0.3, "liver": 0.5},
-            "Treatment": {"stomach": 0.9, "liver": 0.1},
-        })
+        result = doc.compare(
+            {
+                "Baseline": {"stomach": 0.3, "liver": 0.5},
+                "Treatment": {"stomach": 0.9, "liver": 0.1},
+            }
+        )
         svg_str = result.to_string()
         assert "Baseline" in svg_str
         assert "Treatment" in svg_str

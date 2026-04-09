@@ -2,6 +2,8 @@
 
 import pytest
 
+from pathy_svg.document import SVGDocument
+
 try:
     import cairosvg  # noqa: F401
 
@@ -10,8 +12,6 @@ except (ImportError, OSError):
     HAS_CAIRO = False
 
 pytestmark = pytest.mark.skipif(not HAS_CAIRO, reason="cairosvg/libcairo not available")
-
-from pathy_svg.document import SVGDocument
 
 
 class TestPNGExport:

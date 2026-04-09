@@ -118,7 +118,9 @@ def add_tooltips(
 
         style = defs.find(f"{{{SVG_NS}}}style[@id='pathy-tooltip-style']")
         if style is None:
-            style = etree.SubElement(defs, f"{{{SVG_NS}}}style", id="pathy-tooltip-style")
+            style = etree.SubElement(
+                defs, f"{{{SVG_NS}}}style", id="pathy-tooltip-style"
+            )
         style.text = (
             ".pathy-tooltip { display: none; pointer-events: none; }\n"
             "[id]:hover + .pathy-tooltip { display: inline; }"
@@ -191,5 +193,9 @@ def replace_text(
                     if "fill:" in style:
                         style = re.sub(r"fill:\s*[^;]+", f"fill:{text_color}", style)
                     else:
-                        style = f"fill:{text_color};{style}" if style else f"fill:{text_color}"
+                        style = (
+                            f"fill:{text_color};{style}"
+                            if style
+                            else f"fill:{text_color}"
+                        )
                     elem.set("style", style)

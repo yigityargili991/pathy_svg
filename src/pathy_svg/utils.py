@@ -13,8 +13,6 @@ import copy
 import re
 
 
-
-
 def hex_to_rgb(hex_str: str) -> tuple[int, int, int]:
     """Convert a CSS hex colour string to an (R, G, B) int tuple.
 
@@ -160,8 +158,6 @@ def parse_svg_color(color_str: str) -> tuple[int, int, int]:
     raise ValueError(f"Unrecognised SVG colour: {color_str!r}")
 
 
-
-
 def normalize_values(data: dict[str, float]) -> dict[str, float]:
     """Min-max normalise a dict of float values to the range [0, 1].
 
@@ -221,8 +217,6 @@ def bin_values(data: dict[str, float], breaks: list[float]) -> dict[str, int]:
     return result
 
 
-
-
 def viewbox_to_pixel(
     vb_x: float,
     vb_y: float,
@@ -256,8 +250,6 @@ def viewbox_to_pixel(
     px = (vb_x - vb_ox) / vb_w * width_px
     py = (vb_y - vb_oy) / vb_h * height_px
     return (px, py)
-
-
 
 
 def merge_svgs(svgs, layout: str = "horizontal", spacing: float = 20):
@@ -559,4 +551,3 @@ def dataframe_to_dict(df, id_col: str, value_col: str) -> dict[str, float]:
     numeric = pd.to_numeric(df[value_col], errors="coerce")
     valid = numeric.dropna()
     return dict(zip(df.loc[valid.index, id_col].astype(str), valid))
-

@@ -108,8 +108,8 @@ def show(doc: SVGDocument, *, width: int | None = None):
     display_mod = require_ipython_display()
     svg_str = doc.to_string()
     if width:
-        display_mod.display(display_mod.HTML(
-            f'<div style="max-width:{width}px">{svg_str}</div>'
-        ))
+        display_mod.display(
+            display_mod.HTML(f'<div style="max-width:{width}px">{svg_str}</div>')
+        )
     else:
         display_mod.display(display_mod.SVG(data=svg_str))

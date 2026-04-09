@@ -12,7 +12,7 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
@@ -23,6 +23,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Visualization",
     "Typing :: Typed",
 ]
+keywords = ["svg", "heatmap", "visualization", "coloring", "data-visualization", "map"]
 dependencies = [
     "click>=8.0",
     "lxml>=5.0",
@@ -50,12 +51,15 @@ build-backend = "hatchling.build"
 [tool.hatch.version]
 path = "src/pathy_svg/__init__.py"
 
+[tool.hatch.build.targets.sdist]
+exclude = [".github", "docs", "docs_templates"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/pathy_svg"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
-[tool.black]
+[tool.ruff]
 line-length = 88
-target-version = ["py310", "py311", "py312", "py313"]
+target-version = "py310"
