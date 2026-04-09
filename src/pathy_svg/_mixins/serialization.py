@@ -1,4 +1,4 @@
-"""Mixin for serialization, display, and introspection methods."""
+"""Mixin for serialization and display methods."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 
 class SerializationMixin:
-    """SVG serialization, Jupyter repr, and introspection methods."""
+    """SVG serialization and Jupyter repr methods."""
 
     __slots__ = ()
 
@@ -67,14 +67,3 @@ class SerializationMixin:
         """HTML fallback for Jupyter."""
         return self.to_string()
 
-    def inspect_paths(self):
-        """Return detailed info about all colorable elements."""
-        from pathy_svg.inspect import inspect_paths
-
-        return inspect_paths(self._tree, self._nsmap)
-
-    def validate_ids(self, ids):
-        """Check which data IDs match elements in the SVG."""
-        from pathy_svg.inspect import validate_ids
-
-        return validate_ids(self._tree, self._nsmap, ids)

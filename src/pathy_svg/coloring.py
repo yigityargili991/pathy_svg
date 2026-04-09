@@ -103,6 +103,7 @@ def apply_heatmap(
     preserve_stroke: bool = True,
     color_missing: bool = True,
     clip: bool = True,
+    id_to_elem: dict[str, etree._Element] | None = None,
 ) -> ColorScale | None:
     """Apply data-driven coloring to SVG elements. Modifies tree in-place.
 
@@ -137,7 +138,8 @@ def apply_heatmap(
 
     fill_kwargs = {"opacity": opacity, "preserve_stroke": preserve_stroke}
     protected_ids = set(data.keys())
-    id_to_elem = build_id_index(tree)
+    if id_to_elem is None:
+        id_to_elem = build_id_index(tree)
 
     # Color elements that have data
     for eid, value in data.items():
@@ -177,6 +179,7 @@ def apply_recolor(
     *,
     opacity: float | None = None,
     preserve_stroke: bool = True,
+    id_to_elem: dict[str, etree._Element] | None = None,
 ) -> None:
     """Apply manual color mapping to SVG elements. Modifies tree in-place.
 
@@ -187,7 +190,8 @@ def apply_recolor(
         preserve_stroke: Whether to preserve original stroke styling.
     """
     fill_kwargs = {"opacity": opacity, "preserve_stroke": preserve_stroke}
-    id_to_elem = build_id_index(tree)
+    if id_to_elem is None:
+        id_to_elem = build_id_index(tree)
 
     for eid, color in colors.items():
         elem = id_to_elem.get(eid)
@@ -207,6 +211,7 @@ def apply_categorical(
     na_color: str = "#cccccc",
     opacity: float | None = None,
     preserve_stroke: bool = True,
+    id_to_elem: dict[str, etree._Element] | None = None,
 ) -> CategoricalPalette:
     """Apply categorical coloring to SVG elements. Modifies tree in-place.
 
@@ -223,7 +228,8 @@ def apply_categorical(
     """
     cat_palette = CategoricalPalette(palette)
     fill_kwargs = {"opacity": opacity, "preserve_stroke": preserve_stroke}
-    id_to_elem = build_id_index(tree)
+    if id_to_elem is None:
+        id_to_elem = build_id_index(tree)
 
     for eid, category in data.items():
         elem = id_to_elem.get(eid)

@@ -18,7 +18,7 @@ from pathy_svg.themes import medical, geographic, heatmap_classic
 from pathy_svg.transform import BBox, ViewBox
 from pathy_svg.color import hex_to_rgb, rgb_to_hex, interpolate_color, parse_svg_color
 from pathy_svg.data import normalize_values, bin_values, dataframe_to_dict
-from pathy_svg.utils import (
+from pathy_svg.svg_tools import (
     viewbox_to_pixel,
     merge_svgs,
     strip_metadata,

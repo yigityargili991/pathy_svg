@@ -54,6 +54,18 @@ class ColorScale:
         else:
             self._norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
 
+    @property
+    def effective_vmin(self) -> float:
+        """The resolved minimum value after fitting."""
+        v = getattr(self._norm, "vmin", None)
+        return float(v) if v is not None else 0.0
+
+    @property
+    def effective_vmax(self) -> float:
+        """The resolved maximum value after fitting."""
+        v = getattr(self._norm, "vmax", None)
+        return float(v) if v is not None else 1.0
+
     def fit(self, values: list[float] | np.ndarray) -> ColorScale:
         """Auto-set vmin/vmax from data if not explicitly provided.
 

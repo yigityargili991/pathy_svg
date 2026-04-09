@@ -1,4 +1,4 @@
-"""Geometric helpers — bounding boxes, centroids, viewBox math, SVG path parsing."""
+"""Geometric helpers — bounding boxes, centroids, viewBox math, SVG transforms."""
 
 from __future__ import annotations
 
@@ -7,6 +7,8 @@ import re
 from typing import NamedTuple
 
 import numpy as np
+
+from pathy_svg._constants import local_tag
 
 
 class ViewBox(NamedTuple):
@@ -76,175 +78,8 @@ def bbox_union(boxes: list[BBox]) -> BBox:
     return BBox(x_min, y_min, x_max - x_min, y_max - y_min)
 
 
-_PATH_CMD_RE = re.compile(
-    r"([MmZzLlHhVvCcSsQqTtAa])|([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)"
-)
-
-
-def _tokenize_path_d(d: str) -> list[str | float]:
-    """Tokenize an SVG path `d` attribute into commands and numbers."""
-    tokens: list[str | float] = []
-    for match in _PATH_CMD_RE.finditer(d):
-        cmd, num = match.groups()
-        if cmd:
-            tokens.append(cmd)
-        else:
-            tokens.append(float(num))
-    return tokens
-
-
-def bbox_from_path_d(d: str) -> BBox:
-    """Compute an approximate bounding box from an SVG path `d` attribute.
-
-    Handles M, L, H, V, C, S, Q, T, Z commands (both absolute and relative).
-    For curves, uses control points — slightly overestimates but sufficient
-    for label placement and centroid calculation.
-
-    Args:
-        d: The SVG path 'd' attribute string.
-
-    Returns:
-        An approximate BBox for the path.
-    """
-    tokens = _tokenize_path_d(d)
-    if not tokens:
-        return BBox(0, 0, 0, 0)
-
-    points: list[tuple[float, float]] = []
-    cx, cy = 0.0, 0.0  # current point
-    sx, sy = 0.0, 0.0  # subpath start
-    i = 0
-
-    def _next_float() -> float:
-        nonlocal i
-        i += 1
-        return float(tokens[i])
-
-    while i < len(tokens):
-        tok = tokens[i]
-
-        if tok == "M":
-            cx, cy = _next_float(), _next_float()
-            sx, sy = cx, cy
-            points.append((cx, cy))
-            # Implicit L after M
-            while i + 1 < len(tokens) and isinstance(tokens[i + 1], float):
-                cx, cy = _next_float(), _next_float()
-                points.append((cx, cy))
-        elif tok == "m":
-            cx += _next_float()
-            cy += _next_float()
-            sx, sy = cx, cy
-            points.append((cx, cy))
-            while i + 1 < len(tokens) and isinstance(tokens[i + 1], float):
-                cx += _next_float()
-                cy += _next_float()
-                points.append((cx, cy))
-        elif tok == "L":
-            while i + 1 < len(tokens) and isinstance(tokens[i + 1], float):
-                cx, cy = _next_float(), _next_float()
-                points.append((cx, cy))
-        elif tok == "l":
-            while i + 1 < len(tokens) and isinstance(tokens[i + 1], float):
-                cx += _next_float()
-                cy += _next_float()
-                points.append((cx, cy))
-        elif tok == "H":
-            while i + 1 < len(tokens) and isinstance(tokens[i + 1], float):
-                cx = _next_float()
-                points.append((cx, cy))
-        elif tok == "h":
-            while i + 1 < len(tokens) and isinstance(tokens[i + 1], float):
-                cx += _next_float()
-                points.append((cx, cy))
-        elif tok == "V":
-            while i + 1 < len(tokens) and isinstance(tokens[i + 1], float):
-                cy = _next_float()
-                points.append((cx, cy))
-        elif tok == "v":
-            while i + 1 < len(tokens) and isinstance(tokens[i + 1], float):
-                cy += _next_float()
-                points.append((cx, cy))
-        elif tok == "C":
-            while i + 1 < len(tokens) and isinstance(tokens[i + 1], float):
-                x1, y1 = _next_float(), _next_float()
-                x2, y2 = _next_float(), _next_float()
-                cx, cy = _next_float(), _next_float()
-                points.extend([(x1, y1), (x2, y2), (cx, cy)])
-        elif tok == "c":
-            while i + 1 < len(tokens) and isinstance(tokens[i + 1], float):
-                x1 = cx + _next_float()
-                y1 = cy + _next_float()
-                x2 = cx + _next_float()
-                y2 = cy + _next_float()
-                cx += _next_float()
-                cy += _next_float()
-                points.extend([(x1, y1), (x2, y2), (cx, cy)])
-        elif tok == "S":
-            while i + 1 < len(tokens) and isinstance(tokens[i + 1], float):
-                x2, y2 = _next_float(), _next_float()
-                cx, cy = _next_float(), _next_float()
-                points.extend([(x2, y2), (cx, cy)])
-        elif tok == "s":
-            while i + 1 < len(tokens) and isinstance(tokens[i + 1], float):
-                x2 = cx + _next_float()
-                y2 = cy + _next_float()
-                cx += _next_float()
-                cy += _next_float()
-                points.extend([(x2, y2), (cx, cy)])
-        elif tok == "Q":
-            while i + 1 < len(tokens) and isinstance(tokens[i + 1], float):
-                x1, y1 = _next_float(), _next_float()
-                cx, cy = _next_float(), _next_float()
-                points.extend([(x1, y1), (cx, cy)])
-        elif tok == "q":
-            while i + 1 < len(tokens) and isinstance(tokens[i + 1], float):
-                x1 = cx + _next_float()
-                y1 = cy + _next_float()
-                cx += _next_float()
-                cy += _next_float()
-                points.extend([(x1, y1), (cx, cy)])
-        elif tok == "T":
-            while i + 1 < len(tokens) and isinstance(tokens[i + 1], float):
-                cx, cy = _next_float(), _next_float()
-                points.append((cx, cy))
-        elif tok == "t":
-            while i + 1 < len(tokens) and isinstance(tokens[i + 1], float):
-                cx += _next_float()
-                cy += _next_float()
-                points.append((cx, cy))
-        elif tok == "A":
-            while i + 1 < len(tokens) and isinstance(tokens[i + 1], float):
-                # rx, ry, x-rotation, large-arc, sweep, x, y
-                _next_float()  # rx
-                _next_float()  # ry
-                _next_float()  # x-rotation
-                _next_float()  # large-arc-flag
-                _next_float()  # sweep-flag
-                cx, cy = _next_float(), _next_float()
-                points.append((cx, cy))
-        elif tok == "a":
-            while i + 1 < len(tokens) and isinstance(tokens[i + 1], float):
-                _next_float()  # rx
-                _next_float()  # ry
-                _next_float()  # x-rotation
-                _next_float()  # large-arc-flag
-                _next_float()  # sweep-flag
-                cx += _next_float()
-                cy += _next_float()
-                points.append((cx, cy))
-        elif tok in ("Z", "z"):
-            cx, cy = sx, sy
-
-        i += 1
-
-    if not points:
-        return BBox(0, 0, 0, 0)
-
-    arr = np.array(points)
-    x_min, y_min = arr.min(axis=0)
-    x_max, y_max = arr.max(axis=0)
-    return BBox(float(x_min), float(y_min), float(x_max - x_min), float(y_max - y_min))
+# Re-export from path_parser for backward compatibility
+from pathy_svg.path_parser import bbox_from_path_d as bbox_from_path_d  # noqa: E402
 
 
 def bbox_of_element(
@@ -316,16 +151,6 @@ def bbox_of_element(
         box = _transform_bbox(box, current_transform)
 
     return box
-
-
-def local_tag(tag: str) -> str:
-    """Strip namespace prefix from a tag, e.g. '{http://...}path' -> 'path'."""
-    if tag.startswith("{"):
-        return tag.split("}", 1)[1]
-    return tag
-
-
-_local_tag = local_tag
 
 
 _TRANSFORM_RE = re.compile(

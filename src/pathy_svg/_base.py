@@ -251,6 +251,18 @@ class SVGDocumentBase:
         """Get the centroid of an element by ID."""
         return centroid_of_bbox(self.bbox(element_id))
 
+    def inspect_paths(self):
+        """Return detailed info about all colorable elements."""
+        from pathy_svg.inspect import inspect_paths
+
+        return inspect_paths(self._tree, self._nsmap)
+
+    def validate_ids(self, ids):
+        """Check which data IDs match elements in the SVG."""
+        from pathy_svg.inspect import validate_ids
+
+        return validate_ids(self._tree, self._nsmap, ids)
+
     def _clone(self):
         """Return a deep copy of this document."""
         return type(self)(

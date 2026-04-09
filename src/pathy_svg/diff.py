@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import copy
 import math
+from typing import TYPE_CHECKING
 
 from lxml import etree
 
 from pathy_svg._constants import SVG_NS
 from pathy_svg.transform import ViewBox
+
+if TYPE_CHECKING:
+    from pathy_svg.document import SVGDocument
 
 
 def compute_diff(
@@ -44,7 +48,7 @@ def compute_diff(
 
 
 def compose_side_by_side(
-    docs: list,
+    docs: list[SVGDocument],
     titles: list[str] | None = None,
     *,
     layout: str = "horizontal",

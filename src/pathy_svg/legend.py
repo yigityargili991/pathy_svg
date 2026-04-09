@@ -78,8 +78,8 @@ def build_gradient_legend(
 
     # Add color stops
     n_stops = 20
-    vmin = float(scale._norm.vmin or 0) if hasattr(scale._norm, "vmin") else 0.0
-    vmax = float(scale._norm.vmax or 1) if hasattr(scale._norm, "vmax") else 1.0
+    vmin = scale.effective_vmin
+    vmax = scale.effective_vmax
     for i in range(n_stops + 1):
         t = i / n_stops
         val = vmin + t * (vmax - vmin)
@@ -135,12 +135,8 @@ def build_gradient_legend(
     # Title
     if title:
         ttl = svg_sub(g, "text")
-        if direction == "vertical":
-            ttl.set("x", str(x))
-            ttl.set("y", str(y - 6))
-        else:
-            ttl.set("x", str(x))
-            ttl.set("y", str(y - 6))
+        ttl.set("x", str(x))
+        ttl.set("y", str(y - 6))
         ttl.set(
             "style",
             f"fill:{font_color};font-size:{ts}px;font-family:{font_family};font-weight:bold",
@@ -218,12 +214,23 @@ def resolve_legend_kind(
     scale: ColorScale | None,
     cat_pal: CategoricalPalette | None,
 ) -> str:
-    """Resolve ``"auto"`` to a concrete legend kind."""
+    """Resolve ``"auto"`` to a concrete legend kind.
+
+    Raises:
+        ValueError: If ``kind="auto"`` and no prior coloring has been applied.
+    """
     if kind != "auto":
         return kind
     if cat_pal is not None:
         return "categorical"
-    if scale is not None and scale.breaks is not None:
+    if scale is None:
+        raise ValueError(
+            "Cannot auto-detect legend kind: no prior .heatmap() or "
+            ".recolor_by_category() call. Pass kind='gradient', "
+            "'discrete', or 'categorical' explicitly, or call a "
+            "coloring method first."
+        )
+    if scale.breaks is not None:
         return "discrete"
     return "gradient"
 
@@ -233,7 +240,22 @@ def build_legend(
     scale: ColorScale | None,
     cat_pal: CategoricalPalette | None,
     vb: ViewBox,
-    **kwargs,
+    *,
+    position: tuple[float, float] = (0.85, 0.1),
+    size: tuple[float, float] = (0.04, 0.4),
+    direction: str = "vertical",
+    num_ticks: int = 5,
+    tick_format: str = "{:.2f}",
+    labels: list[str] | None = None,
+    font_size: float | None = None,
+    font_color: str = "black",
+    font_family: str = "sans-serif",
+    title: str | None = None,
+    title_size: float | None = None,
+    border: bool = False,
+    border_color: str = "#333",
+    background: str | None = None,
+    padding: float = 5,
 ) -> etree._Element:
     """Dispatch to the appropriate legend builder.
 
@@ -242,55 +264,87 @@ def build_legend(
         scale: The ColorScale from a prior heatmap call, or None.
         cat_pal: The CategoricalPalette from a prior categorical call, or None.
         vb: The document's ViewBox.
-        **kwargs: Forwarded to the underlying builder function.
 
     Returns:
         An SVG ``<g>`` element containing the legend.
     """
-    builders = {
-        "gradient": _build_gradient,
-        "discrete": _build_discrete,
-        "categorical": _build_categorical,
-    }
-    builder = builders.get(kind)
-    if builder is None:
-        raise ValueError(f"Unknown legend kind: {kind!r}")
-    return builder(scale, cat_pal, vb, **kwargs)
+    shared = dict(
+        position=position,
+        size=size,
+        direction=direction,
+        font_size=font_size,
+        font_color=font_color,
+        font_family=font_family,
+        title=title,
+        title_size=title_size,
+        border=border,
+        border_color=border_color,
+    )
 
+    if kind == "gradient":
+        if scale is None:
+            raise ValueError(
+                "Cannot build gradient legend without a ColorScale. "
+                "Call .heatmap() first or pass kind='categorical'."
+            )
+        return build_gradient_legend(
+            scale,
+            vb,
+            num_ticks=num_ticks,
+            tick_format=tick_format,
+            labels=labels,
+            background=background,
+            padding=padding,
+            **shared,
+        )
 
-def _build_gradient(scale, cat_pal, vb, **kwargs):
-    if scale is None:
-        scale = ColorScale("viridis", vmin=0, vmax=1)
-    return build_gradient_legend(scale, vb, **kwargs)
+    if kind == "discrete":
+        if scale is not None and scale.breaks is not None:
+            breaks = scale.breaks
+            colors = [
+                scale((breaks[i] + breaks[i + 1]) / 2)
+                for i in range(len(breaks) - 1)
+            ]
+            bin_labels = labels or [
+                f"{tick_format.format(breaks[i])} \u2013 {tick_format.format(breaks[i + 1])}"
+                for i in range(len(breaks) - 1)
+            ]
+            return build_discrete_legend(colors, bin_labels, vb, **shared)
+        if scale is None:
+            raise ValueError(
+                "Cannot build discrete legend without a ColorScale. "
+                "Call .heatmap() first."
+            )
+        return build_gradient_legend(
+            scale,
+            vb,
+            num_ticks=num_ticks,
+            tick_format=tick_format,
+            labels=labels,
+            background=background,
+            padding=padding,
+            **shared,
+        )
 
+    if kind == "categorical":
+        if cat_pal is not None:
+            colors = list(cat_pal.mapping.values())
+            cat_labels = labels or list(cat_pal.mapping.keys())
+            return build_discrete_legend(colors, cat_labels, vb, **shared)
+        if scale is None:
+            raise ValueError(
+                "Cannot build categorical legend without a CategoricalPalette. "
+                "Call .recolor_by_category() first."
+            )
+        return build_gradient_legend(
+            scale,
+            vb,
+            num_ticks=num_ticks,
+            tick_format=tick_format,
+            labels=labels,
+            background=background,
+            padding=padding,
+            **shared,
+        )
 
-def _build_discrete(scale, cat_pal, vb, **kwargs):
-    tick_format = kwargs.pop("tick_format", "{:.2f}")
-    labels = kwargs.pop("labels", None)
-    for key in ("num_ticks", "background", "padding"):
-        kwargs.pop(key, None)
-
-    if scale is not None and scale.breaks is not None:
-        breaks = scale.breaks
-        colors = [
-            scale((breaks[i] + breaks[i + 1]) / 2)
-            for i in range(len(breaks) - 1)
-        ]
-        bin_labels = labels or [
-            f"{tick_format.format(breaks[i])} \u2013 {tick_format.format(breaks[i + 1])}"
-            for i in range(len(breaks) - 1)
-        ]
-        return build_discrete_legend(colors, bin_labels, vb, **kwargs)
-    return _build_gradient(scale, cat_pal, vb, **kwargs)
-
-
-def _build_categorical(scale, cat_pal, vb, **kwargs):
-    labels = kwargs.pop("labels", None)
-    for key in ("num_ticks", "tick_format", "background", "padding"):
-        kwargs.pop(key, None)
-
-    if cat_pal is not None:
-        colors = list(cat_pal.mapping.values())
-        cat_labels = labels or list(cat_pal.mapping.keys())
-        return build_discrete_legend(colors, cat_labels, vb, **kwargs)
-    return _build_gradient(scale, cat_pal, vb, **kwargs)
+    raise ValueError(f"Unknown legend kind: {kind!r}")

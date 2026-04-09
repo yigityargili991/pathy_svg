@@ -57,6 +57,7 @@ class ColoringMixin:
             preserve_stroke=preserve_stroke,
             color_missing=color_missing,
             clip=clip,
+            id_to_elem=clone._element_index,
         )
         clone._last_scale = scale
         clone._last_heatmap_config = {
@@ -146,7 +147,11 @@ class ColoringMixin:
 
         clone = self._clone()
         apply_recolor(
-            clone._tree, colors, opacity=opacity, preserve_stroke=preserve_stroke
+            clone._tree,
+            colors,
+            opacity=opacity,
+            preserve_stroke=preserve_stroke,
+            id_to_elem=clone._element_index,
         )
         return clone
 
@@ -181,6 +186,7 @@ class ColoringMixin:
             na_color=na_color,
             opacity=opacity,
             preserve_stroke=preserve_stroke,
+            id_to_elem=clone._element_index,
         )
         clone._last_categorical_palette = cat_palette
         return clone
