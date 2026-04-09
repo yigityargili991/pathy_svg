@@ -274,7 +274,7 @@ def bbox_of_element(
     else:
         current_transform = _accumulated_transform
 
-    tag = _local_tag(element.tag)
+    tag = local_tag(element.tag)
 
     if tag == "path":
         d = element.get("d")
@@ -318,11 +318,14 @@ def bbox_of_element(
     return box
 
 
-def _local_tag(tag: str) -> str:
+def local_tag(tag: str) -> str:
     """Strip namespace prefix from a tag, e.g. '{http://...}path' -> 'path'."""
     if tag.startswith("{"):
         return tag.split("}", 1)[1]
     return tag
+
+
+_local_tag = local_tag
 
 
 _TRANSFORM_RE = re.compile(

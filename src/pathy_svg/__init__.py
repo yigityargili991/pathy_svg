@@ -16,19 +16,14 @@ from pathy_svg.inspect import PathInfo, ValidationResult
 from pathy_svg.themes import ColorScale, CategoricalPalette, ThemePreset
 from pathy_svg.themes import medical, geographic, heatmap_classic
 from pathy_svg.transform import BBox, ViewBox
+from pathy_svg.color import hex_to_rgb, rgb_to_hex, interpolate_color, parse_svg_color
+from pathy_svg.data import normalize_values, bin_values, dataframe_to_dict
 from pathy_svg.utils import (
-    hex_to_rgb,
-    rgb_to_hex,
-    interpolate_color,
-    parse_svg_color,
-    normalize_values,
-    bin_values,
     viewbox_to_pixel,
     merge_svgs,
     strip_metadata,
     optimize_svg,
     extract_styles,
-    dataframe_to_dict,
 )
 
 __all__ = [

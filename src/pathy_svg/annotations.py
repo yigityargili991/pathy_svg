@@ -6,19 +6,8 @@ import re
 
 from lxml import etree
 
+from pathy_svg._constants import SVG_NS, build_id_index, svg_sub
 from pathy_svg.transform import bbox_of_element, centroid_of_bbox
-
-
-SVG_NS = "http://www.w3.org/2000/svg"
-
-
-def _sub(parent: etree._Element, tag: str) -> etree._Element:
-    return etree.SubElement(parent, f"{{{SVG_NS}}}{tag}")
-
-
-def _find_by_id(tree: etree._ElementTree, eid: str) -> etree._Element | None:
-    results = tree.xpath(f'//*[@id="{eid}"]')
-    return results[0] if results else None
 
 
 def add_text_labels(
@@ -35,11 +24,12 @@ def add_text_labels(
 ) -> None:
     """Add text labels to SVG elements. Modifies tree in-place."""
     root = tree.getroot()
-    g = _sub(root, "g")
+    g = svg_sub(root, "g")
     g.set("id", "pathy-annotations")
+    id_index = build_id_index(tree)
 
     for eid, text in labels.items():
-        elem = _find_by_id(tree, eid)
+        elem = id_index.get(eid)
         if elem is None:
             continue
 
@@ -63,7 +53,7 @@ def add_text_labels(
             # Estimate text width (rough: 0.6 * font_size * len)
             tw = 0.6 * font_size * len(text)
             th = font_size * 1.4
-            bg_rect = _sub(g, "rect")
+            bg_rect = svg_sub(g, "rect")
             bg_rect.set("x", str(cx - tw / 2 - 2))
             bg_rect.set("y", str(cy - th / 2 - 2))
             bg_rect.set("width", str(tw + 4))
@@ -71,7 +61,7 @@ def add_text_labels(
             bg_rect.set("fill", background)
             bg_rect.set("rx", "2")
 
-        txt = _sub(g, "text")
+        txt = svg_sub(g, "text")
         txt.set("x", str(cx))
         txt.set("y", str(cy + font_size / 3))  # vertical center adjustment
         txt.set("text-anchor", "middle")
@@ -95,9 +85,11 @@ def add_tooltips(
         - "title": Adds a <title> child element (native SVG tooltip).
         - "css": Injects a CSS hover popup using a <style> block.
     """
+    id_index = build_id_index(tree)
+
     if method == "title":
         for eid, tip_text in tips.items():
-            elem = _find_by_id(tree, eid)
+            elem = id_index.get(eid)
             if elem is None:
                 continue
             # Remove existing <title> if any
@@ -127,7 +119,7 @@ def add_tooltips(
         )
 
         for eid, tip_text in tips.items():
-            elem = _find_by_id(tree, eid)
+            elem = id_index.get(eid)
             if elem is None:
                 continue
 
@@ -156,7 +148,7 @@ def add_tooltips(
             tooltip.set("class", "pathy-tooltip")
             tooltip.set("data-tooltip-for", eid)
 
-            bg = _sub(tooltip, "rect")
+            bg = svg_sub(tooltip, "rect")
             bg.set("x", str(x - tw / 2 - 4))
             bg.set("y", str(y - th))
             bg.set("width", str(tw + 8))
@@ -165,7 +157,7 @@ def add_tooltips(
             bg.set("fill", "black")
             bg.set("fill-opacity", "0.75")
 
-            txt = _sub(tooltip, "text")
+            txt = svg_sub(tooltip, "text")
             txt.set("x", str(x))
             txt.set("y", str(y - 5))
             txt.set("text-anchor", "middle")

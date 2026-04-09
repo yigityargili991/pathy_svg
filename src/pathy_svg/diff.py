@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
+import copy
 import math
 
 from lxml import etree
 
+from pathy_svg._constants import SVG_NS
 from pathy_svg.transform import ViewBox
-
-SVG_NS = "http://www.w3.org/2000/svg"
 
 
 def compute_diff(
@@ -119,7 +119,7 @@ def compose_side_by_side(
         # Copy all children of the source root
         source_root = doc._tree.getroot()
         for child in source_root:
-            g.append(__import__("copy").deepcopy(child))
+            g.append(copy.deepcopy(child))
 
         if layout == "horizontal":
             x_offset += vb.width + spacing

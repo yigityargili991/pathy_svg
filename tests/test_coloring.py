@@ -203,3 +203,25 @@ class TestGroupedSVG:
         assert "#cccccc" not in north_a_style
         assert "#cccccc" not in north_b_style
         assert "#cccccc" in south_a_style
+
+
+class TestPreserveStroke:
+    def test_preserve_stroke_true_keeps_stroke(self, styled_svg_path):
+        doc = SVGDocument.from_file(styled_svg_path)
+        result = doc.heatmap({"region_a": 0.5}, preserve_stroke=True)
+        elem = result._find_by_id("region_a")
+        assert elem.get("stroke") != "none"
+
+    def test_preserve_stroke_false_clears_stroke(self, styled_svg_path):
+        doc = SVGDocument.from_file(styled_svg_path)
+        result = doc.heatmap({"region_a": 0.5}, preserve_stroke=False)
+        elem = result._find_by_id("region_a")
+        assert elem.get("stroke") == "none"
+        style = elem.get("style", "")
+        assert "stroke:none" in style
+
+    def test_recolor_preserve_stroke_false(self, styled_svg_path):
+        doc = SVGDocument.from_file(styled_svg_path)
+        result = doc.recolor({"region_a": "#ff0000"}, preserve_stroke=False)
+        elem = result._find_by_id("region_a")
+        assert elem.get("stroke") == "none"

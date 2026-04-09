@@ -6,17 +6,9 @@ import uuid
 
 from lxml import etree
 
-from pathy_svg.themes import ColorScale
+from pathy_svg._constants import SVG_NS, svg_sub
+from pathy_svg.themes import CategoricalPalette, ColorScale
 from pathy_svg.transform import ViewBox
-
-
-SVG_NS = "http://www.w3.org/2000/svg"
-
-
-def _ns_elem(parent: etree._Element, tag: str) -> etree._Element:
-    """Create a namespaced SVG sub-element."""
-    ns = parent.nsmap.get(None, SVG_NS)
-    return etree.SubElement(parent, f"{{{ns}}}{tag}" if ns else tag)
 
 
 def build_gradient_legend(
@@ -38,7 +30,6 @@ def build_gradient_legend(
     border_color: str = "#333",
     background: str | None = None,
     padding: float = 5,
-    parent_ns: dict | None = None,
 ) -> etree._Element:
     """Build a gradient legend as an SVG <g> element."""
     # Calculate pixel positions from fractional coords
@@ -57,7 +48,7 @@ def build_gradient_legend(
 
     # Optional background
     if background:
-        bg = _sub(g, "rect")
+        bg = svg_sub(g, "rect")
         bg.set("x", str(x - padding))
         bg.set("y", str(y - padding - (20 if title else 0)))
         bg.set("width", str(w + padding * 2 + 60))
@@ -66,7 +57,7 @@ def build_gradient_legend(
         bg.set("rx", "3")
 
     # Gradient definition
-    defs = _sub(g, "defs")
+    defs = svg_sub(g, "defs")
 
     if direction == "vertical":
         grad = etree.SubElement(
@@ -98,7 +89,7 @@ def build_gradient_legend(
         stop.set("style", f"stop-color:{color}")
 
     # Color bar rect
-    bar = _sub(g, "rect")
+    bar = svg_sub(g, "rect")
     bar.set("x", str(x))
     bar.set("y", str(y))
     bar.set("width", str(w))
@@ -133,7 +124,7 @@ def build_gradient_legend(
             tx = x + t * w
             ty = y + h + fs + 2
 
-        txt = _sub(g, "text")
+        txt = svg_sub(g, "text")
         txt.set("x", str(tx))
         txt.set("y", str(ty))
         txt.set(
@@ -143,7 +134,7 @@ def build_gradient_legend(
 
     # Title
     if title:
-        ttl = _sub(g, "text")
+        ttl = svg_sub(g, "text")
         if direction == "vertical":
             ttl.set("x", str(x))
             ttl.set("y", str(y - 6))
@@ -189,7 +180,7 @@ def build_discrete_legend(
     g = etree.Element(f"{{{SVG_NS}}}g", id="pathy-legend")
 
     if title:
-        ttl = _sub(g, "text")
+        ttl = svg_sub(g, "text")
         ttl.set("x", str(x))
         ttl.set("y", str(y - 6))
         ttl.set(
@@ -201,7 +192,7 @@ def build_discrete_legend(
     for i, (color, label) in enumerate(zip(colors, labels)):
         sy = y + i * swatch_h
 
-        rect = _sub(g, "rect")
+        rect = svg_sub(g, "rect")
         rect.set("x", str(x))
         rect.set("y", str(sy))
         rect.set("width", str(w))
@@ -211,7 +202,7 @@ def build_discrete_legend(
             rect.set("stroke", border_color)
             rect.set("stroke-width", "0.5")
 
-        txt = _sub(g, "text")
+        txt = svg_sub(g, "text")
         txt.set("x", str(x + w + 4))
         txt.set("y", str(sy + swatch_h / 2 + fs / 3))
         txt.set(
@@ -222,6 +213,84 @@ def build_discrete_legend(
     return g
 
 
-def _sub(parent: etree._Element, tag: str) -> etree._Element:
-    """Create a namespaced SVG sub-element."""
-    return etree.SubElement(parent, f"{{{SVG_NS}}}{tag}")
+def resolve_legend_kind(
+    kind: str,
+    scale: ColorScale | None,
+    cat_pal: CategoricalPalette | None,
+) -> str:
+    """Resolve ``"auto"`` to a concrete legend kind."""
+    if kind != "auto":
+        return kind
+    if cat_pal is not None:
+        return "categorical"
+    if scale is not None and scale.breaks is not None:
+        return "discrete"
+    return "gradient"
+
+
+def build_legend(
+    kind: str,
+    scale: ColorScale | None,
+    cat_pal: CategoricalPalette | None,
+    vb: ViewBox,
+    **kwargs,
+) -> etree._Element:
+    """Dispatch to the appropriate legend builder.
+
+    Args:
+        kind: One of ``"gradient"``, ``"discrete"``, ``"categorical"``.
+        scale: The ColorScale from a prior heatmap call, or None.
+        cat_pal: The CategoricalPalette from a prior categorical call, or None.
+        vb: The document's ViewBox.
+        **kwargs: Forwarded to the underlying builder function.
+
+    Returns:
+        An SVG ``<g>`` element containing the legend.
+    """
+    builders = {
+        "gradient": _build_gradient,
+        "discrete": _build_discrete,
+        "categorical": _build_categorical,
+    }
+    builder = builders.get(kind)
+    if builder is None:
+        raise ValueError(f"Unknown legend kind: {kind!r}")
+    return builder(scale, cat_pal, vb, **kwargs)
+
+
+def _build_gradient(scale, cat_pal, vb, **kwargs):
+    if scale is None:
+        scale = ColorScale("viridis", vmin=0, vmax=1)
+    return build_gradient_legend(scale, vb, **kwargs)
+
+
+def _build_discrete(scale, cat_pal, vb, **kwargs):
+    tick_format = kwargs.pop("tick_format", "{:.2f}")
+    labels = kwargs.pop("labels", None)
+    for key in ("num_ticks", "background", "padding"):
+        kwargs.pop(key, None)
+
+    if scale is not None and scale.breaks is not None:
+        breaks = scale.breaks
+        colors = [
+            scale((breaks[i] + breaks[i + 1]) / 2)
+            for i in range(len(breaks) - 1)
+        ]
+        bin_labels = labels or [
+            f"{tick_format.format(breaks[i])} \u2013 {tick_format.format(breaks[i + 1])}"
+            for i in range(len(breaks) - 1)
+        ]
+        return build_discrete_legend(colors, bin_labels, vb, **kwargs)
+    return _build_gradient(scale, cat_pal, vb, **kwargs)
+
+
+def _build_categorical(scale, cat_pal, vb, **kwargs):
+    labels = kwargs.pop("labels", None)
+    for key in ("num_ticks", "tick_format", "background", "padding"):
+        kwargs.pop(key, None)
+
+    if cat_pal is not None:
+        colors = list(cat_pal.mapping.values())
+        cat_labels = labels or list(cat_pal.mapping.keys())
+        return build_discrete_legend(colors, cat_labels, vb, **kwargs)
+    return _build_gradient(scale, cat_pal, vb, **kwargs)

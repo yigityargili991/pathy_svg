@@ -7,7 +7,8 @@ from typing import Iterable
 
 from lxml import etree
 
-from pathy_svg.transform import BBox, bbox_of_element, _local_tag
+from pathy_svg._constants import COLORABLE_TAGS, local_tag
+from pathy_svg.transform import BBox, bbox_of_element
 
 
 @dataclass(frozen=True)
@@ -86,7 +87,7 @@ def _get_classes(elem: etree._Element) -> list[str]:
 def _get_parent_group_id(elem: etree._Element) -> str | None:
     parent = elem.getparent()
     while parent is not None:
-        if _local_tag(parent.tag) == "g":
+        if local_tag(parent.tag) == "g":
             pid = parent.get("id")
             if pid:
                 return pid
@@ -104,13 +105,12 @@ def inspect_paths(tree: etree._ElementTree, nsmap: dict) -> list[PathInfo]:
     Returns:
         A list of PathInfo objects describing each colorable element.
     """
-    colorable_tags = {"path", "rect", "circle", "ellipse", "polygon", "polyline"}
     results = []
 
     for elem in tree.iter():
-        local = _local_tag(elem.tag)
+        local = local_tag(elem.tag)
         eid = elem.get("id")
-        if not eid or local not in colorable_tags:
+        if not eid or local not in COLORABLE_TAGS:
             continue
 
         bbox = bbox_of_element(elem, nsmap)

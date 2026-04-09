@@ -7,21 +7,9 @@ import re
 import numpy as np
 from lxml import etree
 
+from pathy_svg._constants import COLORABLE_TAGS, build_id_index, local_tag
 from pathy_svg.exceptions import ColorScaleError
 from pathy_svg.themes import CategoricalPalette, ColorScale
-from pathy_svg.transform import _local_tag
-
-COLORABLE_TAGS = frozenset({"path", "rect", "circle", "ellipse", "polygon", "polyline"})
-
-
-def _build_id_index(tree: etree._ElementTree) -> dict[str, etree._Element]:
-    """Build a dict mapping element id -> element. First element wins for duplicate IDs."""
-    index: dict[str, etree._Element] = {}
-    for elem in tree.iter():
-        eid = elem.get("id")
-        if eid:
-            index.setdefault(eid, elem)
-    return index
 
 
 def _set_fill(
@@ -40,27 +28,31 @@ def _set_fill(
     if opacity is not None and opacity < 1.0:
         element.set("fill-opacity", str(opacity))
 
-    # Fast path: no existing style, create minimal style string
     if style is None:
         if opacity is not None and opacity < 1.0:
             style = f"fill:{color};fill-opacity:{opacity}"
         else:
             style = f"fill:{color}"
-        element.set("style", style)
-        return
-
-    if "fill:" in style or "fill :" in style:
-        style = re.sub(r"fill\s*:\s*[^;]+", f"fill:{color}", style)
     else:
-        style = f"fill:{color};{style}"
-
-    if opacity is not None and opacity < 1.0:
-        if "fill-opacity:" in style:
-            style = re.sub(
-                r"fill-opacity\s*:\s*[^;]+", f"fill-opacity:{opacity}", style
-            )
+        if "fill:" in style or "fill :" in style:
+            style = re.sub(r"fill\s*:\s*[^;]+", f"fill:{color}", style)
         else:
-            style += f";fill-opacity:{opacity}"
+            style = f"fill:{color};{style}"
+
+        if opacity is not None and opacity < 1.0:
+            if "fill-opacity:" in style:
+                style = re.sub(
+                    r"fill-opacity\s*:\s*[^;]+", f"fill-opacity:{opacity}", style
+                )
+            else:
+                style += f";fill-opacity:{opacity}"
+
+    if not preserve_stroke:
+        element.set("stroke", "none")
+        if re.search(r"(?:^|;)\s*stroke\s*:", style):
+            style = re.sub(r"(?:^|(?<=;))\s*stroke\s*:\s*[^;]+", "stroke:none", style)
+        else:
+            style = f"{style};stroke:none"
 
     element.set("style", style)
 
@@ -70,7 +62,7 @@ def _set_fill_on_group(element: etree._Element, color: str, **kwargs):
     for child in element.iter():
         if child is element:
             continue
-        if _local_tag(child.tag) in COLORABLE_TAGS:
+        if local_tag(child.tag) in COLORABLE_TAGS:
             _set_fill(child, color, **kwargs)
 
 
@@ -145,7 +137,7 @@ def apply_heatmap(
 
     fill_kwargs = {"opacity": opacity, "preserve_stroke": preserve_stroke}
     protected_ids = set(data.keys())
-    id_to_elem = _build_id_index(tree)
+    id_to_elem = build_id_index(tree)
 
     # Color elements that have data
     for eid, value in data.items():
@@ -156,11 +148,11 @@ def apply_heatmap(
             color = scale(value)
         else:
             color = na_color
-        if _local_tag(elem.tag) == "g":
+        if local_tag(elem.tag) == "g":
             for child in elem.iter():
                 if child is elem:
                     continue
-                if _local_tag(child.tag) in COLORABLE_TAGS:
+                if local_tag(child.tag) in COLORABLE_TAGS:
                     child_id = child.get("id")
                     if child_id:
                         protected_ids.add(child_id)
@@ -172,7 +164,7 @@ def apply_heatmap(
     if color_missing:
         for eid, elem in id_to_elem.items():
             if eid not in protected_ids:
-                local = _local_tag(elem.tag)
+                local = local_tag(elem.tag)
                 if local in COLORABLE_TAGS and not _has_explicit_none_fill(elem):
                     _set_fill(elem, na_color, **fill_kwargs)
 
@@ -195,13 +187,13 @@ def apply_recolor(
         preserve_stroke: Whether to preserve original stroke styling.
     """
     fill_kwargs = {"opacity": opacity, "preserve_stroke": preserve_stroke}
-    id_to_elem = _build_id_index(tree)
+    id_to_elem = build_id_index(tree)
 
     for eid, color in colors.items():
         elem = id_to_elem.get(eid)
         if elem is None:
             continue
-        if _local_tag(elem.tag) == "g":
+        if local_tag(elem.tag) == "g":
             _set_fill_on_group(elem, color, **fill_kwargs)
         else:
             _set_fill(elem, color, **fill_kwargs)
@@ -231,14 +223,14 @@ def apply_categorical(
     """
     cat_palette = CategoricalPalette(palette)
     fill_kwargs = {"opacity": opacity, "preserve_stroke": preserve_stroke}
-    id_to_elem = _build_id_index(tree)
+    id_to_elem = build_id_index(tree)
 
     for eid, category in data.items():
         elem = id_to_elem.get(eid)
         if elem is None:
             continue
         color = cat_palette(category)
-        if _local_tag(elem.tag) == "g":
+        if local_tag(elem.tag) == "g":
             _set_fill_on_group(elem, color, **fill_kwargs)
         else:
             _set_fill(elem, color, **fill_kwargs)

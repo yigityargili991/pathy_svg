@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from lxml import etree
 
-SVG_NS = "http://www.w3.org/2000/svg"
+from pathy_svg._constants import SVG_NS
 
 
 def inject_animation(

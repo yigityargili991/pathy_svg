@@ -190,7 +190,7 @@ def _read_csv_data(path: Path, id_col: str, value_col: str) -> dict[str, float]:
 
 def _data_from_df(df, id_col: str, value_col: str) -> dict[str, float]:
     """Extract {id: value} from a Pandas DataFrame."""
-    from pathy_svg.utils import dataframe_to_dict
+    from pathy_svg.data import dataframe_to_dict
 
     return dataframe_to_dict(df, id_col, value_col)
 

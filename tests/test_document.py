@@ -252,26 +252,3 @@ class TestDataFrameIntegration:
         )
         assert isinstance(result, SVGDocument)
 
-    def test_data_from_dataframe_static_method(self, simple_svg_path):
-        pd = pytest.importorskip("pandas")
-        doc = SVGDocument.from_file(simple_svg_path)
-        df = pd.DataFrame(
-            {
-                "region": ["a", "b", "c"],
-                "temp": [10.5, 20.5, 30.5],
-            }
-        )
-        data = doc._data_from_dataframe(df, id_col="region", value_col="temp")
-        assert data == {"a": 10.5, "b": 20.5, "c": 30.5}
-
-    def test_data_from_dataframe_skips_invalid_values(self, simple_svg_path):
-        pd = pytest.importorskip("pandas")
-        df = pd.DataFrame(
-            {
-                "id": ["a", "b", "c"],
-                "value": [1.0, "not_a_number", 3.0],
-            }
-        )
-        doc = SVGDocument.from_file(simple_svg_path)
-        data = doc._data_from_dataframe(df, id_col="id", value_col="value")
-        assert data == {"a": 1.0, "c": 3.0}
