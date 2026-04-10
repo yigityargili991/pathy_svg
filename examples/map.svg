@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 400" width="500" height="400">
+  <title>pathy-svg example map</title>
+  <desc>Five paths with stable IDs used by the packaged example CSV files.</desc>
+  <g id="organs">
+    <path id="stomach" d="M 100 200 L 150 180 L 170 220 L 130 240 Z" fill="#ffffff" stroke="#333333"/>
+    <path id="liver" d="M 200 100 L 280 100 L 280 180 L 200 180 Z" fill="#ffffff" stroke="#333333"/>
+    <path id="heart" d="M 250 250 C 250 220 280 200 300 230 C 320 200 350 220 350 250 L 300 310 Z" fill="#ffffff" stroke="#333333"/>
+    <path id="lung_l" d="M 50 80 L 120 80 L 120 200 L 50 200 Z" fill="#ffffff" stroke="#333333"/>
+    <path id="lung_r" d="M 380 80 L 450 80 L 450 200 L 380 200 Z" fill="#ffffff" stroke="#333333"/>
+  </g>
+  <g id="outline">
+    <rect id="border" x="5" y="5" width="490" height="390" fill="none" stroke="#000000"/>
+  </g>
+</svg>

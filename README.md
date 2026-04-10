@@ -24,12 +24,25 @@ pip install pathy-svg[full]    # All features including Jupyter display
 ```python
 from pathy_svg import SVGDocument
 
-doc = SVGDocument.from_file("map.svg")
+doc = SVGDocument.from_file("examples/map.svg")
 
-data = {"region_a": 10.5, "region_b": 42.0, "region_c": 7.3}
+data = {
+    "stomach": 0.5,
+    "liver": 0.8,
+    "heart": 0.3,
+    "lung_l": 0.6,
+    "lung_r": 0.7,
+}
 
-doc.heatmap(data, palette="YlOrRd").legend(title="Values").save("output.svg")
+doc.heatmap(data, palette="YlOrRd").legend(title="Expression").save("output.svg")
 ```
+
+The source distribution includes a runnable `examples/` directory with:
+
+- `examples/map.svg`
+- `examples/data.csv`
+- `examples/baseline.csv`
+- `examples/treatment.csv`
 
 ## Features
 
@@ -53,19 +66,19 @@ doc.heatmap(data, palette="YlOrRd").legend(title="Values").save("output.svg")
 
 ```bash
 # Create a heatmap
-pathy-svg heatmap map.svg data.csv --id-col region --value-col score --palette YlOrRd --legend -o out.svg
+pathy-svg heatmap examples/map.svg examples/data.csv --id-col organ --value-col expression --palette YlOrRd --legend -o out.svg
 
 # Inspect SVG structure
-pathy-svg inspect map.svg
+pathy-svg inspect examples/map.svg
 
 # Validate data IDs against SVG
-pathy-svg validate map.svg data.csv --id-col region
+pathy-svg validate examples/map.svg examples/data.csv --id-col organ
 
 # Compare two datasets
-pathy-svg diff map.svg baseline.csv treatment.csv --id-col region --value-col score --mode delta -o diff.svg
+pathy-svg diff examples/map.svg examples/baseline.csv examples/treatment.csv --id-col organ --value-col expression --mode delta -o diff.svg
 
 # Export to PNG
-pathy-svg export map.svg -o map.png --width 1200
+pathy-svg export examples/map.svg -o map.png --width 1200
 ```
 
 ## API Overview

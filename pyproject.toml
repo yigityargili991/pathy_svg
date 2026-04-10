@@ -4,6 +4,7 @@ dynamic = ["version"]
 description = "Color arbitrary SVG paths by data values — turn any SVG into a heatmap"
 readme = "README.md"
 license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
 requires-python = ">=3.10,<3.14"
 authors = [
     {name = "Yigit Yargili", email = "160510618+yigityargili991@users.noreply.github.com"},
@@ -51,8 +52,12 @@ build-backend = "hatchling.build"
 [tool.hatch.version]
 path = "src/pathy_svg/__init__.py"
 
+[tool.hatch.build]
+exclude = ["**/__pycache__/**", "**/*.py[cod]", "**/.DS_Store"]
+
 [tool.hatch.build.targets.sdist]
-exclude = [".github", "docs", "docs_templates"]
+only-include = ["src/pathy_svg", "tests", "examples", "CHANGELOG.md"]
+exclude = ["/.github", "/docs", "/docs_templates"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pathy_svg"]
@@ -66,5 +71,7 @@ target-version = "py310"
 
 [dependency-groups]
 dev = [
+    "build>=1.2",
     "cairosvg>=2.9.0",
+    "hatchling>=1.27",
 ]
