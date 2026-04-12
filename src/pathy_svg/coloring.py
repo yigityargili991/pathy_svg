@@ -224,14 +224,16 @@ def aggregate_by_group(
 ) -> dict[str, float]:
     """Walk <g> elements, aggregate matched children's values.
 
-    Returns a dict of {group_key: aggregated_value} for groups that have
+    Returns a dict of {group_id: aggregated_value} for groups that have
     at least one child with data.
 
     Args:
         tree: The lxml ElementTree.
-        data: Mapping of element attribute values to numeric values.
+        data: Mapping of child element attribute values to numeric values.
         agg: Aggregation function name or a callable accepting a list of floats.
-        key_attr: Element attribute used to match data keys (default ``"id"``).
+        key_attr: Element attribute used to match child elements to *data*
+            keys (default ``"id"``).  Group lookup and output keys always
+            use the group's ``id`` attribute.
     """
     agg_funcs = {
         "mean": np.mean,

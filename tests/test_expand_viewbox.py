@@ -1,7 +1,6 @@
 """Tests for expand_viewbox parameter on legend()."""
 
 from pathy_svg.document import SVGDocument
-from pathy_svg.transform import parse_viewbox
 
 
 class TestExpandViewbox:
