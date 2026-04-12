@@ -63,53 +63,56 @@ result.save("layered.svg")
 
 # Working with DataFrames
 
-pathy_svg integrates with pandas — load data from a CSV or DataFrame
-instead of building dicts by hand.
+pathy_svg integrates with pandas. Pass a DataFrame directly instead of
+building dicts by hand.
 
 ```python
 import pandas as pd
 from pathy_svg import SVGDocument
 
+# Real 2023 US Census population data
+df = pd.DataFrame({
+    "state": ["CA","TX","FL","NY","PA","IL","OH","GA","NC","MI",
+              "NJ","VA","WA","AZ","TN","MA","IN","MO","MD","WI",
+              "CO","MN","SC","AL","LA","KY","OR","OK","CT","UT",
+              "IA","NV","AR","MS","KS","NM","NE","ID","WV","HI",
+              "NH","ME","MT","RI","DE","SD","ND","AK","DC","VT","WY"],
+    "population": [38965193, 30503301, 22610726, 19571216, 12961683,
+                   12549689, 11785935, 11029227, 10835491, 10037261,
+                   9290841, 8642274, 7812880, 7431344, 7126489,
+                   7001399, 6862199, 6196156, 6180253, 5910955,
+                   5877610, 5737915, 5373555, 5108468, 4573749,
+                   4526154, 4233358, 4053824, 3617176, 3417734,
+                   3207004, 3194176, 3067732, 2939690, 2940546,
+                   2114371, 1978379, 1964726, 1770071, 1435138,
+                   1402054, 1395722, 1132812, 1095962, 1031890,
+                   919318, 783926, 733391, 678972, 647464, 584057],
+})
+
 doc = SVGDocument.from_file("us_states.svg")
 
-# Load data from CSV
-df = pd.read_csv("state_population.csv")
-print(df.head())
-#   state  population  density
-# 0    CA    38965193    250.1
-# 1    TX    30503301    116.8
-# 2    FL    22610726    421.6
-# 3    NY    19571216    415.3
-# 4    PA    12961683    289.7
-
-# Heatmap directly from DataFrame
 colored = doc.heatmap_from_dataframe(
     df,
     id_col="state",
     value_col="population",
     palette="YlOrRd",
 )
-colored.legend(title="Population").save("from_dataframe.svg")
+colored.legend(title="Population (2023 Census)").save("from_dataframe.svg")
 ```
 
-You can also load the SVG and extract data in one step:
+![DataFrame heatmap](examples/08_dataframe.svg)
+
+Other DataFrame helpers:
 
 ```python
+# Load SVG + extract data in one call
 doc, data = SVGDocument.from_dataframe(
-    "us_states.svg", df, id_col="state", value_col="density"
+    "us_states.svg", df, id_col="state", value_col="population"
 )
-doc.heatmap(data, palette="viridis", vmax=1500).save("density.svg")
-```
 
-Or convert a DataFrame to a dict for use with any method:
-
-```python
+# Convert DataFrame column to dict for any method
 from pathy_svg import dataframe_to_dict
-
-density = dataframe_to_dict(df, id_col="state", value_col="density")
-doc.highlight(
-    [st for st, d in density.items() if d > 300]
-).save("dense_states.svg")
+pop = dataframe_to_dict(df, id_col="state", value_col="population")
 ```
 
 ---
