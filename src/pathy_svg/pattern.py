@@ -32,6 +32,19 @@ class CustomPatternSpec(PatternSpec):
     height: float = 10.0
 
 
+def _validate_pattern_spec(pat_id: str, spec: PatternSpec) -> None:
+    """Validate a pattern spec before modifying the tree. Raises on invalid input."""
+    if isinstance(spec, CustomPatternSpec):
+        try:
+            etree.fromstring(f"<wrapper xmlns='{SVG_NS}'>{spec.markup}</wrapper>")
+        except etree.XMLSyntaxError as exc:
+            raise ValueError(
+                f"Invalid custom pattern markup for '{pat_id}': {exc}"
+            ) from exc
+    elif spec.kind not in _PATTERN_BUILDERS:
+        raise ValueError(f"Unknown pattern kind: {spec.kind!r}")
+
+
 def _build_pattern_element(
     defs: etree._Element, pat_id: str, spec: PatternSpec
 ) -> None:
@@ -53,10 +66,7 @@ def _build_pattern_element(
         bg.set("height", str(spacing))
         bg.set("fill", spec.background)
 
-    builder = _PATTERN_BUILDERS.get(spec.kind)
-    if builder is None:
-        raise ValueError(f"Unknown pattern kind: {spec.kind!r}")
-    builder(pat, spec)
+    _PATTERN_BUILDERS[spec.kind](pat, spec)
 
 
 def _build_custom_pattern(
@@ -75,10 +85,7 @@ def _build_custom_pattern(
         bg.set("height", str(spec.height))
         bg.set("fill", spec.background)
 
-    try:
-        fragment = etree.fromstring(f"<wrapper xmlns='{SVG_NS}'>{spec.markup}</wrapper>")
-    except etree.XMLSyntaxError as exc:
-        raise ValueError(f"Invalid custom pattern markup for '{pat_id}': {exc}") from exc
+    fragment = etree.fromstring(f"<wrapper xmlns='{SVG_NS}'>{spec.markup}</wrapper>")
     for child in fragment:
         pat.append(child)
 
@@ -195,6 +202,7 @@ def apply_pattern_fill(
             defs = _get_or_create_defs(tree)
 
         pat_id = f"pathy-pat-{eid}"
+        _validate_pattern_spec(pat_id, spec)
         _remove_existing_def(defs, pat_id)
         _build_pattern_element(defs, pat_id, spec)
 

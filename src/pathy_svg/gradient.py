@@ -38,11 +38,10 @@ def _get_or_create_defs(tree: etree._ElementTree) -> etree._Element:
 
 
 def _remove_existing_def(defs: etree._Element, def_id: str) -> None:
-    """Remove an existing child of <defs> with the given id, if present."""
+    """Remove all existing children of <defs> with the given id."""
     for child in list(defs):
         if child.get("id") == def_id:
             defs.remove(child)
-            return
 
 
 def _create_gradient_element(
