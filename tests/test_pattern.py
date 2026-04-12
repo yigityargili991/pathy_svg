@@ -3,7 +3,6 @@
 from lxml import etree
 
 from pathy_svg.pattern import PatternSpec, CustomPatternSpec, apply_pattern_fill
-from pathy_svg.document import SVGDocument
 
 
 def _make_tree():

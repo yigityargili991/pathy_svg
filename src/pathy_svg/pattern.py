@@ -8,7 +8,7 @@ from lxml import etree
 
 from pathy_svg._constants import COLORABLE_TAGS, SVG_NS, build_id_index, local_tag, svg_sub
 from pathy_svg._css import set_style_property
-from pathy_svg.gradient import _get_or_create_defs
+from pathy_svg.gradient import _get_or_create_defs, _remove_existing_def
 
 
 @dataclass
@@ -75,7 +75,10 @@ def _build_custom_pattern(
         bg.set("height", str(spec.height))
         bg.set("fill", spec.background)
 
-    fragment = etree.fromstring(f"<wrapper xmlns='{SVG_NS}'>{spec.markup}</wrapper>")
+    try:
+        fragment = etree.fromstring(f"<wrapper xmlns='{SVG_NS}'>{spec.markup}</wrapper>")
+    except etree.XMLSyntaxError as exc:
+        raise ValueError(f"Invalid custom pattern markup for '{pat_id}': {exc}") from exc
     for child in fragment:
         pat.append(child)
 
@@ -192,6 +195,7 @@ def apply_pattern_fill(
             defs = _get_or_create_defs(tree)
 
         pat_id = f"pathy-pat-{eid}"
+        _remove_existing_def(defs, pat_id)
         _build_pattern_element(defs, pat_id, spec)
 
         kwargs = {"opacity": opacity, "preserve_stroke": preserve_stroke}

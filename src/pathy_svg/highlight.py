@@ -6,7 +6,7 @@ from lxml import etree
 
 from pathy_svg._constants import COLORABLE_TAGS, build_id_index, local_tag
 from pathy_svg._css import set_style_property, style_property
-from pathy_svg.color import hex_to_rgb, parse_svg_color, rgb_to_hex
+from pathy_svg.color import parse_svg_color, rgb_to_hex
 
 
 def _desaturate_color(color_str: str) -> str:

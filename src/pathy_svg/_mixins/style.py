@@ -2,6 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Collection
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pathy_svg.gradient import GradientSpec
+    from pathy_svg.pattern import PatternSpec
+
 
 class StyleMixin:
     """Gradient fills, pattern fills, stroke mapping, highlight/dim, and group aggregation."""
@@ -10,7 +17,7 @@ class StyleMixin:
 
     def gradient_fill(
         self,
-        gradients,
+        gradients: dict[str, GradientSpec],
         *,
         opacity: float | None = None,
         preserve_stroke: bool = True,
@@ -39,7 +46,7 @@ class StyleMixin:
 
     def pattern_fill(
         self,
-        patterns,
+        patterns: dict[str, str | PatternSpec],
         *,
         opacity: float | None = None,
         preserve_stroke: bool = True,
@@ -114,7 +121,7 @@ class StyleMixin:
 
     def highlight(
         self,
-        ids,
+        ids: Collection[str],
         *,
         dim_opacity: float = 0.2,
         desaturate: bool = True,
@@ -164,7 +171,7 @@ class StyleMixin:
             vmin: Minimum value for the color scale.
             vmax: Maximum value for the color scale.
             vcenter: Center value for diverging color scales.
-            na_color: Color for groups with no data.
+            na_color: Color for NaN values within groups.
             breaks: Boundary values for discrete color scales.
             opacity: Opacity for colored groups.
             preserve_stroke: Whether to preserve original stroke styling.

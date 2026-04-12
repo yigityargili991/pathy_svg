@@ -37,6 +37,14 @@ def _get_or_create_defs(tree: etree._ElementTree) -> etree._Element:
     return defs
 
 
+def _remove_existing_def(defs: etree._Element, def_id: str) -> None:
+    """Remove an existing child of <defs> with the given id, if present."""
+    for child in list(defs):
+        if child.get("id") == def_id:
+            defs.remove(child)
+            return
+
+
 def _create_gradient_element(
     defs: etree._Element, grad_id: str, spec: GradientSpec
 ) -> None:
@@ -106,6 +114,7 @@ def apply_gradient_fill(
             defs = _get_or_create_defs(tree)
 
         grad_id = f"pathy-grad-{eid}"
+        _remove_existing_def(defs, grad_id)
         _create_gradient_element(defs, grad_id, spec)
 
         kwargs = {"opacity": opacity, "preserve_stroke": preserve_stroke}

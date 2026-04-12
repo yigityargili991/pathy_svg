@@ -1,11 +1,8 @@
 """Tests for pathy_svg.gradient module."""
 
-import re
-
 from lxml import etree
 
 from pathy_svg.gradient import GradientSpec, apply_gradient_fill
-from pathy_svg.document import SVGDocument
 
 
 def _make_tree():

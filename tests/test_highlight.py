@@ -5,7 +5,6 @@ import re
 from lxml import etree
 
 from pathy_svg.highlight import apply_highlight
-from pathy_svg.document import SVGDocument
 
 
 def _make_tree():
