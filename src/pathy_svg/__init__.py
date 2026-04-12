@@ -61,196 +61,140 @@ result.save("layered.svg")
 
 ---
 
-# Example Workflow
+# Example Workflow: US States
 
-A step-by-step walkthrough showing how to explore, visualize, and compose
-multiple data layers on a single SVG.
+A walkthrough using real 2023 US Census data on a public-domain
+US states map. Each step shows the code and the resulting SVG.
 
-## 1. Load and Inspect
+## 1. Population Heatmap
 
-Start by loading an SVG and discovering what elements are available.
+Color every state by its population using the YlOrRd colormap.
 
 ```python
 from pathy_svg import SVGDocument
 
-doc = SVGDocument.from_file("anatomy.svg")
+doc = SVGDocument.from_file("us_states.svg")
 
-# What elements can we color?
-print(doc.element_ids)
-# ['stomach', 'liver', 'heart', 'lung_l', 'lung_r', ...]
+population = {"CA": 38_965_193, "TX": 30_503_301, "FL": 22_610_726, ...}
 
-# Groups?
-print(doc.group_ids)
-# ['organs', 'outline']
-
-# Detailed info
-for info in doc.inspect_paths():
-    print(f"{info.id:15s}  tag={info.tag:8s}  fill={info.fill}")
-```
-
-## 2. Validate Your Data
-
-Check that your data IDs actually match elements in the SVG before coloring.
-
-```python
-data = {
-    "stomach": 85.2,
-    "liver": 42.1,
-    "heart": 91.7,
-    "lung_l": 63.4,
-    "lung_r": 58.9,
-    "typo_organ": 10.0,  # oops
-}
-
-result = doc.validate_ids(data.keys())
-print(f"Matched: {result.matched}")
-# ['stomach', 'liver', 'heart', 'lung_l', 'lung_r']
-print(f"Unmatched: {result.unmatched}")
-# ['typo_organ']
-```
-
-## 3. Apply a Heatmap
-
-Color elements by their numeric values using a colormap.
-
-```python
-colored = doc.heatmap(
-    data,
-    palette="YlOrRd",   # any matplotlib colormap
-    vmin=0,
-    vmax=100,
+colored = (
+    doc.heatmap(population, palette="YlOrRd")
+    .legend(title="Population", position=(0.82, 0.05), size=(0.03, 0.35))
 )
-
-# Add a legend
-colored = colored.legend(
-    title="Expression Level",
-    position=(0.85, 0.1),
-    direction="vertical",
-)
-
-colored.save("heatmap.svg")
+colored.save("population.svg")
 ```
 
-## 4. Add Accessibility with Patterns
+![Population heatmap](examples/01_population.svg)
 
-Overlay patterns so the visualization works without color.
+## 2. Population Density
+
+Derived metric: people per square mile, using the viridis colormap.
 
 ```python
-# Bin values into categories and assign patterns
-high = [eid for eid, v in data.items() if v > 80]
-mid  = [eid for eid, v in data.items() if 40 <= v <= 80]
+land_area = {"AK": 570641, "TX": 261232, "CA": 155779, ...}
+density = {st: population[st] / land_area[st] for st in population}
 
+density_map = (
+    doc.heatmap(density, palette="viridis")
+    .legend(title="People / sq mi", position=(0.82, 0.05), size=(0.03, 0.35))
+)
+density_map.save("density.svg")
+```
+
+![Density heatmap](examples/02_density.svg)
+
+## 3. Highlight Top 10 States
+
+Focus on the 10 most populous states; everything else is dimmed and desaturated.
+
+```python
+top10 = sorted(population, key=population.get, reverse=True)[:10]
+
+highlighted = (
+    doc.heatmap(population, palette="YlOrRd")
+    .highlight(top10, dim_opacity=0.15, desaturate=True)
+)
+highlighted.save("top10.svg")
+```
+
+![Top 10 highlighted](examples/03_top10_highlighted.svg)
+
+## 4. Pattern Fills for Accessibility
+
+High-density states get dots, low-density get diagonal lines.
+Works in grayscale and for colorblind readers.
+
+```python
 from pathy_svg import PatternSpec
 
+median_density = sorted(density.values())[len(density) // 2]
+
 patterns = {}
-for eid in high:
-    patterns[eid] = PatternSpec(kind="dots", color="#333", spacing=4)
-for eid in mid:
-    patterns[eid] = PatternSpec(kind="diagonal_lines", color="#666", spacing=6)
+for st, d in density.items():
+    if d > median_density * 2:
+        patterns[st] = PatternSpec(kind="dots", color="#b30000", spacing=5, thickness=1.5)
+    elif d < median_density / 2:
+        patterns[st] = PatternSpec(kind="diagonal_lines", color="#084594", spacing=8)
 
-patterned = colored.pattern_fill(patterns)
-patterned.save("accessible.svg")
+doc.pattern_fill(patterns).save("patterns.svg")
 ```
 
-## 5. Highlight a Region of Interest
+![Pattern fills](examples/04_density_patterns.svg)
 
-Dim everything except the elements you want to focus on.
+## 5. Gradient Fills
 
-```python
-focused = colored.highlight(
-    ["heart", "lung_l", "lung_r"],
-    dim_opacity=0.15,
-    desaturate=True,
-)
-focused.save("cardiopulmonary.svg")
-```
-
-## 6. Stroke-Based Visualization
-
-Map a second variable to stroke width without touching fill colors.
-
-```python
-border_data = {"stomach": 2.0, "liver": 5.0, "heart": 8.0}
-
-stroked = colored.stroke_map(
-    border_data,
-    width_range=(0.5, 4.0),
-    palette="Greys",
-)
-stroked.save("with_borders.svg")
-```
-
-## 7. Compare Datasets
-
-Visualize the difference between baseline and treatment measurements.
-
-```python
-baseline  = {"stomach": 40, "liver": 60, "heart": 50}
-treatment = {"stomach": 80, "liver": 55, "heart": 90}
-
-diff = doc.diff(
-    baseline, treatment,
-    mode="percent_change",
-    palette="coolwarm",
-)
-diff.legend(title="% Change").save("diff.svg")
-```
-
-## 8. Compose with Layers
-
-Build a complex visualization from independent layers that can be
-toggled on and off.
+Apply custom linear gradients to individual states.
 
 ```python
 from pathy_svg import GradientSpec
 
-result = (
-    doc.layers()
-    .add("heatmap", lambda d: d.heatmap(data, palette="YlOrRd"))
-    .add("borders", lambda d: d.stroke_map(border_data, width_range=(1, 3)))
-    .add("labels",  lambda d: d.annotate({
-        "stomach": "85.2",
-        "liver": "42.1",
-        "heart": "91.7",
-    }))
-    .add("tooltips", lambda d: d.add_tooltips({
-        "stomach": "Stomach: 85.2 (high)",
-        "liver": "Liver: 42.1 (low)",
-        "heart": "Heart: 91.7 (high)",
-    }))
-    .flatten()
-)
+gradients = {
+    "CA": GradientSpec(start="#fee08b", end="#d73027", direction="vertical"),
+    "TX": GradientSpec(start="#d9ef8b", end="#1a9850", direction="horizontal"),
+    "NY": GradientSpec(start="#e0f3f8", end="#4575b4", direction="diagonal"),
+    "FL": GradientSpec(start="#fee08b", end="#f46d43", mid="#fdae61"),
+}
 
-result.save("complete.svg")
+doc.gradient_fill(gradients).save("gradients.svg")
 ```
 
-Toggle layers before rendering:
+![Gradient fills](examples/05_gradient_fills.svg)
+
+## 6. Stroke Mapping
+
+Density as fill color, population as stroke width. Two variables, one map.
 
 ```python
-# Same layers, but hide the labels
-minimal = (
-    doc.layers()
-    .add("heatmap", lambda d: d.heatmap(data, palette="YlOrRd"))
-    .add("borders", lambda d: d.stroke_map(border_data, width_range=(1, 3)))
-    .add("labels",  lambda d: d.annotate({"stomach": "85.2"}))
-    .hide("labels")
-    .flatten()
+stroked = (
+    doc.heatmap(density, palette="YlGnBu")
+    .stroke_map(population, width_range=(0.3, 4.0))
 )
+stroked.save("stroked.svg")
 ```
 
-## 9. Export
+![Stroke mapping](examples/06_stroke_by_population.svg)
 
-Save to different formats.
+## 7. Layer Composition
+
+Build a complex visualization from independent, named layers.
 
 ```python
-result.save("output.svg")           # SVG
-result.to_png("output.png", dpi=150) # PNG (requires cairosvg + Pillow)
-result.to_pdf("output.pdf")          # PDF
-
-# In Jupyter, just display inline:
-result.show()
-# Or just put it as the last expression in a cell — _repr_svg_ handles it.
+layered = (
+    doc.layers()
+    .add("density", lambda d: d.heatmap(density, palette="YlGnBu"))
+    .add("borders", lambda d: d.stroke_map(population, width_range=(0.5, 3.0)))
+    .add("labels",  lambda d: d.annotate(
+        {st: st for st in top10}, font_size=7, font_color="#222",
+    ))
+    .flatten()
+    .legend(title="Density", position=(0.82, 0.05), size=(0.03, 0.35))
+)
+layered.save("layered.svg")
 ```
+
+![Layered composition](examples/07_layered.svg)
+
+Full source: [`examples/us_states_workflow.py`](https://github.com/yigityargili991/pathy_svg/blob/main/examples/us_states_workflow.py)
 """
 
 __version__ = "0.1.0"
