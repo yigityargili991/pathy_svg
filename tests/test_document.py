@@ -44,7 +44,9 @@ class TestFromUrl:
 
         with patch("urllib.request.urlopen", return_value=mock_resp) as mock_urlopen:
             doc = SVGDocument.from_url("https://example.com/test.svg")
-            mock_urlopen.assert_called_once_with("https://example.com/test.svg", timeout=10.0)
+            mock_urlopen.assert_called_once_with(
+                "https://example.com/test.svg", timeout=10.0
+            )
         assert doc.root is not None
         assert "stomach" in doc.path_ids
 
@@ -56,7 +58,9 @@ class TestFromUrl:
 
         with patch("urllib.request.urlopen", return_value=mock_resp) as mock_urlopen:
             SVGDocument.from_url("http://example.com/test.svg", timeout=30.0)
-            mock_urlopen.assert_called_once_with("http://example.com/test.svg", timeout=30.0)
+            mock_urlopen.assert_called_once_with(
+                "http://example.com/test.svg", timeout=30.0
+            )
 
     def test_invalid_scheme_raises(self):
         with pytest.raises(ValueError, match="http"):
@@ -318,3 +322,37 @@ class TestDataFrameIntegration:
         )
         assert isinstance(result, SVGDocument)
 
+
+class TestSerializationReprExtended:
+    def test_repr_svg(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        result = doc._repr_svg_()
+        assert isinstance(result, str)
+        assert "<svg" in result
+
+    def test_repr_mimebundle_default(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        result = doc._repr_mimebundle_()
+        assert "image/svg+xml" in result
+        assert "<svg" in result["image/svg+xml"]
+
+    def test_repr_mimebundle_include_svg(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        result = doc._repr_mimebundle_(include=["image/svg+xml"])
+        assert "image/svg+xml" in result
+
+    def test_repr_mimebundle_exclude_svg(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        result = doc._repr_mimebundle_(exclude=["image/svg+xml"])
+        assert result == {}
+
+    def test_repr_mimebundle_include_without_svg(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        result = doc._repr_mimebundle_(include=["text/plain"])
+        assert result == {}
+
+    def test_repr_html(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        result = doc._repr_html_()
+        assert isinstance(result, str)
+        assert "<svg" in result

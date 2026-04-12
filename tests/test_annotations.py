@@ -1,5 +1,8 @@
 """Tests for pathy_svg.annotations module."""
 
+from lxml import etree
+
+from pathy_svg.annotations import add_text_labels, add_tooltips, replace_text
 from pathy_svg.document import SVGDocument
 
 
@@ -26,7 +29,6 @@ class TestAnnotate:
     def test_nonexistent_id_ignored(self, simple_svg_path):
         doc = SVGDocument.from_file(simple_svg_path)
         result = doc.annotate({"nonexistent": "X"})
-        # Should not raise, group should exist but be empty of text
         assert result._find_by_id("pathy-annotations") is not None
 
     def test_with_background(self, simple_svg_path):
@@ -39,6 +41,18 @@ class TestAnnotate:
         doc = SVGDocument.from_file(simple_svg_path)
         result = doc.annotate({"stomach": "S"}, placement="above")
         assert result._find_by_id("pathy-annotations") is not None
+
+    def test_placement_below(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        result = doc.annotate({"stomach": "S"}, placement="below")
+        g = result._find_by_id("pathy-annotations")
+        assert g is not None
+
+    def test_placement_bbox_corner(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        result = doc.annotate({"stomach": "S"}, placement="bbox_corner")
+        g = result._find_by_id("pathy-annotations")
+        assert g is not None
 
     def test_chaining_with_heatmap(self, simple_svg_path):
         doc = SVGDocument.from_file(simple_svg_path)
@@ -69,10 +83,52 @@ class TestTooltips:
     def test_immutability(self, simple_svg_path):
         doc = SVGDocument.from_file(simple_svg_path)
         doc.add_tooltips({"stomach": "tip"})
-        # Original should not have tooltip
         orig_stomach = doc._find_by_id("stomach")
         has_title = any(c.tag.endswith("title") for c in orig_stomach)
         assert not has_title
+
+
+class TestTooltipsDirect:
+    def _make_tree(self):
+        svg = (
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+            '<path id="p1" d="M 0 0 L 50 50 Z" fill="#fff"/>'
+            '<path id="p2" d="M 10 10 L 60 60 Z" fill="#fff"/>'
+            "</svg>"
+        )
+        root = etree.fromstring(svg.encode())
+        return etree.ElementTree(root), root.nsmap
+
+    def test_title_tooltip_nonexistent_id_skipped(self):
+        tree, nsmap = self._make_tree()
+        add_tooltips(tree, nsmap, {"nonexistent": "tip"})
+        titles = tree.xpath(
+            "//svg:title", namespaces={"svg": "http://www.w3.org/2000/svg"}
+        )
+        assert len(titles) == 0
+
+    def test_title_replaces_existing(self):
+        tree, nsmap = self._make_tree()
+        p1 = tree.getroot().find(".//{http://www.w3.org/2000/svg}path")
+        existing_title = etree.SubElement(p1, "{http://www.w3.org/2000/svg}title")
+        existing_title.text = "old"
+        add_tooltips(tree, nsmap, {"p1": "new"})
+        titles = p1.findall("{http://www.w3.org/2000/svg}title")
+        assert len(titles) == 1
+        assert titles[0].text == "new"
+
+    def test_css_tooltip_nonexistent_id_skipped(self):
+        tree, nsmap = self._make_tree()
+        add_tooltips(tree, nsmap, {"nonexistent": "tip"}, method="css")
+        data_tooltips = tree.xpath("//*[@data-tooltip-for]")
+        assert len(data_tooltips) == 0
+
+    def test_css_tooltip_removes_existing(self):
+        tree, nsmap = self._make_tree()
+        add_tooltips(tree, nsmap, {"p1": "first"}, method="css")
+        add_tooltips(tree, nsmap, {"p1": "second"}, method="css")
+        tooltips = tree.xpath('//*[@data-tooltip-for="p1"]')
+        assert len(tooltips) == 1
 
 
 class TestReplaceText:
@@ -85,3 +141,16 @@ class TestReplaceText:
         svg_after = replaced.to_string()
         assert "Low" in svg_after
         assert "High" in svg_after
+
+    def test_replace_text_with_color(self):
+        svg = (
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+            '<text id="t1">Hello</text>'
+            '<text id="t2">World</text>'
+            "</svg>"
+        )
+        tree = etree.ElementTree(etree.fromstring(svg.encode()))
+        replace_text(tree, {"Hello": "Foo"}, text_color="#ff0000")
+        t1 = tree.getroot().find(".//{http://www.w3.org/2000/svg}text")
+        assert t1.text == "Foo"
+        assert "#ff0000" in t1.get("style", "")

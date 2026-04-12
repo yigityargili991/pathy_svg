@@ -608,6 +608,35 @@ class TestExtractStyles:
 # ---------------------------------------------------------------------------
 
 
+class TestDeprecatedUtilsModule:
+    def test_import_emits_deprecation_warning(self):
+        import importlib
+
+        with pytest.warns(DeprecationWarning, match="pathy_svg.utils is deprecated"):
+            importlib.import_module("pathy_svg.utils")
+
+    def test_re_exports_hex_to_rgb(self):
+        import pathy_svg.utils as deprecated
+
+        from pathy_svg.color import hex_to_rgb
+
+        assert deprecated.hex_to_rgb is hex_to_rgb
+
+    def test_re_exports_normalize_values(self):
+        import pathy_svg.utils as deprecated
+
+        from pathy_svg.data import normalize_values
+
+        assert deprecated.normalize_values is normalize_values
+
+    def test_re_exports_viewbox_to_pixel(self):
+        import pathy_svg.utils as deprecated
+
+        from pathy_svg.svg_tools import viewbox_to_pixel
+
+        assert deprecated.viewbox_to_pixel is viewbox_to_pixel
+
+
 class TestTopLevelImports:
     def test_all_utils_importable_from_package(self):
         import pathy_svg

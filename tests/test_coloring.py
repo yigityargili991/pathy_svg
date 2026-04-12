@@ -3,16 +3,50 @@
 import re
 
 import numpy as np
+import pytest
+from lxml import etree
 
+from pathy_svg.coloring import (
+    _has_explicit_none_fill,
+    apply_categorical,
+    apply_heatmap,
+    apply_recolor,
+)
 from pathy_svg.document import SVGDocument
+from pathy_svg.exceptions import ColorScaleError
 from pathy_svg.themes import ColorScale
 
 
 def _extract_fill(result, eid):
-    """Extract the fill hex color from an element's style."""
     style = result._find_by_id(eid).get("style", "")
     m = re.search(r"fill:(#[0-9a-fA-F]{6})", style)
     return m.group(1) if m else None
+
+
+class TestHasExplicitNoneFill:
+    def test_style_fill_none(self):
+        elem = etree.Element("path")
+        elem.set("style", "fill:none;stroke:black")
+        assert _has_explicit_none_fill(elem) is True
+
+    def test_style_fill_something(self):
+        elem = etree.Element("path")
+        elem.set("style", "fill:red")
+        assert _has_explicit_none_fill(elem) is False
+
+    def test_attr_fill_none(self):
+        elem = etree.Element("path")
+        elem.set("fill", "none")
+        assert _has_explicit_none_fill(elem) is True
+
+    def test_attr_fill_something(self):
+        elem = etree.Element("path")
+        elem.set("fill", "#ff0000")
+        assert _has_explicit_none_fill(elem) is False
+
+    def test_no_fill_attr(self):
+        elem = etree.Element("path")
+        assert _has_explicit_none_fill(elem) is False
 
 
 class TestHeatmap:
@@ -307,3 +341,88 @@ class TestPreserveStroke:
         result = doc.recolor({"region_a": "#ff0000"}, preserve_stroke=False)
         elem = result._find_by_id("region_a")
         assert elem.get("stroke") == "none"
+
+
+class TestApplyHeatmapDirect:
+    def _make_tree(self):
+        svg = (
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+            '<path id="a" d="M 0 0 L 50 50 Z" fill="#fff"/>'
+            '<path id="b" d="M 10 10 L 60 60 Z" fill="#fff"/>'
+            "</svg>"
+        )
+        return etree.ElementTree(etree.fromstring(svg.encode()))
+
+    def test_bad_palette_raises_color_scale_error(self):
+        tree = self._make_tree()
+        with pytest.raises(ColorScaleError, match="Invalid palette"):
+            apply_heatmap(tree, {"a": 0.5}, palette="nonexistent_palette_xyz")
+
+    def test_missing_elem_in_data_skipped(self):
+        tree = self._make_tree()
+        scale = apply_heatmap(tree, {"a": 0.5, "missing": 1.0})
+        assert scale is not None
+
+    def test_with_custom_id_to_elem(self):
+        tree = self._make_tree()
+        id_index = {"a": tree.getroot().find(".//{http://www.w3.org/2000/svg}path")}
+        scale = apply_heatmap(tree, {"a": 0.5}, id_to_elem=id_index)
+        assert scale is not None
+
+
+class TestApplyRecolorDirect:
+    def _make_tree(self):
+        svg = (
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+            '<path id="a" d="M 0 0 L 50 50 Z" fill="#fff"/>'
+            "</svg>"
+        )
+        return etree.ElementTree(etree.fromstring(svg.encode()))
+
+    def test_with_custom_id_to_elem(self):
+        tree = self._make_tree()
+        id_index = {"a": tree.getroot().find(".//{http://www.w3.org/2000/svg}path")}
+        apply_recolor(tree, {"a": "#ff0000"}, id_to_elem=id_index)
+        elem = id_index["a"]
+        assert "#ff0000" in elem.get("style", "")
+
+    def test_nonexistent_id_skipped(self):
+        tree = self._make_tree()
+        apply_recolor(tree, {"nonexistent": "#ff0000"})
+        svg_str = etree.tostring(tree, encoding="unicode")
+        assert "#ff0000" not in svg_str
+
+
+class TestApplyCategoricalDirect:
+    def _make_tree(self):
+        svg = (
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+            '<g id="grp"><path id="a" d="M 0 0 L 50 50 Z" fill="#fff"/>'
+            '<path id="b" d="M 10 10 L 60 60 Z" fill="#fff"/></g>'
+            '<path id="c" d="M 20 20 L 70 70 Z" fill="#fff"/>'
+            "</svg>"
+        )
+        return etree.ElementTree(etree.fromstring(svg.encode()))
+
+    def test_with_custom_id_to_elem(self):
+        tree = self._make_tree()
+        root = tree.getroot()
+        ns = "{http://www.w3.org/2000/svg}"
+        id_index = {"c": root.find(f".//{ns}path[@id='c']")}
+        cat_pal = apply_categorical(tree, {"c": "cat_a"}, id_to_elem=id_index)
+        assert cat_pal is not None
+
+    def test_missing_elem_skipped(self):
+        tree = self._make_tree()
+        cat_pal = apply_categorical(tree, {"nonexistent": "cat_a"})
+        assert cat_pal is not None
+
+    def test_group_coloring(self):
+        tree = self._make_tree()
+        cat_pal = apply_categorical(
+            tree, {"grp": "group_a"}, palette={"group_a": "#ff0000"}
+        )
+        grp = tree.getroot().find(".//{http://www.w3.org/2000/svg}g")
+        for child in grp:
+            if child.tag.endswith("}path"):
+                assert "#ff0000" in child.get("style", "")

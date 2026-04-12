@@ -28,3 +28,4 @@ uv.lock
 *.swp
 *.swo
 examples.ipynb
+.coverage

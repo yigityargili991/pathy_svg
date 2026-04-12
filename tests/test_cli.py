@@ -5,7 +5,7 @@ import csv
 import pytest
 from click.testing import CliRunner
 
-from pathy_svg.cli import main
+from pathy_svg.cli import main, _read_data, _read_csv_data, _read_ids
 
 
 @pytest.fixture
@@ -159,3 +159,170 @@ class TestGuideCommand:
         )
         assert result.exit_code == 0
         assert "Guide saved" in result.output
+
+
+class TestExportCommand:
+    def test_export_png(self, runner, simple_svg_path, tmp_path):
+        out = str(tmp_path / "out.png")
+        with pytest.MonkeyPatch.context() as m:
+            from unittest.mock import MagicMock
+
+            mock_cairo = MagicMock()
+            mock_cairo.svg2png.return_value = b"\x89PNG fake"
+            m.setattr("pathy_svg.export.require_cairosvg", lambda: mock_cairo)
+            result = runner.invoke(
+                main,
+                ["export", str(simple_svg_path), "--format", "png", "-o", out],
+            )
+        assert result.exit_code == 0
+        assert "Exported" in result.output
+
+    def test_export_pdf(self, runner, simple_svg_path, tmp_path):
+        out = str(tmp_path / "out.pdf")
+        with pytest.MonkeyPatch.context() as m:
+            from unittest.mock import MagicMock
+
+            mock_cairo = MagicMock()
+            mock_cairo.svg2pdf.return_value = b"%PDF fake"
+            m.setattr("pathy_svg.export.require_cairosvg", lambda: mock_cairo)
+            result = runner.invoke(
+                main,
+                ["export", str(simple_svg_path), "--format", "pdf", "-o", out],
+            )
+        assert result.exit_code == 0
+        assert "Exported" in result.output
+
+    def test_export_jpeg(self, runner, simple_svg_path, tmp_path):
+        import io
+        from unittest.mock import MagicMock
+
+        from PIL import Image
+
+        buf = io.BytesIO()
+        img = Image.new("RGB", (10, 10), (255, 0, 0))
+        img.save(buf, format="PNG")
+        fake_png = buf.getvalue()
+
+        out = str(tmp_path / "out.jpg")
+        mock_cairo = MagicMock()
+        mock_cairo.svg2png.return_value = fake_png
+        with pytest.MonkeyPatch.context() as m:
+            m.setattr("pathy_svg.export.require_cairosvg", lambda: mock_cairo)
+            m.setattr("pathy_svg.export.require_pillow", lambda: __import__("PIL"))
+            result = runner.invoke(
+                main,
+                ["export", str(simple_svg_path), "--format", "jpeg", "-o", out],
+            )
+        assert result.exit_code == 0
+        assert "Exported" in result.output
+
+
+class TestReadData:
+    def test_read_csv(self, tmp_path):
+        p = tmp_path / "data.csv"
+        with open(p, "w", newline="") as f:
+            w = csv.writer(f)
+            w.writerow(["id", "val"])
+            w.writerow(["a", "1.0"])
+            w.writerow(["b", "2.0"])
+        result = _read_data(str(p), "id", "val")
+        assert result == {"a": 1.0, "b": 2.0}
+
+    def test_read_tsv(self, tmp_path):
+        p = tmp_path / "data.tsv"
+        with open(p, "w", newline="") as f:
+            w = csv.writer(f, delimiter="\t")
+            w.writerow(["id", "val"])
+            w.writerow(["x", "3.5"])
+        result = _read_data(str(p), "id", "val")
+        assert result == {"x": 3.5}
+
+    def test_read_data_skips_non_numeric(self, tmp_path):
+        p = tmp_path / "data.csv"
+        with open(p, "w", newline="") as f:
+            w = csv.writer(f)
+            w.writerow(["id", "val"])
+            w.writerow(["a", "1.0"])
+            w.writerow(["b", "not_a_number"])
+        result = _read_data(str(p), "id", "val")
+        assert "a" in result
+        assert "b" not in result
+
+    def test_read_data_missing_id_col(self, tmp_path):
+        p = tmp_path / "data.csv"
+        with open(p, "w", newline="") as f:
+            w = csv.writer(f)
+            w.writerow(["wrong_col", "val"])
+            w.writerow(["a", "1.0"])
+        with pytest.raises(Exception):
+            _read_data(str(p), "id", "val")
+
+    def test_read_data_missing_value_col(self, tmp_path):
+        p = tmp_path / "data.csv"
+        with open(p, "w", newline="") as f:
+            w = csv.writer(f)
+            w.writerow(["id", "wrong_col"])
+            w.writerow(["a", "1.0"])
+        with pytest.raises(Exception):
+            _read_data(str(p), "id", "val")
+
+
+class TestReadCsvData:
+    def test_basic_csv(self, tmp_path):
+        p = tmp_path / "data.csv"
+        with open(p, "w", newline="") as f:
+            w = csv.writer(f)
+            w.writerow(["id", "val"])
+            w.writerow(["a", "10"])
+            w.writerow(["b", "20"])
+        result = _read_csv_data(p, "id", "val")
+        assert result == {"a": 10.0, "b": 20.0}
+
+    def test_tsv_delimiter(self, tmp_path):
+        p = tmp_path / "data.tsv"
+        with open(p, "w", newline="") as f:
+            w = csv.writer(f, delimiter="\t")
+            w.writerow(["id", "val"])
+            w.writerow(["x", "5"])
+        result = _read_csv_data(p, "id", "val")
+        assert result == {"x": 5.0}
+
+    def test_tab_delimiter(self, tmp_path):
+        p = tmp_path / "data.tab"
+        with open(p, "w", newline="") as f:
+            w = csv.writer(f, delimiter="\t")
+            w.writerow(["id", "val"])
+            w.writerow(["y", "7"])
+        result = _read_csv_data(p, "id", "val")
+        assert result == {"y": 7.0}
+
+
+class TestReadIds:
+    def test_read_ids(self, tmp_path):
+        p = tmp_path / "ids.csv"
+        with open(p, "w", newline="") as f:
+            w = csv.writer(f)
+            w.writerow(["organ"])
+            w.writerow(["stomach"])
+            w.writerow(["liver"])
+        result = _read_ids(str(p), "organ")
+        assert result == ["stomach", "liver"]
+
+    def test_read_ids_tsv(self, tmp_path):
+        p = tmp_path / "ids.tsv"
+        with open(p, "w", newline="") as f:
+            w = csv.writer(f, delimiter="\t")
+            w.writerow(["organ"])
+            w.writerow(["heart"])
+        result = _read_ids(str(p), "organ")
+        assert result == ["heart"]
+
+    def test_read_ids_skips_missing_col(self, tmp_path):
+        p = tmp_path / "ids.csv"
+        with open(p, "w", newline="") as f:
+            w = csv.writer(f)
+            w.writerow(["organ", "extra"])
+            w.writerow(["stomach", "x"])
+            w.writerow(["liver", "y"])
+        result = _read_ids(str(p), "organ")
+        assert result == ["stomach", "liver"]
