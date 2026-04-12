@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from lxml import etree
 
-from pathy_svg._constants import COLORABLE_TAGS, SVG_NS, build_id_index, local_tag, svg_sub
+from pathy_svg._constants import COLORABLE_TAGS, SVG_NS, build_id_index, local_tag, safe_svg_id, svg_sub
 from pathy_svg._css import set_style_property
 
 DIRECTION_MAP = {
@@ -112,7 +112,7 @@ def apply_gradient_fill(
         if defs is None:
             defs = _get_or_create_defs(tree)
 
-        grad_id = f"pathy-grad-{eid}"
+        grad_id = f"pathy-grad-{safe_svg_id(eid)}"
         _remove_existing_def(defs, grad_id)
         _create_gradient_element(defs, grad_id, spec)
 

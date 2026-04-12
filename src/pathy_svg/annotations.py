@@ -25,15 +25,17 @@ def add_text_labels(
     font_family: str = "sans-serif",
     background: str | None = None,
     offset: tuple[float, float] = (0, 0),
+    id_to_elem: dict[str, etree._Element] | None = None,
 ) -> None:
     """Add text labels to SVG elements. Modifies tree in-place."""
     root = tree.getroot()
     g = svg_sub(root, "g")
     g.set("id", "pathy-annotations")
-    id_index = build_id_index(tree)
+    if id_to_elem is None:
+        id_to_elem = build_id_index(tree)
 
     for eid, text in labels.items():
-        elem = id_index.get(eid)
+        elem = id_to_elem.get(eid)
         if elem is None:
             continue
 
@@ -82,6 +84,7 @@ def add_tooltips(
     tips: dict[str, str],
     *,
     method: TooltipMethod = "title",
+    id_to_elem: dict[str, etree._Element] | None = None,
 ) -> None:
     """Add tooltips to SVG elements. Modifies tree in-place.
 
@@ -89,7 +92,9 @@ def add_tooltips(
         - "title": Adds a <title> child element (native SVG tooltip).
         - "css": Injects a CSS hover popup using a <style> block.
     """
-    id_index = build_id_index(tree)
+    if id_to_elem is None:
+        id_to_elem = build_id_index(tree)
+    id_index = id_to_elem
 
     if method == "title":
         for eid, tip_text in tips.items():
@@ -119,7 +124,7 @@ def add_tooltips(
             )
         style.text = (
             ".pathy-tooltip { display: none; pointer-events: none; }\n"
-            "[id]:hover + .pathy-tooltip { display: inline; }"
+            "[data-tooltip]:hover + .pathy-tooltip { display: inline; }"
         )
 
         for eid, tip_text in tips.items():
@@ -129,7 +134,9 @@ def add_tooltips(
 
             elem.set("data-tooltip", tip_text)
 
-            for existing in tree.xpath(f'//*[@data-tooltip-for="{eid}"]'):
+            for existing in tree.xpath(
+                '//*[@data-tooltip-for=$val]', val=eid,
+            ):
                 parent = existing.getparent()
                 if parent is not None:
                     parent.remove(existing)
