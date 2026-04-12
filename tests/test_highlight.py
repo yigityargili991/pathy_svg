@@ -4,6 +4,7 @@ import re
 
 from lxml import etree
 
+from pathy_svg.document import SVGDocument
 from pathy_svg.highlight import apply_highlight
 
 
@@ -108,3 +109,18 @@ class TestApplyHighlight:
         for eid in ("a", "b", "c"):
             elem = tree.getroot().find(f".//{ns}path[@id='{eid}']")
             assert elem.get("fill-opacity") == "0.2"
+
+
+class TestHighlightMixin:
+    def test_returns_new_document(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        result = doc.highlight(["stomach"])
+
+        assert result is not doc
+        assert isinstance(result, SVGDocument)
+
+    def test_original_unchanged(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        doc.highlight(["stomach"])
+
+        assert doc._find_by_id("liver").get("fill-opacity") is None

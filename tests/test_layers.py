@@ -152,3 +152,20 @@ class TestLayerManagerFlatten:
         lm.flatten()
 
         assert doc._find_by_id("stomach").get("fill") == "#ffffff"
+
+
+class TestLayersMixin:
+    def test_layers_returns_layer_manager(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        lm = doc.layers()
+        assert isinstance(lm, LayerManager)
+
+    def test_full_workflow(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        result = (
+            doc.layers()
+            .add("heatmap", lambda d: d.heatmap({"stomach": 0.5, "liver": 1.0}))
+            .add("labels", lambda d: d.annotate({"stomach": "S"}))
+            .flatten()
+        )
+        assert isinstance(result, SVGDocument)

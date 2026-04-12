@@ -41,6 +41,15 @@ class SVGDocumentBase:
     def __init__(
         self, tree: etree._ElementTree, *, _nsmap: dict[str, str] | None = None
     ):
+        """Initialize from a parsed lxml ElementTree.
+
+        Use the ``from_file``, ``from_string``, or ``from_url`` classmethods
+        instead of calling this directly.
+
+        Args:
+            tree: A parsed lxml ElementTree containing the SVG document.
+            _nsmap: Pre-detected namespace mapping (internal use).
+        """
         self._tree = tree
         self._nsmap = _nsmap if _nsmap is not None else self._detect_namespaces()
         self._last_scale = None

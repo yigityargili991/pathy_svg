@@ -3,6 +3,7 @@
 import pytest
 from lxml import etree
 
+from pathy_svg.document import SVGDocument
 from pathy_svg.stroke import apply_stroke_map
 
 
@@ -139,3 +140,26 @@ class TestApplyStrokeMapEdge:
         ns = "{http://www.w3.org/2000/svg}"
         a = tree.getroot().find(f".//{ns}path[@id='a']")
         assert a.get("stroke-opacity") == "0.5"
+
+
+class TestStrokeMapMixin:
+    def test_returns_new_document(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        result = doc.stroke_map({"stomach": 0.5, "liver": 1.0})
+
+        assert result is not doc
+        assert isinstance(result, SVGDocument)
+
+    def test_original_unchanged(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        orig_width = doc._find_by_id("stomach").get("stroke-width")
+        doc.stroke_map({"stomach": 1.0}, width_range=(1.0, 10.0))
+
+        assert doc._find_by_id("stomach").get("stroke-width") == orig_width
+
+    def test_stores_scale_for_legend(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        result = doc.stroke_map(
+            {"stomach": 0.5}, width_range=None, palette="viridis"
+        )
+        assert result._last_scale is not None

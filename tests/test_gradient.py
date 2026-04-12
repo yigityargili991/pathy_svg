@@ -2,6 +2,7 @@
 
 from lxml import etree
 
+from pathy_svg.document import SVGDocument
 from pathy_svg.gradient import GradientSpec, apply_gradient_fill
 
 
@@ -155,3 +156,26 @@ class TestApplyGradientFill:
         ns = "{http://www.w3.org/2000/svg}"
         elem = tree.getroot().find(f".//{ns}path[@id='a']")
         assert elem.get("fill-opacity") == "0.5"
+
+
+class TestGradientFillMixin:
+    def test_returns_new_document(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        spec = GradientSpec(start="#ff0000", end="#0000ff")
+        result = doc.gradient_fill({"stomach": spec})
+
+        assert result is not doc
+        assert isinstance(result, SVGDocument)
+
+    def test_original_unchanged(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        spec = GradientSpec(start="#ff0000", end="#0000ff")
+        doc.gradient_fill({"stomach": spec})
+
+        assert doc._find_by_id("stomach").get("fill") == "#ffffff"
+
+    def test_method_chaining(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        spec = GradientSpec(start="#ff0000", end="#0000ff")
+        result = doc.gradient_fill({"stomach": spec}).recolor({"liver": "#00ff00"})
+        assert isinstance(result, SVGDocument)

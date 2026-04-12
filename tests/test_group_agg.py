@@ -75,3 +75,30 @@ class TestAggregateByGroup:
         tree = _make_grouped_tree()
         with pytest.raises(ValueError, match="Unknown aggregation"):
             aggregate_by_group(tree, {"north_a": 10.0}, agg="invalid")
+
+
+class TestHeatmapGroupsMixin:
+    def test_colors_groups_by_aggregation(self, grouped_svg_path):
+        doc = SVGDocument.from_file(grouped_svg_path)
+        data = {"north_a": 0.0, "north_b": 1.0, "south_a": 0.5, "south_b": 0.5}
+        result = doc.heatmap_groups(data, agg="mean")
+
+        na_style = result._find_by_id("north_a").get("style", "")
+        nb_style = result._find_by_id("north_b").get("style", "")
+        na_fill = re.search(r"fill:(#[0-9a-fA-F]{6})", na_style)
+        nb_fill = re.search(r"fill:(#[0-9a-fA-F]{6})", nb_style)
+        assert na_fill and nb_fill
+        assert na_fill.group(1) == nb_fill.group(1)
+
+    def test_returns_new_document(self, grouped_svg_path):
+        doc = SVGDocument.from_file(grouped_svg_path)
+        result = doc.heatmap_groups({"north_a": 1.0}, agg="mean")
+        assert result is not doc
+        assert isinstance(result, SVGDocument)
+
+    def test_stores_scale_for_legend(self, grouped_svg_path):
+        doc = SVGDocument.from_file(grouped_svg_path)
+        result = doc.heatmap_groups(
+            {"north_a": 0.0, "north_b": 1.0}, agg="mean"
+        )
+        assert result._last_scale is not None

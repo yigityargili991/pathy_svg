@@ -2,6 +2,7 @@
 
 from lxml import etree
 
+from pathy_svg.document import SVGDocument
 from pathy_svg.pattern import PatternSpec, CustomPatternSpec, apply_pattern_fill
 
 
@@ -189,3 +190,18 @@ class TestApplyPatternFill:
         ns = "{http://www.w3.org/2000/svg}"
         elem = tree.getroot().find(f".//{ns}path[@id='a']")
         assert elem.get("fill-opacity") == "0.5"
+
+
+class TestPatternFillMixin:
+    def test_returns_new_document(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        result = doc.pattern_fill({"stomach": "crosshatch"})
+
+        assert result is not doc
+        assert isinstance(result, SVGDocument)
+
+    def test_original_unchanged(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        doc.pattern_fill({"stomach": "dots"})
+
+        assert doc._find_by_id("stomach").get("fill") == "#ffffff"
