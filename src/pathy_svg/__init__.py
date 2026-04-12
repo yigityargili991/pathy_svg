@@ -166,8 +166,8 @@ Density as fill color, population as stroke width. Two variables, one map.
 
 ```python
 stroked = (
-    doc.heatmap(density, palette="YlGnBu")
-    .stroke_map(population, width_range=(0.3, 4.0))
+    doc.heatmap(density, palette="YlGnBu", vmax=1500)
+    .stroke_map(population, width_range=(0.5, 5.0), palette="Greys")
 )
 stroked.save("stroked.svg")
 ```
@@ -181,7 +181,7 @@ Build a complex visualization from independent, named layers.
 ```python
 layered = (
     doc.layers()
-    .add("density", lambda d: d.heatmap(density, palette="YlGnBu"))
+    .add("density", lambda d: d.heatmap(density, palette="YlGnBu", vmax=1500))
     .add("borders", lambda d: d.stroke_map(population, width_range=(0.5, 3.0)))
     .add("labels",  lambda d: d.annotate(
         {st: st for st in top10}, font_size=7, font_color="#222",

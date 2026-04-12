@@ -116,8 +116,8 @@ print("Saved 05_gradient_fills.svg")
 # ── 6. Stroke mapping: border width by population ────────────────────
 
 stroked = (
-    doc.heatmap(density, palette="YlGnBu")
-    .stroke_map(population, width_range=(0.3, 4.0))
+    doc.heatmap(density, palette="YlGnBu", vmax=1500)
+    .stroke_map(population, width_range=(0.5, 5.0), palette="Greys")
 )
 stroked.save(OUT_DIR / "06_stroke_by_population.svg")
 print("Saved 06_stroke_by_population.svg")
@@ -126,7 +126,7 @@ print("Saved 06_stroke_by_population.svg")
 
 layered = (
     doc.layers()
-    .add("density", lambda d: d.heatmap(density, palette="YlGnBu"))
+    .add("density", lambda d: d.heatmap(density, palette="YlGnBu", vmax=1500))
     .add("borders", lambda d: d.stroke_map(population, width_range=(0.5, 3.0)))
     .add("labels", lambda d: d.annotate(
         {st: st for st in top10},

@@ -607,8 +607,8 @@ Works in grayscale and for colorblind readers.</p>
 
 <div class="pdoc-code codehilite">
 <pre><span></span><code><span class="n">stroked</span> <span class="o">=</span> <span class="p">(</span>
-    <span class="n">doc</span><span class="o">.</span><span class="n">heatmap</span><span class="p">(</span><span class="n">density</span><span class="p">,</span> <span class="n">palette</span><span class="o">=</span><span class="s2">&quot;YlGnBu&quot;</span><span class="p">)</span>
-    <span class="o">.</span><span class="n">stroke_map</span><span class="p">(</span><span class="n">population</span><span class="p">,</span> <span class="n">width_range</span><span class="o">=</span><span class="p">(</span><span class="mf">0.3</span><span class="p">,</span> <span class="mf">4.0</span><span class="p">))</span>
+    <span class="n">doc</span><span class="o">.</span><span class="n">heatmap</span><span class="p">(</span><span class="n">density</span><span class="p">,</span> <span class="n">palette</span><span class="o">=</span><span class="s2">&quot;YlGnBu&quot;</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="mi">1500</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">stroke_map</span><span class="p">(</span><span class="n">population</span><span class="p">,</span> <span class="n">width_range</span><span class="o">=</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">5.0</span><span class="p">),</span> <span class="n">palette</span><span class="o">=</span><span class="s2">&quot;Greys&quot;</span><span class="p">)</span>
 <span class="p">)</span>
 <span class="n">stroked</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;stroked.svg&quot;</span><span class="p">)</span>
 </code></pre>
@@ -623,7 +623,7 @@ Works in grayscale and for colorblind readers.</p>
 <div class="pdoc-code codehilite">
 <pre><span></span><code><span class="n">layered</span> <span class="o">=</span> <span class="p">(</span>
     <span class="n">doc</span><span class="o">.</span><span class="n">layers</span><span class="p">()</span>
-    <span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s2">&quot;density&quot;</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">d</span><span class="p">:</span> <span class="n">d</span><span class="o">.</span><span class="n">heatmap</span><span class="p">(</span><span class="n">density</span><span class="p">,</span> <span class="n">palette</span><span class="o">=</span><span class="s2">&quot;YlGnBu&quot;</span><span class="p">))</span>
+    <span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s2">&quot;density&quot;</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">d</span><span class="p">:</span> <span class="n">d</span><span class="o">.</span><span class="n">heatmap</span><span class="p">(</span><span class="n">density</span><span class="p">,</span> <span class="n">palette</span><span class="o">=</span><span class="s2">&quot;YlGnBu&quot;</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="mi">1500</span><span class="p">))</span>
     <span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s2">&quot;borders&quot;</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">d</span><span class="p">:</span> <span class="n">d</span><span class="o">.</span><span class="n">stroke_map</span><span class="p">(</span><span class="n">population</span><span class="p">,</span> <span class="n">width_range</span><span class="o">=</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">)))</span>
     <span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s2">&quot;labels&quot;</span><span class="p">,</span>  <span class="k">lambda</span> <span class="n">d</span><span class="p">:</span> <span class="n">d</span><span class="o">.</span><span class="n">annotate</span><span class="p">(</span>
         <span class="p">{</span><span class="n">st</span><span class="p">:</span> <span class="n">st</span> <span class="k">for</span> <span class="n">st</span> <span class="ow">in</span> <span class="n">top10</span><span class="p">},</span> <span class="n">font_size</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span> <span class="n">font_color</span><span class="o">=</span><span class="s2">&quot;#222&quot;</span><span class="p">,</span>
@@ -812,8 +812,8 @@ Works in grayscale and for colorblind readers.</p>
 </span><span id="L-166"><a href="#L-166"><span class="linenos">166</span></a>
 </span><span id="L-167"><a href="#L-167"><span class="linenos">167</span></a><span class="sd">```python</span>
 </span><span id="L-168"><a href="#L-168"><span class="linenos">168</span></a><span class="sd">stroked = (</span>
-</span><span id="L-169"><a href="#L-169"><span class="linenos">169</span></a><span class="sd">    doc.heatmap(density, palette=&quot;YlGnBu&quot;)</span>
-</span><span id="L-170"><a href="#L-170"><span class="linenos">170</span></a><span class="sd">    .stroke_map(population, width_range=(0.3, 4.0))</span>
+</span><span id="L-169"><a href="#L-169"><span class="linenos">169</span></a><span class="sd">    doc.heatmap(density, palette=&quot;YlGnBu&quot;, vmax=1500)</span>
+</span><span id="L-170"><a href="#L-170"><span class="linenos">170</span></a><span class="sd">    .stroke_map(population, width_range=(0.5, 5.0), palette=&quot;Greys&quot;)</span>
 </span><span id="L-171"><a href="#L-171"><span class="linenos">171</span></a><span class="sd">)</span>
 </span><span id="L-172"><a href="#L-172"><span class="linenos">172</span></a><span class="sd">stroked.save(&quot;stroked.svg&quot;)</span>
 </span><span id="L-173"><a href="#L-173"><span class="linenos">173</span></a><span class="sd">```</span>
@@ -827,7 +827,7 @@ Works in grayscale and for colorblind readers.</p>
 </span><span id="L-181"><a href="#L-181"><span class="linenos">181</span></a><span class="sd">```python</span>
 </span><span id="L-182"><a href="#L-182"><span class="linenos">182</span></a><span class="sd">layered = (</span>
 </span><span id="L-183"><a href="#L-183"><span class="linenos">183</span></a><span class="sd">    doc.layers()</span>
-</span><span id="L-184"><a href="#L-184"><span class="linenos">184</span></a><span class="sd">    .add(&quot;density&quot;, lambda d: d.heatmap(density, palette=&quot;YlGnBu&quot;))</span>
+</span><span id="L-184"><a href="#L-184"><span class="linenos">184</span></a><span class="sd">    .add(&quot;density&quot;, lambda d: d.heatmap(density, palette=&quot;YlGnBu&quot;, vmax=1500))</span>
 </span><span id="L-185"><a href="#L-185"><span class="linenos">185</span></a><span class="sd">    .add(&quot;borders&quot;, lambda d: d.stroke_map(population, width_range=(0.5, 3.0)))</span>
 </span><span id="L-186"><a href="#L-186"><span class="linenos">186</span></a><span class="sd">    .add(&quot;labels&quot;,  lambda d: d.annotate(</span>
 </span><span id="L-187"><a href="#L-187"><span class="linenos">187</span></a><span class="sd">        {st: st for st in top10}, font_size=7, font_color=&quot;#222&quot;,</span>
