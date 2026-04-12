@@ -82,7 +82,7 @@ def apply_heatmap(
 
     Args:
         tree: The lxml ElementTree representation of the SVG.
-        data: A dictionary mapping element attribute values to numeric values.
+        data: A dictionary whose keys match entries in *id_to_elem*.
         palette: Name of a matplotlib colormap or a list of hex colors.
         vmin: Minimum value for the color scale.
         vmax: Maximum value for the color scale.
