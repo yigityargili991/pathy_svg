@@ -209,3 +209,50 @@ def apply_categorical(
             _set_fill(elem, color, **fill_kwargs)
 
     return cat_palette
+
+
+def aggregate_by_group(
+    tree: etree._ElementTree,
+    data: dict[str, float],
+    agg: str = "mean",
+) -> dict[str, float]:
+    """Walk <g> elements, aggregate matched children's values.
+
+    Returns a dict of {group_id: aggregated_value} for groups that have
+    at least one child with data.
+    """
+    agg_funcs = {
+        "mean": np.mean,
+        "sum": np.sum,
+        "min": np.min,
+        "max": np.max,
+        "median": np.median,
+    }
+    if agg not in agg_funcs:
+        raise ValueError(
+            f"Unknown aggregation: {agg!r}. Choose from {list(agg_funcs)}"
+        )
+    func = agg_funcs[agg]
+
+    result = {}
+    for elem in tree.iter():
+        if local_tag(elem.tag) != "g":
+            continue
+        gid = elem.get("id")
+        if not gid:
+            continue
+
+        child_vals = []
+        for child in elem.iter():
+            if child is elem:
+                continue
+            cid = child.get("id")
+            if cid and cid in data and local_tag(child.tag) in COLORABLE_TAGS:
+                val = data[cid]
+                if np.isfinite(val):
+                    child_vals.append(val)
+
+        if child_vals:
+            result[gid] = float(func(child_vals))
+
+    return result
