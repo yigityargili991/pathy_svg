@@ -61,6 +61,59 @@ result.save("layered.svg")
 
 ---
 
+# Working with DataFrames
+
+pathy_svg integrates with pandas — load data from a CSV or DataFrame
+instead of building dicts by hand.
+
+```python
+import pandas as pd
+from pathy_svg import SVGDocument
+
+doc = SVGDocument.from_file("us_states.svg")
+
+# Load data from CSV
+df = pd.read_csv("state_population.csv")
+print(df.head())
+#   state  population  density
+# 0    CA    38965193    250.1
+# 1    TX    30503301    116.8
+# 2    FL    22610726    421.6
+# 3    NY    19571216    415.3
+# 4    PA    12961683    289.7
+
+# Heatmap directly from DataFrame
+colored = doc.heatmap_from_dataframe(
+    df,
+    id_col="state",
+    value_col="population",
+    palette="YlOrRd",
+)
+colored.legend(title="Population").save("from_dataframe.svg")
+```
+
+You can also load the SVG and extract data in one step:
+
+```python
+doc, data = SVGDocument.from_dataframe(
+    "us_states.svg", df, id_col="state", value_col="density"
+)
+doc.heatmap(data, palette="viridis", vmax=1500).save("density.svg")
+```
+
+Or convert a DataFrame to a dict for use with any method:
+
+```python
+from pathy_svg import dataframe_to_dict
+
+density = dataframe_to_dict(df, id_col="state", value_col="density")
+doc.highlight(
+    [st for st, d in density.items() if d > 300]
+).save("dense_states.svg")
+```
+
+---
+
 # Example Workflow: US States
 
 A walkthrough using real 2023 US Census data on a public-domain
