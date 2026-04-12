@@ -63,31 +63,22 @@ result.save("layered.svg")
 
 # Working with DataFrames
 
-pathy_svg integrates with pandas. Pass a DataFrame directly instead of
-building dicts by hand.
+pathy_svg integrates with pandas. Load a CSV and create a heatmap in
+three lines.
 
 ```python
 import pandas as pd
 from pathy_svg import SVGDocument
 
-# Real 2023 US Census population data
-df = pd.DataFrame({
-    "state": ["CA","TX","FL","NY","PA","IL","OH","GA","NC","MI",
-              "NJ","VA","WA","AZ","TN","MA","IN","MO","MD","WI",
-              "CO","MN","SC","AL","LA","KY","OR","OK","CT","UT",
-              "IA","NV","AR","MS","KS","NM","NE","ID","WV","HI",
-              "NH","ME","MT","RI","DE","SD","ND","AK","DC","VT","WY"],
-    "population": [38965193, 30503301, 22610726, 19571216, 12961683,
-                   12549689, 11785935, 11029227, 10835491, 10037261,
-                   9290841, 8642274, 7812880, 7431344, 7126489,
-                   7001399, 6862199, 6196156, 6180253, 5910955,
-                   5877610, 5737915, 5373555, 5108468, 4573749,
-                   4526154, 4233358, 4053824, 3617176, 3417734,
-                   3207004, 3194176, 3067732, 2939690, 2940546,
-                   2114371, 1978379, 1964726, 1770071, 1435138,
-                   1402054, 1395722, 1132812, 1095962, 1031890,
-                   919318, 783926, 733391, 678972, 647464, 584057],
-})
+# Load real 2023 US Census data from CSV
+df = pd.read_csv("state_population.csv")
+print(df.head())
+#   state  population  land_area_sq_mi  density
+# 0    CA    38965193           155779    250.1
+# 1    TX    30503301           261232    116.8
+# 2    FL    22610726            53625    421.6
+# 3    NY    19571216            47126    415.3
+# 4    PA    12961683            44743    289.7
 
 doc = SVGDocument.from_file("us_states.svg")
 
