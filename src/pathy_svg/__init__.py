@@ -25,6 +25,9 @@ from pathy_svg.svg_tools import (
     optimize_svg,
     extract_styles,
 )
+from pathy_svg.gradient import GradientSpec
+from pathy_svg.pattern import PatternSpec, CustomPatternSpec
+from pathy_svg.layers import LayerManager
 
 __all__ = [
     "__version__",
@@ -62,4 +65,8 @@ __all__ = [
     "optimize_svg",
     "extract_styles",
     "dataframe_to_dict",
+    "GradientSpec",
+    "PatternSpec",
+    "CustomPatternSpec",
+    "LayerManager",
 ]
