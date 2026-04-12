@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Collection
+from collections.abc import Callable, Collection
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -21,13 +21,15 @@ class StyleMixin:
         *,
         opacity: float | None = None,
         preserve_stroke: bool = True,
+        key_attr: str = "id",
     ):
-        """Apply gradient fills to elements by ID.
+        """Apply gradient fills to elements.
 
         Args:
-            gradients: Dict mapping element IDs to GradientSpec objects.
+            gradients: Dict mapping element attribute values to GradientSpec objects.
             opacity: Opacity for the filled elements.
             preserve_stroke: Whether to preserve original stroke styling.
+            key_attr: Element attribute used to match data keys (default ``"id"``).
 
         Returns:
             A new SVGDocument with gradient fills applied.
@@ -35,12 +37,13 @@ class StyleMixin:
         from pathy_svg.gradient import apply_gradient_fill
 
         clone = self._clone()
+        resolved_grads, resolved_index = clone._resolve_key_attr(gradients, key_attr)
         apply_gradient_fill(
             clone._tree,
-            gradients,
+            resolved_grads,
             opacity=opacity,
             preserve_stroke=preserve_stroke,
-            id_to_elem=clone._element_index,
+            id_to_elem=resolved_index,
         )
         return clone
 
@@ -50,13 +53,15 @@ class StyleMixin:
         *,
         opacity: float | None = None,
         preserve_stroke: bool = True,
+        key_attr: str = "id",
     ):
-        """Apply pattern fills to elements by ID.
+        """Apply pattern fills to elements.
 
         Args:
-            patterns: Dict mapping element IDs to PatternSpec objects or pattern name strings.
+            patterns: Dict mapping element attribute values to PatternSpec objects or pattern name strings.
             opacity: Opacity for the filled elements.
             preserve_stroke: Whether to preserve original stroke styling.
+            key_attr: Element attribute used to match data keys (default ``"id"``).
 
         Returns:
             A new SVGDocument with pattern fills applied.
@@ -64,12 +69,13 @@ class StyleMixin:
         from pathy_svg.pattern import apply_pattern_fill
 
         clone = self._clone()
+        resolved_pats, resolved_index = clone._resolve_key_attr(patterns, key_attr)
         apply_pattern_fill(
             clone._tree,
-            patterns,
+            resolved_pats,
             opacity=opacity,
             preserve_stroke=preserve_stroke,
-            id_to_elem=clone._element_index,
+            id_to_elem=resolved_index,
         )
         return clone
 
@@ -84,11 +90,12 @@ class StyleMixin:
         opacity: float | None = None,
         na_width: float = 1.0,
         na_color: str | None = None,
+        key_attr: str = "id",
     ):
         """Map data to stroke width and/or color.
 
         Args:
-            data: Dict mapping element IDs to numeric values.
+            data: Dict mapping element attribute values to numeric values.
             width_range: Min/max stroke width. None to skip width mapping.
             palette: Colormap name for stroke color. None to skip color mapping.
             vmin: Minimum value for the scale.
@@ -96,6 +103,7 @@ class StyleMixin:
             opacity: Stroke opacity.
             na_width: Stroke width for NaN values.
             na_color: Stroke color for NaN values.
+            key_attr: Element attribute used to match data keys (default ``"id"``).
 
         Returns:
             A new SVGDocument with stroke mapping applied.
@@ -103,9 +111,10 @@ class StyleMixin:
         from pathy_svg.stroke import apply_stroke_map
 
         clone = self._clone()
+        resolved_data, resolved_index = clone._resolve_key_attr(data, key_attr)
         scale = apply_stroke_map(
             clone._tree,
-            data,
+            resolved_data,
             width_range=width_range,
             palette=palette,
             vmin=vmin,
@@ -113,7 +122,7 @@ class StyleMixin:
             opacity=opacity,
             na_width=na_width,
             na_color=na_color,
-            id_to_elem=clone._element_index,
+            id_to_elem=resolved_index,
         )
         if scale is not None:
             clone._last_scale = scale
@@ -125,13 +134,15 @@ class StyleMixin:
         *,
         dim_opacity: float = 0.2,
         desaturate: bool = True,
+        key_attr: str = "id",
     ):
         """Highlight specified elements, dim all others.
 
         Args:
-            ids: List or set of element IDs to highlight.
+            ids: List or set of element attribute values to highlight.
             dim_opacity: Opacity for dimmed elements.
             desaturate: Whether to convert dimmed elements to greyscale.
+            key_attr: Element attribute used to match data keys (default ``"id"``).
 
         Returns:
             A new SVGDocument with highlighting applied.
@@ -139,12 +150,14 @@ class StyleMixin:
         from pathy_svg.highlight import apply_highlight
 
         clone = self._clone()
+        dummy = {k: True for k in ids}
+        resolved_dummy, resolved_index = clone._resolve_key_attr(dummy, key_attr)
         apply_highlight(
             clone._tree,
-            set(ids),
+            set(resolved_dummy.keys()),
             dim_opacity=dim_opacity,
             desaturate=desaturate,
-            id_to_elem=clone._element_index,
+            id_to_elem=resolved_index,
         )
         return clone
 
@@ -152,7 +165,7 @@ class StyleMixin:
         self,
         data: dict[str, float],
         *,
-        agg: str = "mean",
+        agg: str | Callable[[list[float]], float] = "mean",
         palette: str | list[str] = "RdYlBu_r",
         vmin: float | None = None,
         vmax: float | None = None,
@@ -161,12 +174,14 @@ class StyleMixin:
         breaks: list[float] | None = None,
         opacity: float | None = None,
         preserve_stroke: bool = True,
+        key_attr: str = "id",
     ):
         """Color groups by aggregating their children's data values.
 
         Args:
-            data: Dict mapping child element IDs to numeric values.
-            agg: Aggregation function ("mean", "sum", "min", "max", "median").
+            data: Dict mapping child element attribute values to numeric values.
+            agg: Aggregation function name ("mean", "sum", "min", "max", "median")
+                or a callable that takes a list of floats and returns a float.
             palette: Colormap name or list of hex colors.
             vmin: Minimum value for the color scale.
             vmax: Maximum value for the color scale.
@@ -175,6 +190,7 @@ class StyleMixin:
             breaks: Boundary values for discrete color scales.
             opacity: Opacity for colored groups.
             preserve_stroke: Whether to preserve original stroke styling.
+            key_attr: Element attribute used to match data keys (default ``"id"``).
 
         Returns:
             A new SVGDocument with group-aggregated coloring applied.
@@ -182,7 +198,9 @@ class StyleMixin:
         from pathy_svg.coloring import aggregate_by_group, apply_heatmap
 
         clone = self._clone()
-        group_data = aggregate_by_group(clone._tree, data, agg=agg)
+        group_data = aggregate_by_group(
+            clone._tree, data, agg=agg, key_attr=key_attr,
+        )
         scale = apply_heatmap(
             clone._tree,
             group_data,

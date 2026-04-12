@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from lxml import etree
 
-from pathy_svg._constants import COLORABLE_TAGS, SVG_NS, build_id_index, local_tag, svg_sub
+from pathy_svg._constants import COLORABLE_TAGS, SVG_NS, build_id_index, local_tag, safe_svg_id, svg_sub
 from pathy_svg._css import set_style_property
 from pathy_svg.gradient import _get_or_create_defs, _remove_existing_def
 
@@ -201,7 +201,7 @@ def apply_pattern_fill(
         if defs is None:
             defs = _get_or_create_defs(tree)
 
-        pat_id = f"pathy-pat-{eid}"
+        pat_id = f"pathy-pat-{safe_svg_id(eid)}"
         _validate_pattern_spec(pat_id, spec)
         _remove_existing_def(defs, pat_id)
         _build_pattern_element(defs, pat_id, spec)

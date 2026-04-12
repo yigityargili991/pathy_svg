@@ -41,6 +41,7 @@ class LegendMixin:
         border_color: str = "#333",
         background: str | None = None,
         padding: float = 5,
+        expand_viewbox: bool = True,
     ):
         """Add a legend to the SVG.
 
@@ -61,6 +62,7 @@ class LegendMixin:
             border_color: Color of the legend border.
             background: Background color of the legend area.
             padding: Padding inside the legend area.
+            expand_viewbox: Whether to auto-extend the viewBox to fit the legend (default ``True``).
 
         Returns:
             A new SVGDocument containing the legend element.
@@ -73,23 +75,23 @@ class LegendMixin:
             w, h = clone.dimensions
             vb = ViewBox(0, 0, w or 500, h or 500)
 
-        # Auto-extend viewBox to make room for the legend
-        if direction == "vertical":
-            legend_right = position[0] + size[0]
-            if legend_right > 0.80:
-                extra = vb.width * (legend_right - 0.80 + 0.15)
-                new_width = vb.width + extra
-                vb = ViewBox(vb.x, vb.y, new_width, vb.height)
-                clone.root.set("viewBox", f"{vb.x} {vb.y} {vb.width} {vb.height}")
-                clone.root.set("width", str(vb.width))
-        else:
-            legend_bottom = position[1] + size[1]
-            if legend_bottom > 0.80:
-                extra = vb.height * (legend_bottom - 0.80 + 0.15)
-                new_height = vb.height + extra
-                vb = ViewBox(vb.x, vb.y, vb.width, new_height)
-                clone.root.set("viewBox", f"{vb.x} {vb.y} {vb.width} {vb.height}")
-                clone.root.set("height", str(vb.height))
+        if expand_viewbox:
+            if direction == "vertical":
+                legend_right = position[0] + size[0]
+                if legend_right > 0.80:
+                    extra = vb.width * (legend_right - 0.80 + 0.15)
+                    new_width = vb.width + extra
+                    vb = ViewBox(vb.x, vb.y, new_width, vb.height)
+                    clone.root.set("viewBox", f"{vb.x} {vb.y} {vb.width} {vb.height}")
+                    clone.root.set("width", str(vb.width))
+            else:
+                legend_bottom = position[1] + size[1]
+                if legend_bottom > 0.80:
+                    extra = vb.height * (legend_bottom - 0.80 + 0.15)
+                    new_height = vb.height + extra
+                    vb = ViewBox(vb.x, vb.y, vb.width, new_height)
+                    clone.root.set("viewBox", f"{vb.x} {vb.y} {vb.width} {vb.height}")
+                    clone.root.set("height", str(vb.height))
 
         resolved = resolve_legend_kind(
             kind, self._last_scale, self._last_categorical_palette

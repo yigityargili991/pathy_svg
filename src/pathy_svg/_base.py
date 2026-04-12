@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 from lxml import etree
 
-from pathy_svg._constants import SVG_NS, build_id_index
+from pathy_svg._constants import SVG_NS, build_attr_index, build_id_index
 from pathy_svg.exceptions import PathNotFoundError, SVGParseError
 from pathy_svg.transform import (
     BBox,
@@ -218,6 +218,55 @@ class SVGDocumentBase:
     def _find_by_id(self, eid: str) -> etree._Element | None:
         """Find an element by its id attribute using O(1) index lookup."""
         return self._element_index.get(eid)
+
+    def _build_index(self, key_attr: str) -> dict[str, etree._Element]:
+        """Return an element index for the given attribute.
+
+        Uses the cached ID index when *key_attr* is ``"id"``.
+        """
+        if key_attr == "id":
+            return self._element_index
+        return build_attr_index(self._tree, key_attr)
+
+    def _resolve_key_attr(
+        self, data: dict, key_attr: str
+    ) -> tuple[dict, dict[str, etree._Element]]:
+        """Expand *data* and build an element index for the given attribute.
+
+        For ``key_attr="id"`` this is a no-op: returns (*data*, id-index).
+
+        For non-ID attributes the same value may appear on many elements.
+        This method creates a synthetic unique key per matching element so
+        that every element is addressed individually in the returned dicts.
+        Unmatched elements are also included in the index (for color_missing).
+        """
+        if key_attr == "id":
+            return data, self._element_index
+
+        multi: dict[str, list[etree._Element]] = {}
+        for elem in self._tree.iter():
+            val = elem.get(key_attr)
+            if val:
+                multi.setdefault(val, []).append(elem)
+
+        expanded_data: dict = {}
+        expanded_index: dict[str, etree._Element] = {}
+        matched_keys: set[str] = set()
+        for attr_val, elems in multi.items():
+            for i, elem in enumerate(elems):
+                synth = f"{attr_val}__pathy_{i}"
+                expanded_index[synth] = elem
+                if attr_val in data:
+                    expanded_data[synth] = data[attr_val]
+                    matched_keys.add(attr_val)
+
+        # Preserve unmatched data keys so callers still see non-empty data
+        # (needed for scale fitting and color_missing pass).
+        for key in data:
+            if key not in matched_keys:
+                expanded_data[f"{key}__pathy_unmatched"] = data[key]
+
+        return expanded_data, expanded_index
 
     def _find_all_by_tag(self, local_tag: str) -> list[etree._Element]:
         """Find all elements with a given local tag name (ignoring namespace)."""

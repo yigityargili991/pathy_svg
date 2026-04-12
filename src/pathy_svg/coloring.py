@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import numpy as np
 from lxml import etree
 
@@ -80,7 +82,7 @@ def apply_heatmap(
 
     Args:
         tree: The lxml ElementTree representation of the SVG.
-        data: A dictionary mapping element IDs to numeric values.
+        data: A dictionary mapping element attribute values to numeric values.
         palette: Name of a matplotlib colormap or a list of hex colors.
         vmin: Minimum value for the color scale.
         vmax: Maximum value for the color scale.
@@ -97,42 +99,45 @@ def apply_heatmap(
     if not data:
         return None
 
-    try:
-        scale = ColorScale(
-            palette, vmin=vmin, vmax=vmax, vcenter=vcenter, breaks=breaks
-        )
-    except (ValueError, KeyError) as exc:
-        raise ColorScaleError(f"Invalid palette or color scale config: {exc}") from exc
-
-    scale.fit(list(data.values()))
-
     fill_kwargs = {"opacity": opacity, "preserve_stroke": preserve_stroke}
-    protected_ids = set(data.keys())
     if id_to_elem is None:
         id_to_elem = build_id_index(tree)
 
-    # Color elements that have data
-    for eid, value in data.items():
-        elem = id_to_elem.get(eid)
-        if elem is None:
-            continue
-        if np.isfinite(value):
-            color = scale(value)
-        else:
-            color = na_color
-        if local_tag(elem.tag) == "g":
-            for child in _colorable_children(elem):
-                child_id = child.get("id")
-                if child_id:
-                    protected_ids.add(child_id)
-            _set_fill_on_group(elem, color, **fill_kwargs)
-        else:
-            _set_fill(elem, color, **fill_kwargs)
+    scale = None
+    protected_keys: set[str] = set()
+    protected_elems: set[int] = set()
+
+    if data:
+        try:
+            scale = ColorScale(
+                palette, vmin=vmin, vmax=vmax, vcenter=vcenter, breaks=breaks
+            )
+        except (ValueError, KeyError) as exc:
+            raise ColorScaleError(f"Invalid palette or color scale config: {exc}") from exc
+
+        scale.fit(list(data.values()))
+        protected_keys = set(data.keys())
+
+        # Color elements that have data
+        for eid, value in data.items():
+            elem = id_to_elem.get(eid)
+            if elem is None:
+                continue
+            if np.isfinite(value):
+                color = scale(value)
+            else:
+                color = na_color
+            if local_tag(elem.tag) == "g":
+                for child in _colorable_children(elem):
+                    protected_elems.add(id(child))
+                _set_fill_on_group(elem, color, **fill_kwargs)
+            else:
+                _set_fill(elem, color, **fill_kwargs)
 
     # Color paths with no data
     if color_missing:
         for eid, elem in id_to_elem.items():
-            if eid not in protected_ids:
+            if eid not in protected_keys and id(elem) not in protected_elems:
                 local = local_tag(elem.tag)
                 if local in COLORABLE_TAGS and not _has_explicit_none_fill(elem):
                     _set_fill(elem, na_color, **fill_kwargs)
@@ -214,12 +219,19 @@ def apply_categorical(
 def aggregate_by_group(
     tree: etree._ElementTree,
     data: dict[str, float],
-    agg: str = "mean",
+    agg: str | Callable = "mean",
+    key_attr: str = "id",
 ) -> dict[str, float]:
     """Walk <g> elements, aggregate matched children's values.
 
-    Returns a dict of {group_id: aggregated_value} for groups that have
+    Returns a dict of {group_key: aggregated_value} for groups that have
     at least one child with data.
+
+    Args:
+        tree: The lxml ElementTree.
+        data: Mapping of element attribute values to numeric values.
+        agg: Aggregation function name or a callable accepting a list of floats.
+        key_attr: Element attribute used to match data keys (default ``"id"``).
     """
     agg_funcs = {
         "mean": np.mean,
@@ -228,11 +240,14 @@ def aggregate_by_group(
         "max": np.max,
         "median": np.median,
     }
-    if agg not in agg_funcs:
+    if callable(agg):
+        func = agg
+    elif agg in agg_funcs:
+        func = agg_funcs[agg]
+    else:
         raise ValueError(
             f"Unknown aggregation: {agg!r}. Choose from {list(agg_funcs)}"
         )
-    func = agg_funcs[agg]
 
     result = {}
     for elem in tree.iter():
@@ -246,7 +261,7 @@ def aggregate_by_group(
         for child in elem.iter():
             if child is elem:
                 continue
-            cid = child.get("id")
+            cid = child.get(key_attr)
             if cid and cid in data and local_tag(child.tag) in COLORABLE_TAGS:
                 val = data[cid]
                 if np.isfinite(val):
