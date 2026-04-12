@@ -63,7 +63,7 @@ def apply_highlight(
     highlighted_elems: set[etree._Element] = set()
     for eid in ids:
         elem = id_to_elem.get(eid)
-        if elem is None:
+        if elem is None or not isinstance(elem.tag, str):
             continue
         if local_tag(elem.tag) == "g":
             for child in elem.iter():
@@ -74,6 +74,8 @@ def apply_highlight(
 
     # Dim everything that's not highlighted
     for elem in tree.iter():
+        if not isinstance(elem.tag, str):
+            continue
         if local_tag(elem.tag) not in COLORABLE_TAGS:
             continue
         if elem in highlighted_elems:
