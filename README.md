@@ -66,11 +66,24 @@ doc.stroke_map(data, width_range=(1, 5), palette="Reds").save("strokes.svg")
 doc.highlight(["stomach", "liver"]).save("highlighted.svg")
 ```
 
+### Matching by Data Attributes
+
+```python
+# Match elements by data-region instead of id
+doc.heatmap({"north": 0.8, "south": 0.3}, key_attr="data-region").save("regions.svg")
+
+# Works with all methods: recolor, stroke_map, highlight, annotate, etc.
+doc.recolor({"north": "#ff0000"}, key_attr="data-region").save("recolored.svg")
+```
+
 ### Group Aggregation and Layers
 
 ```python
 # Color groups by the mean of their children's values
 doc.heatmap_groups(data, agg="mean", palette="YlOrRd").save("groups.svg")
+
+# Or use a custom aggregation function
+doc.heatmap_groups(data, agg=lambda vals: max(vals) - min(vals)).save("range.svg")
 
 # Compose multiple visualization layers
 result = (
@@ -99,17 +112,18 @@ The source distribution includes a runnable `examples/` directory with:
 - **Pattern fills** — hatching, crosshatch, dots, and custom SVG patterns for accessibility
 - **Stroke mapping** — map data to stroke width and/or color independently of fill
 - **Highlight/dim** — emphasize specific elements while dimming others with desaturation
-- **Group aggregation** — color `<g>` elements by aggregating children (mean, sum, min, max, median)
+- **Group aggregation** — color `<g>` elements by aggregating children (mean, sum, min, max, median, or custom callable)
 - **Multi-layer system** — compose named visualization layers with show/hide/reorder
 - **Diff visualization** — compare datasets with delta, ratio, log2ratio, or percent change modes
 - **Side-by-side comparison** — multiple datasets in a single SVG
 - **Legends** — gradient, discrete, and categorical legend types
 - **Annotations** — text labels at element centroids or custom positions
-- **Tooltips** — hover text via SVG `<title>` elements
+- **Tooltips** — hover text via SVG `<title>` or CSS popups
 - **Animations** — CSS keyframe effects (pulse, fade_in, blink, sequential)
 - **Export** — PNG, PDF, JPEG via cairosvg and Pillow
 - **Jupyter** — inline SVG display with `_repr_svg_` and `_repr_mimebundle_`
 - **CLI** — heatmap, inspect, validate, guide, diff, and export commands
+- **Flexible element matching** — match elements by `id`, `data-*` attributes, or `class` via `key_attr`
 - **Immutable API** — method chaining with new instances returned on each call
 - **DataFrame support** — load data directly from pandas
 - **Theme presets** — medical, geographic, heatmap_classic
