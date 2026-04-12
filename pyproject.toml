@@ -33,7 +33,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yigityargili991/pathy_svg"
+Homepage = "https://yigityargili991.github.io/pathy_svg/"
+Documentation = "https://yigityargili991.github.io/pathy_svg/"
 Repository = "https://github.com/yigityargili991/pathy_svg"
 Issues = "https://github.com/yigityargili991/pathy_svg/issues"
 Changelog = "https://github.com/yigityargili991/pathy_svg/blob/main/CHANGELOG.md"
