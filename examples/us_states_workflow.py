@@ -60,7 +60,7 @@ doc = SVGDocument.from_file(SVG_PATH)
 
 pop_map = (
     doc.heatmap(population, palette="YlOrRd")
-    .legend(title="Population", position=(0.82, 0.05), size=(0.03, 0.35))
+    .legend(title="Population", position=(0.86, 0.15), size=(0.02, 0.5))
 )
 pop_map.save(OUT_DIR / "01_population.svg")
 print("Saved 01_population.svg")
@@ -69,7 +69,7 @@ print("Saved 01_population.svg")
 
 density_map = (
     doc.heatmap(density, palette="viridis")
-    .legend(title="People / sq mi", position=(0.82, 0.05), size=(0.03, 0.35))
+    .legend(title="People / sq mi", position=(0.86, 0.15), size=(0.02, 0.5))
 )
 density_map.save(OUT_DIR / "02_density.svg")
 print("Saved 02_density.svg")
@@ -134,7 +134,7 @@ layered = (
         font_color="#222",
     ))
     .flatten()
-    .legend(title="Density (people/sq mi)", position=(0.82, 0.05), size=(0.03, 0.35))
+    .legend(title="Density (people/sq mi)", position=(0.86, 0.15), size=(0.02, 0.5))
 )
 layered.save(OUT_DIR / "07_layered.svg")
 print("Saved 07_layered.svg")
