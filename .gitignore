@@ -29,3 +29,4 @@ uv.lock
 *.swo
 examples.ipynb
 .coverage
+AGENT.md
