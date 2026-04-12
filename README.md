@@ -37,6 +37,52 @@ data = {
 doc.heatmap(data, palette="YlOrRd").legend(title="Expression").save("output.svg")
 ```
 
+### Gradient and Pattern Fills
+
+```python
+from pathy_svg import SVGDocument, GradientSpec
+
+doc = SVGDocument.from_file("examples/map.svg")
+
+# Gradient fill
+doc.gradient_fill({
+    "stomach": GradientSpec(start="#ff0000", end="#0000ff", direction="horizontal"),
+}).save("gradient.svg")
+
+# Pattern fill (string shorthand or PatternSpec)
+doc.pattern_fill({
+    "liver": "crosshatch",
+    "heart": "dots",
+}).save("patterned.svg")
+```
+
+### Stroke Mapping and Highlighting
+
+```python
+# Map data to stroke width and color
+doc.stroke_map(data, width_range=(1, 5), palette="Reds").save("strokes.svg")
+
+# Highlight specific elements, dim the rest
+doc.highlight(["stomach", "liver"]).save("highlighted.svg")
+```
+
+### Group Aggregation and Layers
+
+```python
+# Color groups by the mean of their children's values
+doc.heatmap_groups(data, agg="mean", palette="YlOrRd").save("groups.svg")
+
+# Compose multiple visualization layers
+result = (
+    doc.layers()
+    .add("heat", lambda d: d.heatmap(data, palette="YlOrRd"))
+    .add("borders", lambda d: d.stroke_map(data, palette="Greys"))
+    .add("labels", lambda d: d.annotate({"stomach": "S", "liver": "L"}))
+    .flatten()
+)
+result.save("layered.svg")
+```
+
 The source distribution includes a runnable `examples/` directory with:
 
 - `examples/map.svg`
@@ -49,6 +95,12 @@ The source distribution includes a runnable `examples/` directory with:
 - **Heatmaps** — data-driven coloring with any matplotlib colormap
 - **Categorical coloring** — map categories to distinct colors
 - **Manual recolor** — direct ID-to-color mapping
+- **Gradient fills** — apply linear gradients (horizontal, vertical, diagonal) to elements
+- **Pattern fills** — hatching, crosshatch, dots, and custom SVG patterns for accessibility
+- **Stroke mapping** — map data to stroke width and/or color independently of fill
+- **Highlight/dim** — emphasize specific elements while dimming others with desaturation
+- **Group aggregation** — color `<g>` elements by aggregating children (mean, sum, min, max, median)
+- **Multi-layer system** — compose named visualization layers with show/hide/reorder
 - **Diff visualization** — compare datasets with delta, ratio, log2ratio, or percent change modes
 - **Side-by-side comparison** — multiple datasets in a single SVG
 - **Legends** — gradient, discrete, and categorical legend types
@@ -100,6 +152,21 @@ pathy-svg export examples/map.svg -o map.png --width 1200
 | `.heatmap_from_dataframe(df, ...)` | Heatmap from pandas DataFrame |
 | `.recolor(color_map)` | Manual ID-to-color mapping |
 | `.recolor_by_category(category_map)` | Categorical coloring |
+| `.gradient_fill(gradients)` | Apply linear gradients to elements |
+| `.pattern_fill(patterns)` | Apply hatching, dots, or custom patterns |
+| `.stroke_map(data, width_range=..., palette=...)` | Map data to stroke width/color |
+| `.highlight(ids)` | Emphasize elements, dim the rest |
+| `.heatmap_groups(data, agg=...)` | Color groups by aggregating children |
+
+### Layers
+
+| Method | Description |
+|--------|-------------|
+| `.layers()` | Create a `LayerManager` for composing layers |
+| `LayerManager.add(name, fn)` | Add a named layer |
+| `LayerManager.hide(name)` / `.show(name)` | Toggle layer visibility |
+| `LayerManager.reorder(names)` | Change layer order |
+| `LayerManager.flatten()` | Render all visible layers to an `SVGDocument` |
 
 ### Visualization
 
