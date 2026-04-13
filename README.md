@@ -37,6 +37,8 @@ data = {
 doc.heatmap(data, palette="YlOrRd").legend(title="Expression").save("output.svg")
 ```
 
+![Heatmap example](docs/examples/01_population.svg)
+
 ### Gradient and Pattern Fills
 
 ```python
@@ -56,6 +58,10 @@ doc.pattern_fill({
 }).save("patterned.svg")
 ```
 
+![Gradient fills](docs/examples/05_gradient_fills.svg)
+
+![Pattern fills](docs/examples/04_density_patterns.svg)
+
 ### Stroke Mapping and Highlighting
 
 ```python
@@ -65,6 +71,10 @@ doc.stroke_map(data, width_range=(1, 5), palette="Reds").save("strokes.svg")
 # Highlight specific elements, dim the rest
 doc.highlight(["stomach", "liver"]).save("highlighted.svg")
 ```
+
+![Stroke mapping](docs/examples/06_stroke_by_population.svg)
+
+![Highlighting](docs/examples/03_top10_highlighted.svg)
 
 ### Matching by Data Attributes
 
@@ -95,6 +105,8 @@ result = (
 )
 result.save("layered.svg")
 ```
+
+![Layered visualization](docs/examples/07_layered.svg)
 
 The source distribution includes a runnable `examples/` directory with:
 
