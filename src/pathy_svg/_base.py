@@ -23,6 +23,11 @@ from pathy_svg.transform import (
 if TYPE_CHECKING:
     from os import PathLike
 
+_SECURE_PARSER = etree.XMLParser(
+    resolve_entities=False,
+    no_network=True,
+)
+
 
 class SVGDocumentBase:
     """Core document functionality: loading, properties, querying, and cloning.
@@ -74,7 +79,7 @@ class SVGDocumentBase:
         if not path.exists():
             raise FileNotFoundError(f"SVG file not found: {path}")
         try:
-            tree = etree.parse(str(path))
+            tree = etree.parse(str(path), _SECURE_PARSER)
         except etree.XMLSyntaxError as exc:
             raise SVGParseError(f"Failed to parse SVG: {exc}") from exc
         return cls(tree)
@@ -95,7 +100,7 @@ class SVGDocumentBase:
         if isinstance(svg, str):
             svg = svg.encode("utf-8")
         try:
-            tree = etree.ElementTree(etree.fromstring(svg))
+            tree = etree.ElementTree(etree.fromstring(svg, _SECURE_PARSER))
         except etree.XMLSyntaxError as exc:
             raise SVGParseError(f"Failed to parse SVG: {exc}") from exc
         return cls(tree)

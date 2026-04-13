@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.2] - 2026-04-13
+
+### Fixed
+- **Security**: Mitigated XML External Entity (XXE) vulnerability — `from_file` and `from_string` now use a secure `XMLParser` with `resolve_entities=False` and `no_network=True`
+- Renamed ambiguous variable `l` to `layer` in `layers.py` (PEP 8 E741)
+
+### Changed
+- Expanded `bbox_from_path_d` docstring to explicitly document the Bézier control-point bounding box overestimation
+
 ## [0.1.1] - 2026-04-12
 
 ### Added
@@ -46,5 +55,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Coordinate grid overlay (xy_guide)
 - US states example workflow with 2023 Census data
 
+[0.1.2]: https://github.com/yigityargili991/pathy_svg/releases/tag/v0.1.2
 [0.1.1]: https://github.com/yigityargili991/pathy_svg/releases/tag/v0.1.1
 [0.1.0]: https://github.com/yigityargili991/pathy_svg/releases/tag/v0.1.0
