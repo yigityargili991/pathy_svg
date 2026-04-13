@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from pathy_svg._constants import SVG_NS
 from pathy_svg.document import SVGDocument
 from pathy_svg.exceptions import PathNotFoundError, SVGParseError
 from pathy_svg.transform import ViewBox
@@ -96,7 +97,7 @@ class TestXXEPrevention:
 
     def test_from_string_does_not_resolve_xxe(self):
         doc = SVGDocument.from_string(self.XXE_STRING)
-        ns = {"svg": "http://www.w3.org/2000/svg"}
+        ns = {"svg": SVG_NS}
         text_elem = doc.root.find(".//svg:text", ns)
         assert not (text_elem.text and text_elem.text.strip())
 
@@ -104,7 +105,7 @@ class TestXXEPrevention:
         xxe_file = tmp_path / "xxe.svg"
         xxe_file.write_text(self.XXE_STRING)
         doc = SVGDocument.from_file(xxe_file)
-        ns = {"svg": "http://www.w3.org/2000/svg"}
+        ns = {"svg": SVG_NS}
         text_elem = doc.root.find(".//svg:text", ns)
         assert not (text_elem.text and text_elem.text.strip())
 

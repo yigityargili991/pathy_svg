@@ -12,11 +12,6 @@ from lxml import etree
 
 from pathy_svg._constants import SVG_NS, build_attr_index, build_id_index
 from pathy_svg.exceptions import PathNotFoundError, SVGParseError
-
-_SECURE_PARSER = etree.XMLParser(
-    resolve_entities=False,
-    no_network=True,
-)
 from pathy_svg.transform import (
     BBox,
     ViewBox,
@@ -27,6 +22,11 @@ from pathy_svg.transform import (
 
 if TYPE_CHECKING:
     from os import PathLike
+
+_SECURE_PARSER = etree.XMLParser(
+    resolve_entities=False,
+    no_network=True,
+)
 
 
 class SVGDocumentBase:
