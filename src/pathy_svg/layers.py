@@ -72,7 +72,7 @@ class LayerManager:
         idx = self._find(name)
         if idx < 0:
             raise KeyError(f"Layer '{name}' not found")
-        new_layers = [l for l in self._layers if l[0] != name]
+        new_layers = [layer for layer in self._layers if layer[0] != name]
         return self._copy(new_layers)
 
     def reorder(self, names: list[str]) -> LayerManager:

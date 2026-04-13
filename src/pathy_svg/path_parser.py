@@ -27,8 +27,13 @@ def bbox_from_path_d(d: str) -> BBox:
     """Compute an approximate bounding box from an SVG path ``d`` attribute.
 
     Handles M, L, H, V, C, S, Q, T, A, Z commands (both absolute and relative).
-    For curves, uses control points — slightly overestimates but sufficient
-    for label placement and centroid calculation.
+    For curves, the bounding box is approximated using raw control points
+    rather than solving for the true geometric extrema.  This means the
+    result may overestimate the actual bounds, especially for paths with
+    highly curved Bézier segments whose control points lie far outside the
+    drawn curve.  The approximation is sufficient for label placement and
+    centroid calculation but should not be relied on for pixel-precise
+    clipping or hit-testing.
 
     Args:
         d: The SVG path 'd' attribute string.
