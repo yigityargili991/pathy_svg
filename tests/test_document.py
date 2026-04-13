@@ -96,17 +96,17 @@ class TestXXEPrevention:
 
     def test_from_string_does_not_resolve_xxe(self):
         doc = SVGDocument.from_string(self.XXE_STRING)
-        output = doc.to_string()
-        assert "root:" not in output
-        assert "/bin/" not in output
+        ns = {"svg": "http://www.w3.org/2000/svg"}
+        text_elem = doc.root.find(".//svg:text", ns)
+        assert not (text_elem.text and text_elem.text.strip())
 
     def test_from_file_does_not_resolve_xxe(self, tmp_path):
         xxe_file = tmp_path / "xxe.svg"
         xxe_file.write_text(self.XXE_STRING)
         doc = SVGDocument.from_file(xxe_file)
-        output = doc.to_string()
-        assert "root:" not in output
-        assert "/bin/" not in output
+        ns = {"svg": "http://www.w3.org/2000/svg"}
+        text_elem = doc.root.find(".//svg:text", ns)
+        assert not (text_elem.text and text_elem.text.strip())
 
 
 class TestProperties:
