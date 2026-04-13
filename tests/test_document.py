@@ -26,6 +26,12 @@ class TestConstruction:
         with pytest.raises(FileNotFoundError):
             SVGDocument.from_file("/nonexistent/path.svg")
 
+    def test_from_file_malformed(self, tmp_path):
+        bad_svg = tmp_path / "bad.svg"
+        bad_svg.write_text("<not valid xml><<<")
+        with pytest.raises(SVGParseError):
+            SVGDocument.from_file(bad_svg)
+
     def test_from_string_malformed(self):
         with pytest.raises(SVGParseError):
             SVGDocument.from_string("<not valid xml><<<")
