@@ -1,4 +1,5 @@
 """Tests for pathy_svg.annotations module."""
+from pathy_svg._constants import get_secure_parser
 
 from lxml import etree
 
@@ -96,7 +97,7 @@ class TestTooltipsDirect:
             '<path id="p2" d="M 10 10 L 60 60 Z" fill="#fff"/>'
             "</svg>"
         )
-        root = etree.fromstring(svg.encode())
+        root = etree.fromstring(svg.encode(), parser=get_secure_parser())
         return etree.ElementTree(root), root.nsmap
 
     def test_title_tooltip_nonexistent_id_skipped(self):
@@ -149,7 +150,7 @@ class TestReplaceText:
             '<text id="t2">World</text>'
             "</svg>"
         )
-        tree = etree.ElementTree(etree.fromstring(svg.encode()))
+        tree = etree.ElementTree(etree.fromstring(svg.encode(), parser=get_secure_parser()))
         replace_text(tree, {"Hello": "Foo"}, text_color="#ff0000")
         t1 = tree.getroot().find(".//{http://www.w3.org/2000/svg}text")
         assert t1.text == "Foo"

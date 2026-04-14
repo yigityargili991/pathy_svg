@@ -1,4 +1,5 @@
 """Tests for pathy_svg.coloring module."""
+from pathy_svg._constants import get_secure_parser
 
 import re
 
@@ -351,7 +352,7 @@ class TestApplyHeatmapDirect:
             '<path id="b" d="M 10 10 L 60 60 Z" fill="#fff"/>'
             "</svg>"
         )
-        return etree.ElementTree(etree.fromstring(svg.encode()))
+        return etree.ElementTree(etree.fromstring(svg.encode(), parser=get_secure_parser()))
 
     def test_bad_palette_raises_color_scale_error(self):
         tree = self._make_tree()
@@ -377,7 +378,7 @@ class TestApplyRecolorDirect:
             '<path id="a" d="M 0 0 L 50 50 Z" fill="#fff"/>'
             "</svg>"
         )
-        return etree.ElementTree(etree.fromstring(svg.encode()))
+        return etree.ElementTree(etree.fromstring(svg.encode(), parser=get_secure_parser()))
 
     def test_with_custom_id_to_elem(self):
         tree = self._make_tree()
@@ -402,7 +403,7 @@ class TestApplyCategoricalDirect:
             '<path id="c" d="M 20 20 L 70 70 Z" fill="#fff"/>'
             "</svg>"
         )
-        return etree.ElementTree(etree.fromstring(svg.encode()))
+        return etree.ElementTree(etree.fromstring(svg.encode(), parser=get_secure_parser()))
 
     def test_with_custom_id_to_elem(self):
         tree = self._make_tree()

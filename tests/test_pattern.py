@@ -1,4 +1,5 @@
 """Tests for pathy_svg.pattern module."""
+from pathy_svg._constants import get_secure_parser
 
 from lxml import etree
 
@@ -13,7 +14,7 @@ def _make_tree():
         '<path id="b" d="M 10 10 L 60 60 Z" fill="#fff"/>'
         "</svg>"
     )
-    return etree.ElementTree(etree.fromstring(svg.encode()))
+    return etree.ElementTree(etree.fromstring(svg.encode(), parser=get_secure_parser()))
 
 
 def _make_grouped_tree():
@@ -23,7 +24,7 @@ def _make_grouped_tree():
         '<path id="c2" d="M 10 10 L 60 60 Z" fill="#fff"/></g>'
         "</svg>"
     )
-    return etree.ElementTree(etree.fromstring(svg.encode()))
+    return etree.ElementTree(etree.fromstring(svg.encode(), parser=get_secure_parser()))
 
 
 class TestPatternSpec:

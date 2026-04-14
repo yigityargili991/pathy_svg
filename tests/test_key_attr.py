@@ -1,4 +1,5 @@
 """Tests for key_attr parameter — matching elements by non-ID attributes."""
+from pathy_svg._constants import get_secure_parser
 
 import re
 
@@ -197,7 +198,7 @@ class TestAnnotateKeyAttr:
 class TestHeatmapGroupsKeyAttr:
     def test_aggregate_children_by_data_attribute(self):
         """Groups are identified by id, children matched by key_attr."""
-        tree = etree.ElementTree(etree.fromstring(GROUPED_DATA_ATTR_SVG.encode()))
+        tree = etree.ElementTree(etree.fromstring(GROUPED_DATA_ATTR_SVG.encode(), parser=get_secure_parser()))
         data = {"c1": 10.0, "c2": 20.0, "c3": 30.0}
         result = aggregate_by_group(tree, data, agg="mean", key_attr="data-code")
         assert result["grp"] == pytest.approx(15.0)

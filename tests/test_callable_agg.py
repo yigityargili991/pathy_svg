@@ -1,4 +1,5 @@
 """Tests for callable aggregation in aggregate_by_group."""
+from pathy_svg._constants import get_secure_parser
 
 import pytest
 from lxml import etree
@@ -19,7 +20,7 @@ def _make_grouped_tree():
         "</g>"
         "</svg>"
     )
-    return etree.ElementTree(etree.fromstring(svg.encode()))
+    return etree.ElementTree(etree.fromstring(svg.encode(), parser=get_secure_parser()))
 
 
 class TestCallableAgg:

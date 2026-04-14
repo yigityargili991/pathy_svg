@@ -1,4 +1,5 @@
 """Tests for pathy_svg.animation module."""
+from pathy_svg._constants import get_secure_parser
 
 import pytest
 
@@ -55,7 +56,7 @@ class TestInjectAnimationDirect:
             '<path id="c" d="M 0 0 L 30 30"/>'
             "</svg>"
         )
-        return etree.ElementTree(etree.fromstring(svg.encode()))
+        return etree.ElementTree(etree.fromstring(svg.encode(), parser=get_secure_parser()))
 
     def test_sequential_with_data_order(self):
         tree = self._make_tree()
@@ -94,7 +95,7 @@ class TestInjectAnimationDirect:
 
     def test_creates_defs_if_missing(self):
         svg = '<svg xmlns="http://www.w3.org/2000/svg"><path id="x" d="M 0 0"/></svg>'
-        tree = etree.ElementTree(etree.fromstring(svg.encode()))
+        tree = etree.ElementTree(etree.fromstring(svg.encode(), parser=get_secure_parser()))
         defs_before = tree.getroot().find("{http://www.w3.org/2000/svg}defs")
         assert defs_before is None
         inject_animation(tree, effect="pulse")

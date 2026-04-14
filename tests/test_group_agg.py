@@ -1,4 +1,5 @@
 """Tests for group aggregation (heatmap_groups)."""
+from pathy_svg._constants import get_secure_parser
 
 import re
 
@@ -23,7 +24,7 @@ def _make_grouped_tree():
         "</g>"
         "</svg>"
     )
-    return etree.ElementTree(etree.fromstring(svg.encode()))
+    return etree.ElementTree(etree.fromstring(svg.encode(), parser=get_secure_parser()))
 
 
 class TestAggregateByGroup:

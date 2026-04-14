@@ -1,4 +1,5 @@
 """Tests for pathy_svg.highlight module."""
+from pathy_svg._constants import get_secure_parser
 
 import re
 
@@ -16,7 +17,7 @@ def _make_tree():
         '<path id="c" d="M 20 20 L 70 70 Z" fill="#0000ff"/>'
         "</svg>"
     )
-    return etree.ElementTree(etree.fromstring(svg.encode()))
+    return etree.ElementTree(etree.fromstring(svg.encode(), parser=get_secure_parser()))
 
 
 def _make_grouped_tree():
@@ -27,7 +28,7 @@ def _make_grouped_tree():
         '<path id="d" d="M 20 20 L 70 70 Z" fill="#0000ff"/>'
         "</svg>"
     )
-    return etree.ElementTree(etree.fromstring(svg.encode()))
+    return etree.ElementTree(etree.fromstring(svg.encode(), parser=get_secure_parser()))
 
 
 def _extract_fill(elem):

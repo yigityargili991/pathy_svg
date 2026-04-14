@@ -65,3 +65,10 @@ def build_attr_index(tree, attr: str = "id") -> dict:
         if val:
             index.setdefault(val, elem)
     return index
+
+
+def get_secure_parser():
+    return etree.XMLParser(
+        resolve_entities=False,
+        no_network=True,
+    )
