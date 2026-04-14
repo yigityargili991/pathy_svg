@@ -244,7 +244,7 @@ layered.save("layered.svg")
 Full source: [`examples/us_states_workflow.py`](https://github.com/yigityargili991/pathy_svg/blob/main/examples/us_states_workflow.py)
 """
 
-__version__ = "0.1.2"
+__version__ = "0.1.3"
 
 from pathy_svg.document import SVGDocument
 from pathy_svg.exceptions import (

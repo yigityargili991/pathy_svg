@@ -6,7 +6,15 @@ from dataclasses import dataclass
 
 from lxml import etree
 
-from pathy_svg._constants import COLORABLE_TAGS, SVG_NS, build_id_index, local_tag, safe_svg_id, svg_sub
+from pathy_svg._constants import (
+    COLORABLE_TAGS,
+    SVG_NS,
+    build_id_index,
+    get_secure_parser,
+    local_tag,
+    safe_svg_id,
+    svg_sub,
+)
 from pathy_svg._css import set_style_property
 from pathy_svg.gradient import _get_or_create_defs, _remove_existing_def
 
@@ -36,7 +44,10 @@ def _validate_pattern_spec(pat_id: str, spec: PatternSpec) -> None:
     """Validate a pattern spec before modifying the tree. Raises on invalid input."""
     if isinstance(spec, CustomPatternSpec):
         try:
-            etree.fromstring(f"<wrapper xmlns='{SVG_NS}'>{spec.markup}</wrapper>")
+            etree.fromstring(
+                f"<wrapper xmlns='{SVG_NS}'>{spec.markup}</wrapper>",
+                parser=get_secure_parser(),
+            )
         except etree.XMLSyntaxError as exc:
             raise ValueError(
                 f"Invalid custom pattern markup for '{pat_id}': {exc}"
@@ -85,7 +96,10 @@ def _build_custom_pattern(
         bg.set("height", str(spec.height))
         bg.set("fill", spec.background)
 
-    fragment = etree.fromstring(f"<wrapper xmlns='{SVG_NS}'>{spec.markup}</wrapper>")
+    fragment = etree.fromstring(
+        f"<wrapper xmlns='{SVG_NS}'>{spec.markup}</wrapper>",
+        parser=get_secure_parser(),
+    )
     for child in fragment:
         pat.append(child)
 
