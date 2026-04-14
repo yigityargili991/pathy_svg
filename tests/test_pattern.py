@@ -1,7 +1,11 @@
 """Tests for pathy_svg.pattern module."""
 
+from unittest.mock import sentinel
+
+import pathy_svg.pattern as pattern_mod
 from lxml import etree
 
+from pathy_svg._constants import SVG_NS
 from pathy_svg.document import SVGDocument
 from pathy_svg.pattern import PatternSpec, CustomPatternSpec, apply_pattern_fill
 
@@ -152,6 +156,26 @@ class TestApplyPatternFill:
         pattern = tree.getroot().find(f".//{ns}pattern")
         assert pattern is not None
         assert pattern.get("width") == "10"
+
+    def test_custom_pattern_markup_uses_secure_parser(self, monkeypatch):
+        tree = _make_tree()
+        spec = CustomPatternSpec(markup='<circle cx="5" cy="5" r="3"/>')
+        parser_calls = []
+
+        def fake_fromstring(markup, parser=None):
+            parser_calls.append(parser)
+            wrapper = etree.Element(f"{{{SVG_NS}}}wrapper")
+            etree.SubElement(wrapper, f"{{{SVG_NS}}}circle")
+            return wrapper
+
+        monkeypatch.setattr(
+            pattern_mod, "get_secure_parser", lambda: sentinel.secure_parser
+        )
+        monkeypatch.setattr(pattern_mod.etree, "fromstring", fake_fromstring)
+
+        apply_pattern_fill(tree, {"a": spec})
+
+        assert parser_calls == [sentinel.secure_parser, sentinel.secure_parser]
 
     def test_multiple_elements(self):
         tree = _make_tree()

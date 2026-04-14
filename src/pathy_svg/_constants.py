@@ -26,6 +26,11 @@ def svg_sub(parent, tag: str):
     return etree.SubElement(parent, f"{{{SVG_NS}}}{tag}")
 
 
+def get_secure_parser() -> etree.XMLParser:
+    """Create an XML parser that disables entity resolution and network access."""
+    return etree.XMLParser(resolve_entities=False, no_network=True)
+
+
 _UNSAFE_ID_RE = re.compile(r"[^A-Za-z0-9_-]")
 
 
