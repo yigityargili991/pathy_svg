@@ -1,11 +1,9 @@
 """Tests for pathy_svg.pattern module."""
 
-from unittest.mock import sentinel
-
-import pathy_svg.pattern as pattern_mod
+import pytest
 from lxml import etree
 
-from pathy_svg._constants import SVG_NS
+from pathy_svg._constants import get_secure_parser
 from pathy_svg.document import SVGDocument
 from pathy_svg.pattern import PatternSpec, CustomPatternSpec, apply_pattern_fill
 
@@ -157,26 +155,6 @@ class TestApplyPatternFill:
         assert pattern is not None
         assert pattern.get("width") == "10"
 
-    def test_custom_pattern_markup_uses_secure_parser(self, monkeypatch):
-        tree = _make_tree()
-        spec = CustomPatternSpec(markup='<circle cx="5" cy="5" r="3"/>')
-        parser_calls = []
-
-        def fake_fromstring(markup, parser=None):
-            parser_calls.append(parser)
-            wrapper = etree.Element(f"{{{SVG_NS}}}wrapper")
-            etree.SubElement(wrapper, f"{{{SVG_NS}}}circle")
-            return wrapper
-
-        monkeypatch.setattr(
-            pattern_mod, "get_secure_parser", lambda: sentinel.secure_parser
-        )
-        monkeypatch.setattr(pattern_mod.etree, "fromstring", fake_fromstring)
-
-        apply_pattern_fill(tree, {"a": spec})
-
-        assert parser_calls == [sentinel.secure_parser, sentinel.secure_parser]
-
     def test_multiple_elements(self):
         tree = _make_tree()
         apply_pattern_fill(tree, {
@@ -229,3 +207,36 @@ class TestPatternFillMixin:
         doc.pattern_fill({"stomach": "dots"})
 
         assert doc._find_by_id("stomach").get("fill") == "#ffffff"
+
+
+class TestCustomPatternSecurity:
+    """Ensure custom pattern markup is parsed with XXE mitigations."""
+
+    def test_rejects_doctype_injection(self):
+        tree = _make_tree()
+        xxe = (
+            '<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>'
+            '<circle cx="5" cy="5" r="3"/>'
+        )
+        spec = CustomPatternSpec(markup=xxe)
+        with pytest.raises(ValueError, match="Invalid custom pattern markup"):
+            apply_pattern_fill(tree, {"a": spec})
+
+    def test_rejects_entity_reference(self):
+        tree = _make_tree()
+        spec = CustomPatternSpec(markup='<circle cx="&xxe;" cy="5" r="3"/>')
+        with pytest.raises(ValueError, match="Invalid custom pattern markup"):
+            apply_pattern_fill(tree, {"a": spec})
+
+    def test_secure_parser_blocks_entity_resolution(self):
+        xxe = (
+            '<?xml version="1.0"?>'
+            '<!DOCTYPE foo ['
+            '  <!ENTITY xxe SYSTEM "file:///etc/passwd">'
+            ']>'
+            '<root>&xxe;</root>'
+        )
+        root = etree.fromstring(xxe.encode(), get_secure_parser())
+        # resolve_entities=False means the entity is not expanded to file contents;
+        # lxml leaves root.text as None when the entity reference is suppressed.
+        assert root.text is None
