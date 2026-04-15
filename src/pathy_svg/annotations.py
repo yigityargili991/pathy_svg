@@ -124,7 +124,8 @@ def add_tooltips(
             )
         style.text = (
             ".pathy-tooltip { display: none; pointer-events: none; }\n"
-            "[data-tooltip]:hover + .pathy-tooltip { display: inline; }"
+            "[data-tooltip]:hover + .pathy-tooltip, [data-tooltip]:focus + .pathy-tooltip, [data-tooltip]:focus-visible + .pathy-tooltip { display: inline; }\n"
+            "[data-tooltip]:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }"
         )
 
         for eid, tip_text in tips.items():
@@ -133,6 +134,10 @@ def add_tooltips(
                 continue
 
             elem.set("data-tooltip", tip_text)
+            if elem.get("tabindex") is None:
+                elem.set("tabindex", "0")
+            if elem.get("aria-label") is None:
+                elem.set("aria-label", tip_text)
 
             for existing in tree.xpath(
                 '//*[@data-tooltip-for=$val]', val=eid,
