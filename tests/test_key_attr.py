@@ -309,7 +309,7 @@ class TestUnsafeAttrValues:
             },
             key_attr="data-name",
         )
-        svg_str = result.to_string()
+        result.to_string()
         a_elem = result._find_by_id("a")
         b_elem = result._find_by_id("b")
         a_ref = a_elem.get("fill")

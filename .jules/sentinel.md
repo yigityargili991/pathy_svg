@@ -1,0 +1,10 @@
+## 2026-04-17 - Potential SSRF in from_url
+**Vulnerability:** The `from_url` method in `SVGDocumentBase` allows fetching arbitrary URLs with only a basic prefix check (`http://` or `https://`). It doesn't validate if the URL points to a local or internal IP address, potentially allowing Server-Side Request Forgery (SSRF) to scan internal networks or access internal endpoints.
+**Learning:** `urllib.request.urlopen` will happily resolve and fetch from internal IP addresses (like `127.0.0.1`, `localhost`, `10.x.x.x`, `169.254.169.254`). Without IP validation, it acts as a proxy for the attacker.
+**Prevention:** Implement IP validation to ensure the resolved IP address of the URL is public and not reserved for private networks before making the request. Note that Python 3 has `ipaddress` which can be used to check `is_private` or `is_loopback`, but DNS resolution needs to happen first to prevent DNS rebinding attacks.
+
+
+## 2026-04-17 - SSRF Mitigation DNS Rebinding and IPv6 Limitations in urllib
+**Vulnerability:** When fixing SSRF, performing DNS resolution and verifying the IP, and then using the original hostname in `urllib.request.urlopen()` creates a TOCTOU (Time-of-Check to Time-of-Use) vulnerability known as DNS rebinding.
+**Learning:** Standard library `urllib` doesn't easily support providing a hostname for TLS/SNI while connecting to a specific pre-resolved IP. Also, `socket.gethostbyname` doesn't support IPv6, causing regressions. To properly prevent DNS rebinding in Python using `urllib`, one must safely monkeypatch `socket.create_connection` locally (via a context manager) using `socket.getaddrinfo` to resolve the IP, verify the IP, and then force `create_connection` to use the safe IP when the targeted hostname is requested.
+**Prevention:** When mitigating SSRF with `urllib`, avoid passing the original URL if you resolved the IP. If you must use `urllib` and preserve SNI, implement a thread-local or context-managed `socket.create_connection` override that maps the requested hostname to the verified IP, ensuring the DNS request is only performed once and the verified IP is used for the socket connection.

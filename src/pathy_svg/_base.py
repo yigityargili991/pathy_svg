@@ -5,6 +5,9 @@ from __future__ import annotations
 import copy
 import re
 import urllib.request
+import urllib.parse
+import socket
+import ipaddress
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -113,8 +116,63 @@ class SVGDocumentBase:
         """
         if not url.startswith(("http://", "https://")):
             raise ValueError("Only http and https URLs are supported")
-        with urllib.request.urlopen(url, timeout=timeout) as resp:
-            data = resp.read()
+
+        # Custom HTTPAdapter/Opener to prevent SSRF and DNS rebinding
+        # By resolving the IP first and forcing urllib to connect to the IP
+        # while keeping the original Host header.
+        parsed = urllib.parse.urlparse(url)
+        hostname = parsed.hostname
+        if not hostname:
+            raise ValueError("Invalid URL hostname")
+
+        try:
+            # getaddrinfo handles both IPv4 and IPv6
+            addr_info = socket.getaddrinfo(hostname, parsed.port or (443 if parsed.scheme == 'https' else 80), proto=socket.IPPROTO_TCP)
+        except socket.gaierror:
+            raise ValueError(f"Could not resolve hostname: {hostname}")
+
+        if not addr_info:
+            raise ValueError(f"Could not resolve hostname: {hostname}")
+
+        ip = addr_info[0][4][0]
+
+        ip_obj = ipaddress.ip_address(ip)
+        if not ip_obj.is_global:
+            raise ValueError(f"URL points to a non-global IP address ({ip}), which is not allowed.")
+
+        # Reconstruct the URL using the verified IP to prevent DNS rebinding
+        # But we need to keep the original host header for virtual hosting and TLS SNI
+        req = urllib.request.Request(url)
+
+        # A safer and simpler way to prevent SSRF in urllib without rewriting the opener (which breaks SNI for HTTPS)
+        # is to check if the hostname is an IP literal. If not, the best way in urllib is tricky.
+        # Alternatively, since DNS rebinding is an advanced attack and requires a short TTL,
+        # a safer solution is to raise an error if they don't provide a direct safe IP, or rely on
+        # requests library if we could use it.
+        # Since urllib.request is hard to patch for DNS rebinding securely without breaking HTTPS SNI,
+        # we will use the safest approach: validating the IP, and if the user wants to avoid DNS rebinding,
+        # we create a custom opener that patches socket.create_connection.
+
+        class SafeOpener(urllib.request.HTTPHandler, urllib.request.HTTPSHandler):
+            pass # Creating a custom socket.create_connection patch is too complex here
+
+        # We will use a context manager to temporarily monkey-patch socket.create_connection
+        # to force it to use our pre-resolved IP, preventing DNS rebinding.
+        original_create_connection = socket.create_connection
+
+        def safe_create_connection(address, timeout=socket._GLOBAL_DEFAULT_TIMEOUT, source_address=None, *args, **kwargs):
+            host, port = address
+            if host == hostname:
+                address = (ip, port)
+            return original_create_connection(address, timeout, source_address, *args, **kwargs)
+
+        socket.create_connection = safe_create_connection
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                data = resp.read()
+        finally:
+            socket.create_connection = original_create_connection
+
         return cls.from_string(data)
 
     @classmethod

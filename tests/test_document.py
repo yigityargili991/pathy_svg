@@ -51,9 +51,10 @@ class TestFromUrl:
 
         with patch("urllib.request.urlopen", return_value=mock_resp) as mock_urlopen:
             doc = SVGDocument.from_url("https://example.com/test.svg")
-            mock_urlopen.assert_called_once_with(
-                "https://example.com/test.svg", timeout=10.0
-            )
+            assert mock_urlopen.call_count == 1
+            req = mock_urlopen.call_args[0][0]
+            assert req.full_url == "https://example.com/test.svg"
+            assert mock_urlopen.call_args[1]["timeout"] == 10.0
         assert doc.root is not None
         assert "stomach" in doc.path_ids
 
@@ -65,9 +66,10 @@ class TestFromUrl:
 
         with patch("urllib.request.urlopen", return_value=mock_resp) as mock_urlopen:
             SVGDocument.from_url("http://example.com/test.svg", timeout=30.0)
-            mock_urlopen.assert_called_once_with(
-                "http://example.com/test.svg", timeout=30.0
-            )
+            assert mock_urlopen.call_count == 1
+            req = mock_urlopen.call_args[0][0]
+            assert req.full_url == "http://example.com/test.svg"
+            assert mock_urlopen.call_args[1]["timeout"] == 30.0
 
     def test_invalid_scheme_raises(self):
         with pytest.raises(ValueError, match="http"):

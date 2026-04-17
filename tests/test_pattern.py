@@ -162,7 +162,7 @@ class TestApplyPatternFill:
             "b": PatternSpec(kind="dots"),
         })
 
-        svg_str = etree.tostring(tree, encoding="unicode")
+        etree.tostring(tree, encoding="unicode")
         # Two patterns should be created
         ns = "{http://www.w3.org/2000/svg}"
         patterns = tree.getroot().findall(f".//{ns}pattern")

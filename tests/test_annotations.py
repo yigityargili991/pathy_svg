@@ -2,7 +2,7 @@
 
 from lxml import etree
 
-from pathy_svg.annotations import add_text_labels, add_tooltips, replace_text
+from pathy_svg.annotations import add_tooltips, replace_text
 from pathy_svg.document import SVGDocument
 
 
