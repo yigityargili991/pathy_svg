@@ -2,7 +2,6 @@
 
 import re
 
-import numpy as np
 import pytest
 from lxml import etree
 
@@ -98,7 +97,5 @@ class TestHeatmapGroupsMixin:
 
     def test_stores_scale_for_legend(self, grouped_svg_path):
         doc = SVGDocument.from_file(grouped_svg_path)
-        result = doc.heatmap_groups(
-            {"north_a": 0.0, "north_b": 1.0}, agg="mean"
-        )
+        result = doc.heatmap_groups({"north_a": 0.0, "north_b": 1.0}, agg="mean")
         assert result._last_scale is not None

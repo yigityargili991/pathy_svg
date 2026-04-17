@@ -289,5 +289,3 @@ class TestShowMocked:
             doc.show(width=500)
         mock_display_mod.display.assert_called_once()
         assert mock_display_mod.HTML.called
-
-

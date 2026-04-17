@@ -124,7 +124,9 @@ def add_tooltips(
             )
         style.text = (
             ".pathy-tooltip { display: none; pointer-events: none; }\n"
-            "[data-tooltip]:hover + .pathy-tooltip { display: inline; }"
+            "[data-tooltip]:hover + .pathy-tooltip, "
+            "[data-tooltip]:focus + .pathy-tooltip { display: inline; }\n"
+            "[data-tooltip]:focus-visible { outline: 2px solid currentColor; }"
         )
 
         for eid, tip_text in tips.items():
@@ -132,10 +134,13 @@ def add_tooltips(
             if elem is None:
                 continue
 
+            elem.set("tabindex", "0")
+            elem.set("aria-label", tip_text)
             elem.set("data-tooltip", tip_text)
 
             for existing in tree.xpath(
-                '//*[@data-tooltip-for=$val]', val=eid,
+                "//*[@data-tooltip-for=$val]",
+                val=eid,
             ):
                 parent = existing.getparent()
                 if parent is not None:
@@ -191,6 +196,11 @@ def replace_text(
             if elem.text and elem.text.strip() in replacements:
                 elem.text = replacements[elem.text.strip()]
                 if text_color:
-                    elem.set("style", set_style_property(
-                        elem.get("style"), "fill", text_color,
-                    ))
+                    elem.set(
+                        "style",
+                        set_style_property(
+                            elem.get("style"),
+                            "fill",
+                            text_color,
+                        ),
+                    )

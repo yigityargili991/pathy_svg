@@ -66,4 +66,3 @@ class SerializationMixin:
     def _repr_html_(self) -> str:
         """HTML fallback for Jupyter."""
         return self.to_string()
-

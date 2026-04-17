@@ -113,7 +113,9 @@ def apply_heatmap(
                 palette, vmin=vmin, vmax=vmax, vcenter=vcenter, breaks=breaks
             )
         except (ValueError, KeyError) as exc:
-            raise ColorScaleError(f"Invalid palette or color scale config: {exc}") from exc
+            raise ColorScaleError(
+                f"Invalid palette or color scale config: {exc}"
+            ) from exc
 
         scale.fit(list(data.values()))
         protected_keys = set(data.keys())
@@ -247,9 +249,7 @@ def aggregate_by_group(
     elif agg in agg_funcs:
         func = agg_funcs[agg]
     else:
-        raise ValueError(
-            f"Unknown aggregation: {agg!r}. Choose from {list(agg_funcs)}"
-        )
+        raise ValueError(f"Unknown aggregation: {agg!r}. Choose from {list(agg_funcs)}")
 
     result = {}
     for elem in tree.iter():

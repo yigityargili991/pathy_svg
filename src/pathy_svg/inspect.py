@@ -119,9 +119,7 @@ def inspect_paths(tree: etree._ElementTree, nsmap: dict) -> list[PathInfo]:
     return results
 
 
-def validate_ids(
-    tree: etree._ElementTree, ids: Iterable[str]
-) -> ValidationResult:
+def validate_ids(tree: etree._ElementTree, ids: Iterable[str]) -> ValidationResult:
     """Check which data IDs match elements in the SVG.
 
     Args:

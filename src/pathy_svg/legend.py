@@ -306,8 +306,7 @@ def build_legend(
         if scale is not None and scale.breaks is not None:
             breaks = scale.breaks
             colors = [
-                scale((breaks[i] + breaks[i + 1]) / 2)
-                for i in range(len(breaks) - 1)
+                scale((breaks[i] + breaks[i + 1]) / 2) for i in range(len(breaks) - 1)
             ]
             bin_labels = labels or [
                 f"{tick_format.format(breaks[i])} \u2013 {tick_format.format(breaks[i + 1])}"

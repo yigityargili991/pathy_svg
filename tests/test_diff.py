@@ -65,6 +65,7 @@ class TestComputeDiffEdgeCases:
 
     def test_log2ratio_zero_baseline(self):
         import math
+
         result = compute_diff({"a": 0}, {"a": 10}, mode="log2ratio")
         assert math.isnan(result["a"])
 

@@ -2,7 +2,6 @@
 
 import re
 
-import numpy as np
 import pytest
 from lxml import etree
 
@@ -419,7 +418,7 @@ class TestApplyCategoricalDirect:
 
     def test_group_coloring(self):
         tree = self._make_tree()
-        cat_pal = apply_categorical(
+        apply_categorical(
             tree, {"grp": "group_a"}, palette={"group_a": "#ff0000"}
         )
         grp = tree.getroot().find(".//{http://www.w3.org/2000/svg}g")

@@ -78,7 +78,9 @@ class AnnotationMixin:
         clone = self._clone()
         resolved_tips, resolved_index = clone._resolve_key_attr(tips, key_attr)
         add_tooltips(
-            clone._tree, clone._nsmap, resolved_tips,
+            clone._tree,
+            clone._nsmap,
+            resolved_tips,
             method=method,
             id_to_elem=resolved_index,
         )

@@ -10,7 +10,12 @@ from typing import TYPE_CHECKING
 
 from lxml import etree
 
-from pathy_svg._constants import SVG_NS, build_attr_index, build_id_index, get_secure_parser
+from pathy_svg._constants import (
+    SVG_NS,
+    build_attr_index,
+    build_id_index,
+    get_secure_parser,
+)
 from pathy_svg.exceptions import PathNotFoundError, SVGParseError
 from pathy_svg.transform import (
     BBox,
@@ -274,7 +279,9 @@ class SVGDocumentBase:
 
     def _ids_for_tag(self, local_tag: str) -> list[str]:
         """Get all IDs for elements with a given tag name."""
-        return [eid for elem in self._find_all_by_tag(local_tag) if (eid := elem.get("id"))]
+        return [
+            eid for elem in self._find_all_by_tag(local_tag) if (eid := elem.get("id"))
+        ]
 
     def bbox(self, element_id: str) -> BBox:
         """Get the bounding box of an element by ID."""
@@ -337,7 +344,6 @@ class SVGDocumentBase:
             if uri == SVG_NS:
                 return f"{prefix}:"
         return ""
-
 
 
 def _parse_dimension(val: str | None) -> float | None:

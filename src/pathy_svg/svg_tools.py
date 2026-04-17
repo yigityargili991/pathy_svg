@@ -6,20 +6,31 @@ import copy
 
 from pathy_svg._constants import SVG_NS, Layout, local_tag
 
-_CRUFT_NS = frozenset({
-    "http://sodipodi.sourceforge.net/DTD/sodipodi-0.0.dtd",
-    "http://www.inkscape.org/namespaces/inkscape",
-    "http://purl.org/dc/elements/1.1/",
-    "http://creativecommons.org/ns#",
-    "http://web.resource.org/cc/",
-    "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
-})
+_CRUFT_NS = frozenset(
+    {
+        "http://sodipodi.sourceforge.net/DTD/sodipodi-0.0.dtd",
+        "http://www.inkscape.org/namespaces/inkscape",
+        "http://purl.org/dc/elements/1.1/",
+        "http://creativecommons.org/ns#",
+        "http://web.resource.org/cc/",
+        "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+    }
+)
 
 _METADATA_TAG = f"{{{SVG_NS}}}metadata"
 
-_KEEP_EMPTY = frozenset({
-    "defs", "g", "svg", "symbol", "marker", "clipPath", "mask", "pattern",
-})
+_KEEP_EMPTY = frozenset(
+    {
+        "defs",
+        "g",
+        "svg",
+        "symbol",
+        "marker",
+        "clipPath",
+        "mask",
+        "pattern",
+    }
+)
 
 __all__ = [
     "viewbox_to_pixel",

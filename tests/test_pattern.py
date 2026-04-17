@@ -157,12 +157,15 @@ class TestApplyPatternFill:
 
     def test_multiple_elements(self):
         tree = _make_tree()
-        apply_pattern_fill(tree, {
-            "a": "crosshatch",
-            "b": PatternSpec(kind="dots"),
-        })
+        apply_pattern_fill(
+            tree,
+            {
+                "a": "crosshatch",
+                "b": PatternSpec(kind="dots"),
+            },
+        )
 
-        svg_str = etree.tostring(tree, encoding="unicode")
+        etree.tostring(tree, encoding="unicode")
         # Two patterns should be created
         ns = "{http://www.w3.org/2000/svg}"
         patterns = tree.getroot().findall(f".//{ns}pattern")
@@ -231,10 +234,10 @@ class TestCustomPatternSecurity:
     def test_secure_parser_blocks_entity_resolution(self):
         xxe = (
             '<?xml version="1.0"?>'
-            '<!DOCTYPE foo ['
+            "<!DOCTYPE foo ["
             '  <!ENTITY xxe SYSTEM "file:///etc/passwd">'
-            ']>'
-            '<root>&xxe;</root>'
+            "]>"
+            "<root>&xxe;</root>"
         )
         root = etree.fromstring(xxe.encode(), get_secure_parser())
         # resolve_entities=False means the entity is not expanded to file contents;

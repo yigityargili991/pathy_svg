@@ -6,7 +6,14 @@ from dataclasses import dataclass
 
 from lxml import etree
 
-from pathy_svg._constants import COLORABLE_TAGS, SVG_NS, build_id_index, local_tag, safe_svg_id, svg_sub
+from pathy_svg._constants import (
+    COLORABLE_TAGS,
+    SVG_NS,
+    build_id_index,
+    local_tag,
+    safe_svg_id,
+    svg_sub,
+)
 from pathy_svg._css import set_style_property
 
 DIRECTION_MAP = {

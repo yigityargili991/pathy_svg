@@ -2,7 +2,6 @@
 
 import pytest
 
-from lxml import etree
 
 from pathy_svg.document import SVGDocument
 from pathy_svg.legend import (

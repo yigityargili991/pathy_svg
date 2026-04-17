@@ -45,8 +45,8 @@ class TestApplyGradientFill:
 
         svg_str = etree.tostring(tree, encoding="unicode")
         assert "<linearGradient" in svg_str or "linearGradient" in svg_str
-        assert 'stop-color:#ff0000' in svg_str
-        assert 'stop-color:#0000ff' in svg_str
+        assert "stop-color:#ff0000" in svg_str
+        assert "stop-color:#0000ff" in svg_str
 
     def test_element_fill_references_gradient(self):
         tree = _make_tree()
@@ -99,7 +99,7 @@ class TestApplyGradientFill:
         grad = tree.getroot().find(f".//{ns}linearGradient")
         stops = grad.findall(f"{ns}stop")
         assert len(stops) == 3
-        assert 'stop-color:#00ff00' in stops[1].get("style", "")
+        assert "stop-color:#00ff00" in stops[1].get("style", "")
 
     def test_two_stops_without_mid(self):
         tree = _make_tree()
@@ -113,10 +113,13 @@ class TestApplyGradientFill:
 
     def test_multiple_elements_get_separate_gradients(self):
         tree = _make_tree()
-        apply_gradient_fill(tree, {
-            "a": GradientSpec(start="#ff0000", end="#0000ff"),
-            "b": GradientSpec(start="#00ff00", end="#ffff00"),
-        })
+        apply_gradient_fill(
+            tree,
+            {
+                "a": GradientSpec(start="#ff0000", end="#0000ff"),
+                "b": GradientSpec(start="#00ff00", end="#ffff00"),
+            },
+        )
 
         svg_str = etree.tostring(tree, encoding="unicode")
         # Count linearGradient occurrences
@@ -131,9 +134,12 @@ class TestApplyGradientFill:
 
     def test_nonexistent_id_skipped(self):
         tree = _make_tree()
-        apply_gradient_fill(tree, {
-            "nonexistent": GradientSpec(start="#ff0000", end="#0000ff"),
-        })
+        apply_gradient_fill(
+            tree,
+            {
+                "nonexistent": GradientSpec(start="#ff0000", end="#0000ff"),
+            },
+        )
         svg_str = etree.tostring(tree, encoding="unicode")
         assert "linearGradient" not in svg_str
 

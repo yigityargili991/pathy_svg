@@ -2,7 +2,7 @@
 
 from lxml import etree
 
-from pathy_svg.annotations import add_text_labels, add_tooltips, replace_text
+from pathy_svg.annotations import add_tooltips, replace_text
 from pathy_svg.document import SVGDocument
 
 
@@ -77,6 +77,8 @@ class TestTooltips:
         elem = result._find_by_id("stomach")
         tooltip = result.root.xpath('//*[@data-tooltip-for="stomach"]')
         assert elem.get("data-tooltip") == "Stomach info"
+        assert elem.get("tabindex") == "0"
+        assert elem.get("aria-label") == "Stomach info"
         assert tooltip
         assert "Stomach info" in result.to_string()
 
