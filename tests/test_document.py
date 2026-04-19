@@ -37,6 +37,35 @@ class TestConstruction:
         with pytest.raises(SVGParseError):
             SVGDocument.from_string("<not valid xml><<<")
 
+    def test_from_url_ssrf_protection(self):
+        with pytest.raises(ValueError, match="Only http and https URLs are supported"):
+            SVGDocument.from_url("file:///etc/passwd")
+
+        with pytest.raises(ValueError, match="Invalid URL: missing hostname"):
+            SVGDocument.from_url("http://")
+
+        with pytest.raises(ValueError, match="Fetching from private/local IPs is not allowed"):
+            SVGDocument.from_url("http://localhost:8080/svg")
+
+        with pytest.raises(ValueError, match="Fetching from private/local IPs is not allowed"):
+            SVGDocument.from_url("http://127.0.0.1/svg")
+
+        with pytest.raises(ValueError, match="Fetching from private/local IPs is not allowed"):
+            SVGDocument.from_url("http://169.254.169.254/latest/meta-data/")
+
+        with pytest.raises(ValueError, match="Failed to resolve hostname"):
+            SVGDocument.from_url("http://this-hostname-does-not-exist.local")
+
+    @patch("pathy_svg._base.urllib.request.OpenerDirector.open")
+    def test_from_url_success(self, mock_open, simple_svg_string):
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = simple_svg_string.encode("utf-8")
+        mock_resp.__enter__.return_value = mock_resp
+        mock_open.return_value = mock_resp
+
+        doc = SVGDocument.from_url("http://example.com/test.svg")
+        assert doc.root is not None
+
     def test_from_minimal(self, minimal_svg_string):
         doc = SVGDocument.from_string(minimal_svg_string)
         assert "p1" in doc.path_ids
@@ -49,9 +78,9 @@ class TestFromUrl:
         mock_resp.__enter__ = MagicMock(return_value=mock_resp)
         mock_resp.__exit__ = MagicMock(return_value=False)
 
-        with patch("urllib.request.urlopen", return_value=mock_resp) as mock_urlopen:
+        with patch("pathy_svg._base.urllib.request.OpenerDirector.open", return_value=mock_resp) as mock_open:
             doc = SVGDocument.from_url("https://example.com/test.svg")
-            mock_urlopen.assert_called_once_with(
+            mock_open.assert_called_once_with(
                 "https://example.com/test.svg", timeout=10.0
             )
         assert doc.root is not None
@@ -63,9 +92,9 @@ class TestFromUrl:
         mock_resp.__enter__ = MagicMock(return_value=mock_resp)
         mock_resp.__exit__ = MagicMock(return_value=False)
 
-        with patch("urllib.request.urlopen", return_value=mock_resp) as mock_urlopen:
+        with patch("pathy_svg._base.urllib.request.OpenerDirector.open", return_value=mock_resp) as mock_open:
             SVGDocument.from_url("http://example.com/test.svg", timeout=30.0)
-            mock_urlopen.assert_called_once_with(
+            mock_open.assert_called_once_with(
                 "http://example.com/test.svg", timeout=30.0
             )
 

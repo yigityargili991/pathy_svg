@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import copy
+import ipaddress
 import re
+import socket
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -113,7 +116,40 @@ class SVGDocumentBase:
         """
         if not url.startswith(("http://", "https://")):
             raise ValueError("Only http and https URLs are supported")
-        with urllib.request.urlopen(url, timeout=timeout) as resp:
+
+        parsed = urllib.parse.urlparse(url)
+        hostname = parsed.hostname
+        if not hostname:
+            raise ValueError("Invalid URL: missing hostname")
+
+        try:
+            addrinfo = socket.getaddrinfo(hostname, None)
+        except socket.gaierror as exc:
+            raise ValueError(f"Failed to resolve hostname: {exc}") from exc
+
+        for res in addrinfo:
+            ip_str = res[4][0]
+            try:
+                ip = ipaddress.ip_address(ip_str)
+            except ValueError:
+                continue
+
+            if (
+                ip.is_private
+                or ip.is_loopback
+                or ip.is_link_local
+                or ip.is_unspecified
+                or ip.is_reserved
+                or ip.is_multicast
+            ):
+                raise ValueError("Fetching from private/local IPs is not allowed")
+
+        class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, req, fp, code, msg, headers, newurl):
+                raise ValueError("Redirects are not allowed for security reasons")
+
+        opener = urllib.request.build_opener(NoRedirectHandler())
+        with opener.open(url, timeout=timeout) as resp:
             data = resp.read()
         return cls.from_string(data)
 
