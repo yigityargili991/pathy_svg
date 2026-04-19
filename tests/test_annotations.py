@@ -77,8 +77,13 @@ class TestTooltips:
         elem = result._find_by_id("stomach")
         tooltip = result.root.xpath('//*[@data-tooltip-for="stomach"]')
         assert elem.get("data-tooltip") == "Stomach info"
+        assert elem.get("tabindex") == "0"
+        assert elem.get("aria-label") == "Stomach info"
         assert tooltip
-        assert "Stomach info" in result.to_string()
+        svg_str = result.to_string()
+        assert "Stomach info" in svg_str
+        assert ":focus" in svg_str
+        assert ":focus-visible" in svg_str
 
     def test_immutability(self, simple_svg_path):
         doc = SVGDocument.from_file(simple_svg_path)
