@@ -1,0 +1,3 @@
+## 2025-04-20 - Keyboard Accessible CSS Tooltips
+**Learning:** CSS-only tooltips using `+` sibling selector for `.pathy-tooltip` were inaccessible to keyboard and screen-reader users because SVG paths aren't natively focusable. For tooltips attached directly to SVG elements, combining `:focus-visible` CSS with explicit `tabindex="0"` and `aria-label` injection bridges the a11y gap.
+**Action:** Always ensure any interactable UI or popup injected dynamically receives focusability (`tabindex="0"`), screen reader text (`aria-label`), and visible focus styles (`outline` with `:focus-visible`) for keyboard navigation.
