@@ -1,3 +1,4 @@
+import socket
 """Tests for pathy_svg.document module."""
 
 from unittest.mock import MagicMock, patch
@@ -49,11 +50,15 @@ class TestFromUrl:
         mock_resp.__enter__ = MagicMock(return_value=mock_resp)
         mock_resp.__exit__ = MagicMock(return_value=False)
 
-        with patch("urllib.request.urlopen", return_value=mock_resp) as mock_urlopen:
-            doc = SVGDocument.from_url("https://example.com/test.svg")
-            mock_urlopen.assert_called_once_with(
-                "https://example.com/test.svg", timeout=10.0
-            )
+        mock_opener = MagicMock()
+        mock_opener.open.return_value = mock_resp
+
+        with patch("urllib.request.build_opener", return_value=mock_opener):
+            with patch("socket.getaddrinfo", return_value=[(socket.AF_INET, socket.SOCK_STREAM, 6, '', ('93.184.216.34', 443))]):
+                doc = SVGDocument.from_url("https://example.com/test.svg")
+                mock_opener.open.assert_called_once_with(
+                    "https://example.com/test.svg", timeout=10.0
+                )
         assert doc.root is not None
         assert "stomach" in doc.path_ids
 
@@ -63,11 +68,15 @@ class TestFromUrl:
         mock_resp.__enter__ = MagicMock(return_value=mock_resp)
         mock_resp.__exit__ = MagicMock(return_value=False)
 
-        with patch("urllib.request.urlopen", return_value=mock_resp) as mock_urlopen:
-            SVGDocument.from_url("http://example.com/test.svg", timeout=30.0)
-            mock_urlopen.assert_called_once_with(
-                "http://example.com/test.svg", timeout=30.0
-            )
+        mock_opener = MagicMock()
+        mock_opener.open.return_value = mock_resp
+
+        with patch("urllib.request.build_opener", return_value=mock_opener):
+            with patch("socket.getaddrinfo", return_value=[(socket.AF_INET, socket.SOCK_STREAM, 6, '', ('93.184.216.34', 80))]):
+                SVGDocument.from_url("http://example.com/test.svg", timeout=30.0)
+                mock_opener.open.assert_called_once_with(
+                    "http://example.com/test.svg", timeout=30.0
+                )
 
     def test_invalid_scheme_raises(self):
         with pytest.raises(ValueError, match="http"):
@@ -78,9 +87,12 @@ class TestFromUrl:
             SVGDocument.from_url("file:///etc/passwd")
 
     def test_network_error_propagates(self):
-        with patch("urllib.request.urlopen", side_effect=OSError("Connection refused")):
-            with pytest.raises(OSError):
-                SVGDocument.from_url("https://example.com/test.svg")
+        mock_opener = MagicMock()
+        mock_opener.open.side_effect = OSError("Connection refused")
+        with patch("urllib.request.build_opener", return_value=mock_opener):
+            with patch("socket.getaddrinfo", return_value=[(socket.AF_INET, socket.SOCK_STREAM, 6, '', ('93.184.216.34', 443))]):
+                with pytest.raises(OSError):
+                    SVGDocument.from_url("https://example.com/test.svg")
 
 
 class TestXXEPrevention:
@@ -390,3 +402,19 @@ class TestSerializationReprExtended:
         result = doc._repr_html_()
         assert isinstance(result, str)
         assert "<svg" in result
+
+class TestSSRFPrevention:
+    def test_ssrf_private_ip(self):
+        with patch("socket.getaddrinfo", return_value=[(socket.AF_INET, socket.SOCK_STREAM, 6, '', ('192.168.1.1', 80))]):
+            with pytest.raises(ValueError, match="unsafe IP"):
+                SVGDocument.from_url("http://internal.site")
+
+    def test_ssrf_loopback_ip(self):
+        with patch("socket.getaddrinfo", return_value=[(socket.AF_INET, socket.SOCK_STREAM, 6, '', ('127.0.0.1', 80))]):
+            with pytest.raises(ValueError, match="unsafe IP"):
+                SVGDocument.from_url("http://localhost")
+
+    def test_ssrf_metadata_ip(self):
+        with patch("socket.getaddrinfo", return_value=[(socket.AF_INET, socket.SOCK_STREAM, 6, '', ('169.254.169.254', 80))]):
+            with pytest.raises(ValueError, match="unsafe IP"):
+                SVGDocument.from_url("http://169.254.169.254")

@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import copy
+import ipaddress
 import re
+import socket
+import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import TYPE_CHECKING
+from urllib.parse import urlparse
 
 from lxml import etree
 
@@ -22,6 +26,11 @@ from pathy_svg.transform import (
 
 if TYPE_CHECKING:
     from os import PathLike
+
+
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise urllib.error.HTTPError(req.full_url, code, msg, headers, fp)
 
 
 class SVGDocumentBase:
@@ -113,7 +122,29 @@ class SVGDocumentBase:
         """
         if not url.startswith(("http://", "https://")):
             raise ValueError("Only http and https URLs are supported")
-        with urllib.request.urlopen(url, timeout=timeout) as resp:
+
+        parsed = urlparse(url)
+        hostname = parsed.hostname
+        if not hostname:
+            raise ValueError("Invalid URL: missing hostname")
+
+        try:
+            addrs = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+        except socket.gaierror as e:
+            raise ValueError(f"Could not resolve hostname: {e}")
+
+        for addr in addrs:
+            ip = addr[4][0]
+            try:
+                ip_obj = ipaddress.ip_address(ip)
+            except ValueError:
+                continue
+            if (ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local or
+                ip_obj.is_unspecified or ip_obj.is_multicast or ip_obj.is_reserved):
+                raise ValueError(f"URL resolves to unsafe IP address: {ip}")
+
+        opener = urllib.request.build_opener(_NoRedirectHandler())
+        with opener.open(url, timeout=timeout) as resp:
             data = resp.read()
         return cls.from_string(data)
 
