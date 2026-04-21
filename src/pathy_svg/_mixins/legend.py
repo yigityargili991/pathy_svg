@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from pathy_svg.legend import Direction, LegendKind
+from pathy_svg.legend import Direction, LegendKind, build_legend, resolve_legend_kind
+from pathy_svg.themes import CategoricalPalette, ColorScale
 from pathy_svg.transform import ViewBox
 
 
@@ -15,6 +16,8 @@ class LegendMixin:
         self,
         *,
         kind: LegendKind = "auto",
+        scale: ColorScale | None = None,
+        palette: CategoricalPalette | None = None,
         position: tuple[float, float] = (0.85, 0.1),
         size: tuple[float, float] = (0.04, 0.4),
         direction: Direction = "vertical",
@@ -36,6 +39,8 @@ class LegendMixin:
 
         Args:
             kind: Type of legend to add ("auto", "gradient", "discrete", "categorical").
+            scale: Optional explicit ColorScale to use (overrides auto-detection).
+            palette: Optional explicit CategoricalPalette to use (overrides auto-detection).
             position: Relative (x, y) coordinates for the legend origin (0-1 range).
             size: Relative (width, height) for the legend bounds (0-1 range).
             direction: Legend orientation ("vertical" or "horizontal").
@@ -56,8 +61,6 @@ class LegendMixin:
         Returns:
             A new SVGDocument containing the legend element.
         """
-        from pathy_svg.legend import build_legend, resolve_legend_kind
-
         clone = self._clone()
         vb = clone.viewbox
         if vb is None:
@@ -82,13 +85,13 @@ class LegendMixin:
                     clone.root.set("viewBox", f"{vb.x} {vb.y} {vb.width} {vb.height}")
                     clone.root.set("height", str(vb.height))
 
-        resolved = resolve_legend_kind(
-            kind, self._last_scale, self._last_categorical_palette
-        )
+        chosen_scale = scale if scale is not None else clone._last_scale
+        chosen_palette = palette if palette is not None else clone._last_categorical_palette
+        resolved = resolve_legend_kind(kind, chosen_scale, chosen_palette)
         legend_elem = build_legend(
             resolved,
-            self._last_scale,
-            self._last_categorical_palette,
+            chosen_scale,
+            chosen_palette,
             vb,
             position=position,
             size=size,
