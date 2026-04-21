@@ -1,24 +1,13 @@
-"""Mixin for legend and coordinate guide methods."""
+"""Mixin for legend methods."""
 
 from __future__ import annotations
 
 from pathy_svg.legend import Direction, LegendKind
-
-from lxml import etree
-
-from pathy_svg._constants import SVG_NS
 from pathy_svg.transform import ViewBox
 
 
-def _frange(start: float, stop: float, step: float):
-    """Yield floats from start to stop (inclusive) in fixed steps."""
-    n = int((stop - start) / step) + 1
-    for i in range(n):
-        yield start + i * step
-
-
 class LegendMixin:
-    """Legend and coordinate guide methods."""
+    """Legend methods."""
 
     __slots__ = ()
 
@@ -118,42 +107,4 @@ class LegendMixin:
             padding=padding,
         )
         clone.root.append(legend_elem)
-        return clone
-
-    def xy_guide(self, *, color: str = "red", step: float = 50):
-        """Return a copy with a coordinate grid overlay for orientation."""
-        clone = self._clone()
-        vb = clone.viewbox
-        if vb is None:
-            return clone
-
-        root = clone.root
-        ns = root.nsmap.get(None, SVG_NS)
-        g = etree.SubElement(root, f"{{{ns}}}g" if ns else "g", id="pathy-guide")
-        g.set("style", f"stroke:{color};stroke-width:0.5;fill:none;opacity:0.5")
-
-        for x in _frange(vb.x, vb.x + vb.width, step):
-            line = etree.SubElement(g, f"{{{ns}}}line" if ns else "line")
-            line.set("x1", str(x))
-            line.set("y1", str(vb.y))
-            line.set("x2", str(x))
-            line.set("y2", str(vb.y + vb.height))
-            txt = etree.SubElement(g, f"{{{ns}}}text" if ns else "text")
-            txt.set("x", str(x + 2))
-            txt.set("y", str(vb.y + 12))
-            txt.set("style", f"fill:{color};font-size:8px;stroke:none")
-            txt.text = str(int(x))
-
-        for y in _frange(vb.y, vb.y + vb.height, step):
-            line = etree.SubElement(g, f"{{{ns}}}line" if ns else "line")
-            line.set("x1", str(vb.x))
-            line.set("y1", str(y))
-            line.set("x2", str(vb.x + vb.width))
-            line.set("y2", str(y))
-            txt = etree.SubElement(g, f"{{{ns}}}text" if ns else "text")
-            txt.set("x", str(vb.x + 2))
-            txt.set("y", str(y - 2))
-            txt.set("style", f"fill:{color};font-size:8px;stroke:none")
-            txt.text = str(int(y))
-
         return clone
