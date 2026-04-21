@@ -96,11 +96,6 @@ colored.legend(title="Population (2023 Census)").save("from_dataframe.svg")
 Other DataFrame helpers:
 
 ```python
-# Load SVG + extract data in one call
-doc, data = SVGDocument.from_dataframe(
-    "us_states.svg", df, id_col="state", value_col="population"
-)
-
 # Convert DataFrame column to dict for any method
 from pathy_svg import dataframe_to_dict
 pop = dataframe_to_dict(df, id_col="state", value_col="population")
@@ -244,7 +239,7 @@ layered.save("layered.svg")
 Full source: [`examples/us_states_workflow.py`](https://github.com/yigityargili991/pathy_svg/blob/main/examples/us_states_workflow.py)
 """
 
-__version__ = "0.1.3"
+__version__ = "0.2.0"
 
 from pathy_svg.document import SVGDocument
 from pathy_svg.exceptions import (

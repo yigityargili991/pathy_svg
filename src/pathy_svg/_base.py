@@ -117,37 +117,6 @@ class SVGDocumentBase:
             data = resp.read()
         return cls.from_string(data)
 
-    @classmethod
-    def from_dataframe(
-        cls,
-        path: str | PathLike,
-        df,
-        *,
-        id_col: str,
-        value_col: str,
-    ):
-        """Load an SVG and extract data from a Pandas DataFrame.
-
-        Args:
-            path: Path to the local SVG file.
-            df: A Pandas DataFrame containing the data.
-            id_col: Column name for element IDs.
-            value_col: Column name for numeric values.
-
-        Returns:
-            A tuple of (SVGDocument, data_dict) where data_dict maps IDs to values.
-
-        Raises:
-            FileNotFoundError: If the SVG file does not exist.
-            SVGParseError: If the SVG markup is invalid.
-            ValueError: If required columns are missing from the DataFrame.
-        """
-        from pathy_svg.data import dataframe_to_dict
-
-        doc = cls.from_file(path)
-        data = dataframe_to_dict(df, id_col, value_col)
-        return doc, data
-
     @property
     def root(self) -> etree._Element:
         """The root <svg> element."""

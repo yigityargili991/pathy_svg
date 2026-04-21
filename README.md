@@ -168,7 +168,6 @@ pathy-svg export examples/map.svg -o map.png --width 1200
 | `SVGDocument.from_file(path)` | Load from file path |
 | `SVGDocument.from_string(svg)` | Load from SVG string |
 | `SVGDocument.from_url(url)` | Load from URL |
-| `SVGDocument.from_dataframe(df, ...)` | Load SVG path from a DataFrame column |
 
 ### Coloring
 

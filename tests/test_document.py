@@ -296,36 +296,6 @@ class TestGroupedSVG:
 class TestDataFrameIntegration:
     """Tests for Pandas DataFrame integration."""
 
-    def test_from_dataframe(self, simple_svg_path):
-        pd = pytest.importorskip("pandas")
-        df = pd.DataFrame(
-            {
-                "id": ["stomach", "liver", "heart"],
-                "value": [1.0, 2.0, 3.0],
-            }
-        )
-        doc, data = SVGDocument.from_dataframe(
-            simple_svg_path, df, id_col="id", value_col="value"
-        )
-        assert isinstance(doc, SVGDocument)
-        assert data == {"stomach": 1.0, "liver": 2.0, "heart": 3.0}
-
-    def test_from_dataframe_missing_columns(self, simple_svg_path):
-        pd = pytest.importorskip("pandas")
-        df = pd.DataFrame({"x": [1], "y": [2]})
-        with pytest.raises(ValueError, match="Column 'id' not found"):
-            SVGDocument.from_dataframe(
-                simple_svg_path, df, id_col="id", value_col="value"
-            )
-
-    def test_from_dataframe_missing_value_column(self, simple_svg_path):
-        pd = pytest.importorskip("pandas")
-        df = pd.DataFrame({"id": ["a"], "other": [1]})
-        with pytest.raises(ValueError, match="Column 'value' not found"):
-            SVGDocument.from_dataframe(
-                simple_svg_path, df, id_col="id", value_col="value"
-            )
-
     def test_heatmap_from_dataframe(self, simple_svg_path):
         pd = pytest.importorskip("pandas")
         doc = SVGDocument.from_file(simple_svg_path)
