@@ -252,6 +252,9 @@ from pathy_svg.exceptions import (
     ValidationError,
 )
 from pathy_svg.inspect import PathInfo, ValidationResult
+from pathy_svg.legend import Direction, LegendKind
+from pathy_svg.diff import DiffMode
+from pathy_svg.animation import AnimationEffect
 from pathy_svg.themes import ColorScale, CategoricalPalette, ThemePreset
 from pathy_svg.themes import medical, geographic, heatmap_classic
 from pathy_svg.transform import BBox, ViewBox
@@ -288,6 +291,10 @@ __all__ = [
     "ColorScale",
     "CategoricalPalette",
     "ThemePreset",
+    "LegendKind",
+    "Direction",
+    "DiffMode",
+    "AnimationEffect",
     "medical",
     "geographic",
     "heatmap_classic",
