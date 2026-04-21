@@ -3,10 +3,6 @@
 from __future__ import annotations
 
 from pathy_svg.legend import Direction, LegendKind
-
-from lxml import etree
-
-from pathy_svg._constants import SVG_NS
 from pathy_svg.transform import ViewBox
 
 
