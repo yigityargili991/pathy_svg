@@ -252,6 +252,8 @@ from pathy_svg.exceptions import (
     ValidationError,
 )
 from pathy_svg.inspect import PathInfo, ValidationResult
+from pathy_svg._constants import Layout
+from pathy_svg.annotations import Placement, TooltipMethod
 from pathy_svg.legend import Direction, LegendKind
 from pathy_svg.diff import DiffMode
 from pathy_svg.animation import AnimationEffect
@@ -291,13 +293,17 @@ __all__ = [
     "ColorScale",
     "CategoricalPalette",
     "ThemePreset",
+    "medical",
+    "geographic",
+    "heatmap_classic",
+    # Type aliases
     "LegendKind",
     "Direction",
     "DiffMode",
     "AnimationEffect",
-    "medical",
-    "geographic",
-    "heatmap_classic",
+    "Placement",
+    "TooltipMethod",
+    "Layout",
     # Utils
     "hex_to_rgb",
     "rgb_to_hex",
