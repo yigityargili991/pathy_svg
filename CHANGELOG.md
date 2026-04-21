@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-04-21
+
+### Added
+- `legend()` accepts explicit `scale` and `palette` kwargs, decoupling legend rendering from the `_last_scale` / `_last_categorical_palette` state set by `heatmap()` / `recolor_by_category()`. Lets users build a legend on a fresh document from a `ColorScale` they constructed manually.
+- Top-level re-exports of `LegendKind`, `Direction`, `DiffMode`, `AnimationEffect` type aliases so users writing wrappers can type-hint against them without reaching into submodules.
+- CLI parity: `heatmap` and `diff` commands now accept `--vmin`, `--vmax`, `--vcenter`, `--opacity`, `--key-attr`, matching `SVGDocument.heatmap()` / `SVGDocument.diff()`.
+
+### Changed
+- `xy_guide()` moved from `LegendMixin` to `AnnotationMixin`. The method is still available on `SVGDocument` — no user-facing change.
+
 ## [0.2.0] - 2026-04-21
 
 ### Removed
