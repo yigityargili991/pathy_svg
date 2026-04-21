@@ -24,11 +24,28 @@ def main():
 @click.option("--id-col", required=True, help="Column name for path IDs")
 @click.option("--value-col", required=True, help="Column name for values")
 @click.option("--palette", default="viridis", help="Colormap name")
+@click.option("--vmin", type=float, default=None, help="Minimum value for color scale")
+@click.option("--vmax", type=float, default=None, help="Maximum value for color scale")
+@click.option("--vcenter", type=float, default=None, help="Center value for diverging scales")
+@click.option("--opacity", type=float, default=None, help="Fill opacity")
+@click.option("--key-attr", default="id", help="Element attribute for matching data keys")
 @click.option("--legend/--no-legend", default=False, help="Add legend")
 @click.option("--legend-title", default=None, help="Legend title text")
 @click.option("-o", "--output", required=True, help="Output SVG path")
 def heatmap(
-    svg_file, data_file, id_col, value_col, palette, legend, legend_title, output
+    svg_file,
+    data_file,
+    id_col,
+    value_col,
+    palette,
+    vmin,
+    vmax,
+    vcenter,
+    opacity,
+    key_attr,
+    legend,
+    legend_title,
+    output,
 ):
     """Create a heatmap from SVG + data file."""
     from pathy_svg.document import SVGDocument
@@ -36,7 +53,15 @@ def heatmap(
     doc = SVGDocument.from_file(svg_file)
     data = _read_data(data_file, id_col, value_col)
 
-    result = doc.heatmap(data, palette=palette)
+    result = doc.heatmap(
+        data,
+        palette=palette,
+        vmin=vmin,
+        vmax=vmax,
+        vcenter=vcenter,
+        opacity=opacity,
+        key_attr=key_attr,
+    )
     if legend:
         result = result.legend(title=legend_title)
     result.save(output)
@@ -141,9 +166,26 @@ def export(svg_file, fmt, width, dpi, output):
     default="delta",
 )
 @click.option("--palette", default="coolwarm")
+@click.option("--vmin", type=float, default=None, help="Minimum value for color scale")
+@click.option("--vmax", type=float, default=None, help="Maximum value for color scale")
+@click.option("--vcenter", type=float, default=0, help="Center value for diverging scales")
+@click.option("--opacity", type=float, default=None, help="Fill opacity")
+@click.option("--key-attr", default="id", help="Element attribute for matching data keys")
 @click.option("-o", "--output", required=True, help="Output SVG path")
 def diff(
-    svg_file, baseline_file, treatment_file, id_col, value_col, mode, palette, output
+    svg_file,
+    baseline_file,
+    treatment_file,
+    id_col,
+    value_col,
+    mode,
+    palette,
+    vmin,
+    vmax,
+    vcenter,
+    opacity,
+    key_attr,
+    output,
 ):
     """Compare two datasets on the same SVG."""
     from pathy_svg.document import SVGDocument
@@ -152,7 +194,17 @@ def diff(
     baseline = _read_data(baseline_file, id_col, value_col)
     treatment = _read_data(treatment_file, id_col, value_col)
 
-    result = doc.diff(baseline, treatment, mode=mode, palette=palette)
+    result = doc.diff(
+        baseline,
+        treatment,
+        mode=mode,
+        palette=palette,
+        vcenter=vcenter,
+        vmin=vmin,
+        vmax=vmax,
+        opacity=opacity,
+        key_attr=key_attr,
+    )
     result.legend(title=f"{mode.replace('_', ' ').title()}").save(output)
     click.echo(f"Diff saved to {output}")
 
