@@ -75,6 +75,52 @@ class TestCategoricalLegend:
         assert "System" in svg_str
 
 
+class TestExplicitScaleAndPalette:
+    def test_explicit_scale_on_fresh_document(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        assert doc._last_scale is None
+
+        scale = ColorScale("viridis", vmin=0, vmax=100)
+        scale.fit([0.0, 100.0])
+
+        result = doc.legend(scale=scale, title="Score")
+        g = result._find_by_id("pathy-legend")
+        assert g is not None
+        assert g.find(".//{http://www.w3.org/2000/svg}linearGradient") is not None
+
+        svg_str = result.to_string()
+        assert "Score" in svg_str
+        assert "0.00" in svg_str
+        assert "100.00" in svg_str
+
+    def test_explicit_palette_on_fresh_document(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        assert doc._last_categorical_palette is None
+
+        palette = CategoricalPalette({"digestive": "#e6ab02", "circulatory": "#e7298a"})
+
+        result = doc.legend(palette=palette, title="System")
+        g = result._find_by_id("pathy-legend")
+        assert g is not None
+
+        svg_str = result.to_string()
+        assert "System" in svg_str
+        assert "digestive" in svg_str
+        assert "circulatory" in svg_str
+
+    def test_explicit_scale_overrides_last_scale(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        heatmapped = doc.heatmap({"stomach": 0.0, "liver": 1.0})
+
+        override = ColorScale("viridis", vmin=50, vmax=200)
+        override.fit([50.0, 200.0])
+
+        result = heatmapped.legend(scale=override)
+        svg_str = result.to_string()
+        assert "50.00" in svg_str
+        assert "200.00" in svg_str
+
+
 class TestLegendChaining:
     def test_full_chain(self, simple_svg_path):
         doc = SVGDocument.from_file(simple_svg_path)
