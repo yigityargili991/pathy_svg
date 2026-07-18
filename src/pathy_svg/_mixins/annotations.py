@@ -6,7 +6,6 @@ from lxml import etree
 
 from pathy_svg._constants import SVG_NS
 from pathy_svg.annotations import Placement, TooltipMethod
-from pathy_svg.transform import ViewBox
 
 
 def _frange(start: float, stop: float, step: float):

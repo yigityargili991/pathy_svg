@@ -38,6 +38,7 @@ class ColorScale:
         self.breaks = breaks
 
         # Build colormap
+        self._cmap: mcolors.Colormap
         if isinstance(palette, list):
             self._cmap = mcolors.LinearSegmentedColormap.from_list(
                 "custom", palette, N=256
@@ -46,6 +47,7 @@ class ColorScale:
             self._cmap = plt.get_cmap(palette)
 
         # Build normalizer
+        self._norm: mcolors.Normalize
         if breaks is not None:
             # Discrete mode: BoundaryNorm
             self._norm = mcolors.BoundaryNorm(breaks, self._cmap.N)

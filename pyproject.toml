@@ -5,12 +5,12 @@ description = "Color arbitrary SVG paths by data values — turn any SVG into a 
 readme = "README.md"
 license = "GPL-3.0-or-later"
 license-files = ["LICENSE"]
-requires-python = ">=3.10,<3.14"
+requires-python = ">=3.10,<3.15"
 authors = [
     {name = "Yigit Yargili", email = "160510618+yigityargili991@users.noreply.github.com"},
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
@@ -20,6 +20,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Multimedia :: Graphics",
     "Topic :: Scientific/Engineering :: Visualization",
     "Typing :: Typed",
@@ -70,11 +71,21 @@ testpaths = ["tests"]
 line-length = 88
 target-version = "py310"
 
+[tool.pyrefly]
+project-includes = ["src/pathy_svg/**/*.py"]
+ignore-missing-imports = ["pandas"]
+
+[tool.pyrefly.errors]
+missing-attribute = false
+bad-argument-type = false
+
 [dependency-groups]
 dev = [
     "build>=1.2",
     "cairosvg>=2.9.0",
     "hatchling>=1.27",
+    "pyrefly>=0.60",
     "pytest>=8.0",
     "pytest-cov>=7.1.0",
+    "ruff>=0.9",
 ]
