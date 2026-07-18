@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-07-18
+
 ### Added
 - Official Python 3.14 support (`requires-python` now `>=3.10,<3.15`)
 - CI linting with ruff and type checking with pyrefly
@@ -86,6 +88,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Coordinate grid overlay (xy_guide)
 - US states example workflow with 2023 Census data
 
+[0.3.1]: https://github.com/yigityargili991/pathy_svg/releases/tag/v0.3.1
+[0.3.0]: https://github.com/yigityargili991/pathy_svg/releases/tag/v0.3.0
 [0.2.0]: https://github.com/yigityargili991/pathy_svg/releases/tag/v0.2.0
 [0.1.3]: https://github.com/yigityargili991/pathy_svg/releases/tag/v0.1.3
 [0.1.2]: https://github.com/yigityargili991/pathy_svg/releases/tag/v0.1.2
