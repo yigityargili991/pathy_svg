@@ -18,9 +18,9 @@ warnings.warn(
     stacklevel=2,
 )
 
-from pathy_svg.color import hex_to_rgb, interpolate_color, parse_svg_color, rgb_to_hex
-from pathy_svg.data import bin_values, dataframe_to_dict, normalize_values
-from pathy_svg.svg_tools import (
+from pathy_svg.color import hex_to_rgb, interpolate_color, parse_svg_color, rgb_to_hex  # noqa: E402
+from pathy_svg.data import bin_values, dataframe_to_dict, normalize_values  # noqa: E402
+from pathy_svg.svg_tools import (  # noqa: E402
     extract_styles,
     merge_svgs,
     optimize_svg,

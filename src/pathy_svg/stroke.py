@@ -99,7 +99,7 @@ def apply_stroke_map(
             if is_nan:
                 sc = na_color
             else:
-                sc = scale(value)
+                sc = scale(value)  # type: ignore
 
         kwargs = {"color": sc, "width": sw, "opacity": opacity}
 

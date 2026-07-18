@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Official Python 3.14 support (`requires-python` now `>=3.10,<3.15`)
+- CI linting with ruff and type checking with pyrefly
+- Dependabot weekly updates for GitHub Actions and pip dependencies
+
+### Changed
+- CI/publish workflows use `actions/checkout@v7` and `actions/setup-python@v6`
+- Package classifier set to Production/Stable
+
 ## [0.3.0] - 2026-04-21
 
 ### Added
