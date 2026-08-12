@@ -199,7 +199,10 @@ class StyleMixin:
 
         clone = self._clone()
         group_data = aggregate_by_group(
-            clone._tree, data, agg=agg, key_attr=key_attr,
+            clone._tree,
+            data,
+            agg=agg,
+            key_attr=key_attr,
         )
         scale = apply_heatmap(
             clone._tree,

@@ -26,9 +26,13 @@ def main():
 @click.option("--palette", default="viridis", help="Colormap name")
 @click.option("--vmin", type=float, default=None, help="Minimum value for color scale")
 @click.option("--vmax", type=float, default=None, help="Maximum value for color scale")
-@click.option("--vcenter", type=float, default=None, help="Center value for diverging scales")
+@click.option(
+    "--vcenter", type=float, default=None, help="Center value for diverging scales"
+)
 @click.option("--opacity", type=float, default=None, help="Fill opacity")
-@click.option("--key-attr", default="id", help="Element attribute for matching data keys")
+@click.option(
+    "--key-attr", default="id", help="Element attribute for matching data keys"
+)
 @click.option("--legend/--no-legend", default=False, help="Add legend")
 @click.option("--legend-title", default=None, help="Legend title text")
 @click.option("-o", "--output", required=True, help="Output SVG path")
@@ -168,9 +172,13 @@ def export(svg_file, fmt, width, dpi, output):
 @click.option("--palette", default="coolwarm")
 @click.option("--vmin", type=float, default=None, help="Minimum value for color scale")
 @click.option("--vmax", type=float, default=None, help="Maximum value for color scale")
-@click.option("--vcenter", type=float, default=0, help="Center value for diverging scales")
+@click.option(
+    "--vcenter", type=float, default=0, help="Center value for diverging scales"
+)
 @click.option("--opacity", type=float, default=None, help="Fill opacity")
-@click.option("--key-attr", default="id", help="Element attribute for matching data keys")
+@click.option(
+    "--key-attr", default="id", help="Element attribute for matching data keys"
+)
 @click.option("-o", "--output", required=True, help="Output SVG path")
 def diff(
     svg_file,

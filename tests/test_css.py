@@ -14,7 +14,9 @@ class TestStyleProperty:
         assert style_property("fill:#ff0000", "fill") == "#ff0000"
 
     def test_property_among_multiple(self):
-        assert style_property("fill:#ff0000;stroke:black;opacity:0.5", "stroke") == "black"
+        assert (
+            style_property("fill:#ff0000;stroke:black;opacity:0.5", "stroke") == "black"
+        )
 
     def test_first_property(self):
         assert style_property("fill:#ff0000;stroke:black", "fill") == "#ff0000"

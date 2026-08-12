@@ -39,22 +39,12 @@ class TestLayerManager:
 
     def test_hide_layer(self, simple_svg_path):
         doc = SVGDocument.from_file(simple_svg_path)
-        lm = (
-            LayerManager(doc)
-            .add("a", lambda d: d)
-            .add("b", lambda d: d)
-            .hide("a")
-        )
+        lm = LayerManager(doc).add("a", lambda d: d).add("b", lambda d: d).hide("a")
         assert lm.visible == {"a": False, "b": True}
 
     def test_show_hidden_layer(self, simple_svg_path):
         doc = SVGDocument.from_file(simple_svg_path)
-        lm = (
-            LayerManager(doc)
-            .add("a", lambda d: d)
-            .hide("a")
-            .show("a")
-        )
+        lm = LayerManager(doc).add("a", lambda d: d).hide("a").show("a")
         assert lm.visible == {"a": True}
 
     def test_hide_nonexistent_raises(self, simple_svg_path):
@@ -65,12 +55,7 @@ class TestLayerManager:
 
     def test_remove_layer(self, simple_svg_path):
         doc = SVGDocument.from_file(simple_svg_path)
-        lm = (
-            LayerManager(doc)
-            .add("a", lambda d: d)
-            .add("b", lambda d: d)
-            .remove("a")
-        )
+        lm = LayerManager(doc).add("a", lambda d: d).add("b", lambda d: d).remove("a")
         assert lm.names == ["b"]
 
     def test_remove_nonexistent_raises(self, simple_svg_path):
@@ -146,9 +131,7 @@ class TestLayerManagerFlatten:
 
     def test_flatten_does_not_mutate_base(self, simple_svg_path):
         doc = SVGDocument.from_file(simple_svg_path)
-        lm = LayerManager(doc).add(
-            "heatmap", lambda d: d.heatmap({"stomach": 0.5})
-        )
+        lm = LayerManager(doc).add("heatmap", lambda d: d.heatmap({"stomach": 0.5}))
         lm.flatten()
 
         assert doc._find_by_id("stomach").get("fill") == "#ffffff"

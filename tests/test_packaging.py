@@ -59,9 +59,7 @@ def built_distributions(tmp_path_factory: pytest.TempPathFactory) -> tuple[Path,
 
 def _sdist_members(path: Path) -> list[str]:
     with tarfile.open(path, "r:gz") as archive:
-        return sorted(
-            member.name for member in archive.getmembers() if member.isfile()
-        )
+        return sorted(member.name for member in archive.getmembers() if member.isfile())
 
 
 def _wheel_members(path: Path) -> list[str]:

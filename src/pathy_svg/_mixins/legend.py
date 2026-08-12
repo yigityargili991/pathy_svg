@@ -86,7 +86,9 @@ class LegendMixin:
                     clone.root.set("height", str(vb.height))
 
         chosen_scale = scale if scale is not None else clone._last_scale
-        chosen_palette = palette if palette is not None else clone._last_categorical_palette
+        chosen_palette = (
+            palette if palette is not None else clone._last_categorical_palette
+        )
         resolved = resolve_legend_kind(kind, chosen_scale, chosen_palette)
         legend_elem = build_legend(
             resolved,

@@ -248,7 +248,9 @@ class SVGDocumentBase:
 
     def _ids_for_tag(self, local_tag: str) -> list[str]:
         """Get all IDs for elements with a given tag name."""
-        return [eid for elem in self._find_all_by_tag(local_tag) if (eid := elem.get("id"))]
+        return [
+            eid for elem in self._find_all_by_tag(local_tag) if (eid := elem.get("id"))
+        ]
 
     def bbox(self, element_id: str) -> BBox:
         """Get the bounding box of an element by ID."""
@@ -311,7 +313,6 @@ class SVGDocumentBase:
             if uri == SVG_NS:
                 return f"{prefix}:"
         return ""
-
 
 
 def _parse_dimension(val: str | None) -> float | None:

@@ -88,11 +88,11 @@ class TestXXEPrevention:
 
     XXE_STRING = (
         '<?xml version="1.0"?>'
-        '<!DOCTYPE foo ['
+        "<!DOCTYPE foo ["
         '  <!ENTITY xxe SYSTEM "file:///etc/passwd">'
-        ']>'
+        "]>"
         '<svg xmlns="http://www.w3.org/2000/svg">'
-        '<text>&xxe;</text></svg>'
+        "<text>&xxe;</text></svg>"
     )
 
     def test_from_string_does_not_resolve_xxe(self):

@@ -159,7 +159,5 @@ class TestStrokeMapMixin:
 
     def test_stores_scale_for_legend(self, simple_svg_path):
         doc = SVGDocument.from_file(simple_svg_path)
-        result = doc.stroke_map(
-            {"stomach": 0.5}, width_range=None, palette="viridis"
-        )
+        result = doc.stroke_map({"stomach": 0.5}, width_range=None, palette="viridis")
         assert result._last_scale is not None

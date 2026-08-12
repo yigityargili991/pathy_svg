@@ -135,7 +135,8 @@ def add_tooltips(
             elem.set("data-tooltip", tip_text)
 
             for existing in tree.xpath(
-                '//*[@data-tooltip-for=$val]', val=eid,
+                "//*[@data-tooltip-for=$val]",
+                val=eid,
             ):
                 parent = existing.getparent()
                 if parent is not None:
@@ -195,6 +196,11 @@ def replace_text(
         ):
             elem.text = replacements[elem.text.strip()]
             if text_color:
-                elem.set("style", set_style_property(
-                    elem.get("style"), "fill", text_color,
-                ))
+                elem.set(
+                    "style",
+                    set_style_property(
+                        elem.get("style"),
+                        "fill",
+                        text_color,
+                    ),
+                )

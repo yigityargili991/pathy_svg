@@ -47,15 +47,19 @@ from pathy_svg import SVGDocument, GradientSpec
 doc = SVGDocument.from_file("examples/map.svg")
 
 # Gradient fill
-doc.gradient_fill({
-    "stomach": GradientSpec(start="#ff0000", end="#0000ff", direction="horizontal"),
-}).save("gradient.svg")
+doc.gradient_fill(
+    {
+        "stomach": GradientSpec(start="#ff0000", end="#0000ff", direction="horizontal"),
+    }
+).save("gradient.svg")
 
 # Pattern fill (string shorthand or PatternSpec)
-doc.pattern_fill({
-    "liver": "crosshatch",
-    "heart": "dots",
-}).save("patterned.svg")
+doc.pattern_fill(
+    {
+        "liver": "crosshatch",
+        "heart": "dots",
+    }
+).save("patterned.svg")
 ```
 
 ![Gradient fills](docs/examples/05_gradient_fills.svg)

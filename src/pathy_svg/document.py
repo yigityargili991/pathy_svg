@@ -29,4 +29,3 @@ class SVGDocument(
     Every mutation method returns a new SVGDocument — the original is never modified.
     Supports method chaining: ``doc.heatmap(...).legend(...).save(...)``.
     """
-
