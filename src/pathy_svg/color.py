@@ -133,7 +133,7 @@ def parse_svg_color(color_str: str) -> tuple[int, int, int]:
     if m:
         h = float(m.group(1)) / 360.0
         sl = float(m.group(2)) / 100.0
-        l = float(m.group(3)) / 100.0  # noqa: E741
+        l = float(m.group(3)) / 100.0
         r_f, g_f, b_f = colorsys.hls_to_rgb(h, l, sl)
         return (round(r_f * 255), round(g_f * 255), round(b_f * 255))
 

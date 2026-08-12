@@ -30,4 +30,3 @@ class SVGDocument(
     Supports method chaining: ``doc.heatmap(...).legend(...).save(...)``.
     """
 
-    pass

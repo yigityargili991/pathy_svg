@@ -78,7 +78,7 @@ def bbox_union(boxes: list[BBox]) -> BBox:
 
 # Re-export: placed here (not at top) to break a circular import
 # (path_parser imports BBox from this module).
-from pathy_svg.path_parser import bbox_from_path_d as bbox_from_path_d  # noqa: E402
+from pathy_svg.path_parser import bbox_from_path_d
 
 
 def bbox_of_element(

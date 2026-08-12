@@ -187,10 +187,14 @@ def replace_text(
     """Replace text content in <text> elements throughout the SVG."""
     for elem in tree.iter():
         tag = elem.tag
-        if isinstance(tag, str) and (tag.endswith("}text") or tag == "text"):
-            if elem.text and elem.text.strip() in replacements:
-                elem.text = replacements[elem.text.strip()]
-                if text_color:
-                    elem.set("style", set_style_property(
-                        elem.get("style"), "fill", text_color,
-                    ))
+        if (
+            isinstance(tag, str)
+            and (tag.endswith("}text") or tag == "text")
+            and elem.text
+            and elem.text.strip() in replacements
+        ):
+            elem.text = replacements[elem.text.strip()]
+            if text_color:
+                elem.set("style", set_style_property(
+                    elem.get("style"), "fill", text_color,
+                ))

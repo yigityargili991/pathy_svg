@@ -241,6 +241,12 @@ Full source: [`examples/us_states_workflow.py`](https://github.com/yigityargili9
 
 __version__ = "0.3.1"
 
+from pathy_svg._constants import Layout
+from pathy_svg.animation import AnimationEffect
+from pathy_svg.annotations import Placement, TooltipMethod
+from pathy_svg.color import hex_to_rgb, interpolate_color, parse_svg_color, rgb_to_hex
+from pathy_svg.data import bin_values, dataframe_to_dict, normalize_values
+from pathy_svg.diff import DiffMode
 from pathy_svg.document import SVGDocument
 from pathy_svg.exceptions import (
     ColorScaleError,
@@ -251,74 +257,69 @@ from pathy_svg.exceptions import (
     SVGParseError,
     ValidationError,
 )
-from pathy_svg.inspect import PathInfo, ValidationResult
-from pathy_svg._constants import Layout
-from pathy_svg.annotations import Placement, TooltipMethod
-from pathy_svg.legend import Direction, LegendKind
-from pathy_svg.diff import DiffMode
-from pathy_svg.animation import AnimationEffect
-from pathy_svg.themes import ColorScale, CategoricalPalette, ThemePreset
-from pathy_svg.themes import medical, geographic, heatmap_classic
-from pathy_svg.transform import BBox, ViewBox
-from pathy_svg.color import hex_to_rgb, rgb_to_hex, interpolate_color, parse_svg_color
-from pathy_svg.data import normalize_values, bin_values, dataframe_to_dict
-from pathy_svg.svg_tools import (
-    viewbox_to_pixel,
-    merge_svgs,
-    strip_metadata,
-    optimize_svg,
-    extract_styles,
-)
 from pathy_svg.gradient import GradientSpec
-from pathy_svg.pattern import PatternSpec, CustomPatternSpec
+from pathy_svg.inspect import PathInfo, ValidationResult
 from pathy_svg.layers import LayerManager
+from pathy_svg.legend import Direction, LegendKind
+from pathy_svg.pattern import CustomPatternSpec, PatternSpec
+from pathy_svg.svg_tools import (
+    extract_styles,
+    merge_svgs,
+    optimize_svg,
+    strip_metadata,
+    viewbox_to_pixel,
+)
+from pathy_svg.themes import (
+    CategoricalPalette,
+    ColorScale,
+    ThemePreset,
+    geographic,
+    heatmap_classic,
+    medical,
+)
+from pathy_svg.transform import BBox, ViewBox
 
 __all__ = [
-    "__version__",
-    "SVGDocument",
-    # Exceptions
+    "AnimationEffect",
+    "BBox",
+    "CategoricalPalette",
+    "ColorScale",
     "ColorScaleError",
+    "CustomPatternSpec",
     "DataMappingError",
+    "DiffMode",
+    "Direction",
     "ExportError",
+    "GradientSpec",
+    "LayerManager",
+    "Layout",
+    "LegendKind",
+    "PathInfo",
     "PathNotFoundError",
     "PathySVGError",
+    "PatternSpec",
+    "Placement",
+    "SVGDocument",
     "SVGParseError",
-    "ValidationError",
-    # Data classes
-    "PathInfo",
-    "ValidationResult",
-    "BBox",
-    "ViewBox",
-    # Themes
-    "ColorScale",
-    "CategoricalPalette",
     "ThemePreset",
-    "medical",
+    "TooltipMethod",
+    "ValidationError",
+    "ValidationResult",
+    "ViewBox",
+    "__version__",
+    "bin_values",
+    "dataframe_to_dict",
+    "extract_styles",
     "geographic",
     "heatmap_classic",
-    # Type aliases
-    "LegendKind",
-    "Direction",
-    "DiffMode",
-    "AnimationEffect",
-    "Placement",
-    "TooltipMethod",
-    "Layout",
-    # Utils
     "hex_to_rgb",
-    "rgb_to_hex",
     "interpolate_color",
-    "parse_svg_color",
-    "normalize_values",
-    "bin_values",
-    "viewbox_to_pixel",
+    "medical",
     "merge_svgs",
-    "strip_metadata",
+    "normalize_values",
     "optimize_svg",
-    "extract_styles",
-    "dataframe_to_dict",
-    "GradientSpec",
-    "PatternSpec",
-    "CustomPatternSpec",
-    "LayerManager",
+    "parse_svg_color",
+    "rgb_to_hex",
+    "strip_metadata",
+    "viewbox_to_pixel",
 ]

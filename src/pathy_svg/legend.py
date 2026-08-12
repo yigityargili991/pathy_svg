@@ -272,18 +272,18 @@ def build_legend(
     Returns:
         An SVG ``<g>`` element containing the legend.
     """
-    shared = dict(
-        position=position,
-        size=size,
-        direction=direction,
-        font_size=font_size,
-        font_color=font_color,
-        font_family=font_family,
-        title=title,
-        title_size=title_size,
-        border=border,
-        border_color=border_color,
-    )
+    shared = {
+        "position": position,
+        "size": size,
+        "direction": direction,
+        "font_size": font_size,
+        "font_color": font_color,
+        "font_family": font_family,
+        "title": title,
+        "title_size": title_size,
+        "border": border,
+        "border_color": border_color,
+    }
 
     if kind == "gradient":
         if scale is None:

@@ -22,11 +22,11 @@ _KEEP_EMPTY = frozenset({
 })
 
 __all__ = [
-    "viewbox_to_pixel",
-    "merge_svgs",
-    "strip_metadata",
-    "optimize_svg",
     "extract_styles",
+    "merge_svgs",
+    "optimize_svg",
+    "strip_metadata",
+    "viewbox_to_pixel",
 ]
 
 
@@ -79,8 +79,9 @@ def merge_svgs(svgs, layout: Layout = "horizontal", spacing: float = 20):
     Raises:
         ValueError: If the svgs iterable is empty.
     """
-    from pathy_svg.document import SVGDocument
     from lxml import etree
+
+    from pathy_svg.document import SVGDocument
 
     docs = list(svgs)
     if not docs:
@@ -150,8 +151,9 @@ def strip_metadata(doc):
     Returns:
         A new SVGDocument without the metadata elements.
     """
-    from pathy_svg.document import SVGDocument
     from lxml import etree
+
+    from pathy_svg.document import SVGDocument
 
     clone = doc._clone()
     root = clone.root

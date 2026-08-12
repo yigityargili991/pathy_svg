@@ -10,7 +10,12 @@ from typing import TYPE_CHECKING
 
 from lxml import etree
 
-from pathy_svg._constants import SVG_NS, build_attr_index, build_id_index, get_secure_parser
+from pathy_svg._constants import (
+    SVG_NS,
+    build_attr_index,
+    build_id_index,
+    get_secure_parser,
+)
 from pathy_svg.exceptions import PathNotFoundError, SVGParseError
 from pathy_svg.transform import (
     BBox,
@@ -31,11 +36,11 @@ class SVGDocumentBase:
     """
 
     __slots__ = (
-        "_tree",
-        "_nsmap",
-        "_last_scale",
-        "_last_categorical_palette",
         "_id_index",
+        "_last_categorical_palette",
+        "_last_scale",
+        "_nsmap",
+        "_tree",
     )
 
     def __init__(
@@ -231,9 +236,9 @@ class SVGDocumentBase:
 
         # Preserve unmatched data keys so callers still see non-empty data
         # (needed for scale fitting and color_missing pass).
-        for key in data:
+        for key, value in data.items():
             if key not in matched_keys:
-                expanded_data[f"{key}__pathy_unmatched"] = data[key]
+                expanded_data[f"{key}__pathy_unmatched"] = value
 
         return expanded_data, expanded_index
 

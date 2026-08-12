@@ -8,7 +8,8 @@ import numpy as np
 from lxml import etree
 
 from pathy_svg._constants import COLORABLE_TAGS, build_id_index, local_tag
-from pathy_svg._css import set_style_property, style_property as _style_property
+from pathy_svg._css import set_style_property
+from pathy_svg._css import style_property as _style_property
 from pathy_svg.exceptions import ColorScaleError
 from pathy_svg.themes import CategoricalPalette, ColorScale
 
