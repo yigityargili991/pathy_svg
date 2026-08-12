@@ -84,6 +84,7 @@ dev = [
     "build>=1.2",
     "cairosvg>=2.9.0",
     "hatchling>=1.27",
+    "pdoc>=16.0.0",
     "pyrefly>=0.60",
     "pytest>=8.0",
     "pytest-cov>=7.1.0",

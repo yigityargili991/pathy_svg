@@ -228,6 +228,16 @@ pathy-svg export examples/map.svg -o map.png --width 1200
 | `.to_jpeg(path)` | Export to JPEG |
 | `.show()` | Display in Jupyter |
 
+## Documentation
+
+The full API reference lives at <https://yigityargili991.github.io/pathy_svg/> and is
+generated with [pdoc](https://pdoc.dev) into the committed `docs/` directory. After
+changing docstrings or the public API, regenerate it with:
+
+```bash
+uv run pdoc pathy_svg -o docs -t docs_templates
+```
+
 ## License
 
 This project is licensed under the GNU General Public License v3.0 — see the [LICENSE](LICENSE) file for details.

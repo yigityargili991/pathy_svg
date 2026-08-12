@@ -101,7 +101,7 @@ class AnnotationMixin:
         *,
         text_color: str | None = None,
     ):
-        """Replace text content in <text> elements.
+        """Replace text content in ``<text>`` elements.
 
         Args:
             replacements: A dictionary mapping existing text content to new text.

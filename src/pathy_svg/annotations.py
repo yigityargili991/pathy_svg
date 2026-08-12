@@ -184,7 +184,7 @@ def replace_text(
     *,
     text_color: str | None = None,
 ) -> None:
-    """Replace text content in <text> elements throughout the SVG."""
+    """Replace text content in ``<text>`` elements throughout the SVG."""
     for elem in tree.iter():
         tag = elem.tag
         if (

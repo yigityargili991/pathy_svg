@@ -3,3 +3,76 @@
 {% block nav_members %}
 {{ super() | replace("API Documentation", "pathy-svg") }}
 {% endblock %}
+{#
+Regenerate the committed API reference in docs/ with:
+
+    uv run pdoc pathy_svg -o docs -t docs_templates
+
+`SVGDocument` is composed from mixins that live in private implementation
+modules (`pathy_svg._base`, `pathy_svg._mixins.*`). pdoc renders only a class's
+*own* members in full, and its `inherited()` macro skips members whose defining
+module is not itself documented -- which would leave `SVGDocument` in these docs
+with nothing but its class declaration.
+
+The two overrides below treat members inherited from `pathy_svg`'s own private
+modules as if they had been declared on the class: they are rendered in full
+(signature, docstring, source) in the page body and listed in the sidebar.
+Members inherited from anything else (e.g. `object`) keep pdoc's default
+"Inherited Members" handling. Both overrides are copies of the pdoc 16 defaults
+with the extra `inherited_members` loop added, so indentation is kept identical
+to upstream to keep regenerated HTML diffs small.
+#}
+{% block module_contents %}
+            {% for m in module.flattened_own_members if is_public(m) | trim %}
+                <section id="{{ m.qualname or m.name }}">
+                    {{ member(m) }}
+                    {% if m.kind == "class" %}
+                        {% for attr in m.own_members if attr.kind != "class" and is_public(attr) | trim %}
+                            <div id="{{ attr.qualname }}" class="classattr">
+                                {{ member(attr) }}
+                            </div>
+                        {% endfor %}
+                        {% for base, attrs in m.inherited_members.items() if base[0].startswith(module.modulename ~ ".") and "._" in base[0] %}
+                            {% for attr in attrs if attr.kind != "class" and is_public(attr) | trim %}
+                            <div id="{{ attr.qualname }}" class="classattr">
+                                {{ member(attr) }}
+                            </div>
+                            {% endfor %}
+                        {% endfor %}
+                        {% set inherited_members = inherited(m) | trim %}
+                        {% if inherited_members %}
+                        <div class="inherited">
+                            <h5>Inherited Members</h5>
+                            <dl>
+                                {{ inherited_members }}
+                            </dl>
+                        </div>
+                        {% endif %}
+                    {% endif %}
+                </section>
+            {% endfor %}
+{% endblock %}
+{% macro nav_members(members) %}
+    <ul class="memberlist">
+        {% for m in members if is_public(m) | trim %}
+            <li>
+                {% if m.kind == "class" %}
+                    <a class="class" href="#{{ m.qualname }}">{{ m.qualname }}</a>
+                    {% set submembers = m.own_members | list %}
+                    {% for base, attrs in m.inherited_members.items() if base[0].startswith(module.modulename ~ ".") and "._" in base[0] %}
+                        {% set _ = submembers.extend(attrs) %}
+                    {% endfor %}
+                    {% if submembers %}
+                        {{ nav_members(submembers) | indent(12) }}
+                    {% endif %}
+                {% elif m.kind == "module" %}
+                    <a class="module" href="#{{ m.name }}">{{ m.name }}</a>
+                {% elif m.name == "__init__" %}
+                    <a class="function" href="#{{ m.qualname }}">{{ m.qualname.split(".")[-2] }}</a>
+                {% else %}
+                    <a class="{{ m.kind }}" href="#{{ m.qualname }}">{{ m.name }}</a>
+                {% endif %}
+            </li>
+        {% endfor %}
+    </ul>
+{% endmacro %}

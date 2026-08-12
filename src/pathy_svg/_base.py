@@ -124,17 +124,17 @@ class SVGDocumentBase:
 
     @property
     def root(self) -> etree._Element:
-        """The root <svg> element."""
+        """The root ``<svg>`` element."""
         return self._tree.getroot()
 
     @property
     def path_ids(self) -> list[str]:
-        """All <path> element IDs in the document."""
+        """All ``<path>`` element IDs in the document."""
         return self._ids_for_tag("path")
 
     @property
     def group_ids(self) -> list[str]:
-        """All <g> element IDs in the document."""
+        """All ``<g>`` element IDs in the document."""
         return self._ids_for_tag("g")
 
     @property
