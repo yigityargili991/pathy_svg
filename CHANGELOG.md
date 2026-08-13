@@ -7,8 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-13
+
+### Added
+- `compose_svgs()` and immutable `CompositionResult` / `PanelComposition` metadata, including per-panel source-to-output ID mappings
+- Explicit immutable tree APIs: `SVGDocument.root_copy()`, snapshotting `SVGDocument.xpath()`, and `SVGDocument.from_tree(..., copy=...)`
+- Public `CompositionError` and consistent `ValidationError` / `DataMappingError` boundaries that remain compatible with `ValueError`
+- `dataframe` and `tabular` installation extras; `full` now includes all tabular, export, and notebook integrations
+- Path-sensitive export overloads, `Self`-typed fluent transformations, generic `LayerManager`, and mapping/sequence-friendly inputs
+- `color_missing` parameter on `recolor_by_category()`, mirroring `heatmap()`, to opt out of painting unmatched elements with `na_color`
+
+### Changed
+- Package maturity classifier is Beta while the pre-1.0 API is intentionally evolving
+- `merge_svgs()` delegates to the structured composition API while retaining its document-only return contract
+- The runtime now depends on `typing-extensions` to provide consistent `Self` typing on Python 3.10+
+- **Breaking**: `recolor_by_category()` now paints data-addressable elements missing from `data` with `na_color` by default; pass `color_missing=False` to restore the previous touch-only-matched behavior. Missing-value sweeps in both `heatmap()` and `recolor_by_category()` only ever repaint indexed elements, never ID-less geometry or library-generated legends and annotations
+- **Breaking**: composition (`merge_svgs()` / `compose_svgs()`) raises `CompositionError` for `<style>` at-rules that cannot be safely scoped per panel — `@import`, `@property`, `@counter-style`, and unrecognized at-rules. `@font-face` blocks pass through unscoped unless they reference local fragments via `url(#...)`, which is rejected; note that font-family names remain document-global, so identically named fonts from different panels collide (last one wins)
+
 ### Fixed
 - `SVGDocument.root` now returns an independent snapshot and the constructor copies caller-owned element trees, so direct lxml mutations cannot alter an immutable document or make its cached ID index stale
+- SVG composition isolates IDs, fragment references, selectors, keyframes, nested CSS, SMIL timing, and generated animation provenance across panels
+- Composed nested viewports preserve nonzero viewBoxes, root presentation state, transforms, and accurate bounding boxes
+- Path bounds now handle transformed arcs, compact arc flags, smooth `S`/`T` controls, nested SVG viewports, and `d="none"`
+- Malformed `d` attributes degrade to their valid prefix (matching browser rendering) instead of failing whole-document APIs, and percentage or unit-bearing nested viewport dimensions parse leniently instead of raising
+- Composed panels no longer clip content outside the source viewBox, fabricate clipping viewports from percentage or physical-unit dimensions, rewrite `url(#...)` fragments inside external URLs or `data-*` attributes, skip CSS placed after comments inside `<style>`, misclassify SMIL timing offsets, or reject minified `-.5s` animation shorthand
+- `animate(effect='sequential')` falls back to animating all colorable elements when shapes lack IDs instead of silently animating nothing
+- Repeated `legend()` calls no longer roll the viewBox back over edits the user made between calls (with the default `expand_viewbox=True`, `width`/`height` are still recomputed from the expanded viewBox), and gradient legends accept `labels=[]` to render a color bar without tick labels
+- Repeated legends replace only library-owned legends, restore the source canvas, and compute stable bounds for every supported position and direction
+- Missing-value coloring protects explicitly mapped group descendants and ignores non-rendering SVG resource geometry
+- Generated animations use collision-safe names and private ownership metadata, including multi-digit generated class suffixes
 
 ## [0.3.1] - 2026-07-18
 
@@ -91,6 +118,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Coordinate grid overlay (xy_guide)
 - US states example workflow with 2023 Census data
 
+[0.4.0]: https://github.com/yigityargili991/pathy_svg/releases/tag/v0.4.0
 [0.3.1]: https://github.com/yigityargili991/pathy_svg/releases/tag/v0.3.1
 [0.3.0]: https://github.com/yigityargili991/pathy_svg/releases/tag/v0.3.0
 [0.2.0]: https://github.com/yigityargili991/pathy_svg/releases/tag/v0.2.0

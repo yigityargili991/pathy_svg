@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
+from typing import Any
+
+from typing_extensions import Self
+
 
 class ColoringMixin:
     """Heatmap, recolor, and categorical coloring methods."""
@@ -10,19 +15,19 @@ class ColoringMixin:
 
     def heatmap(
         self,
-        data: dict[str, float],
+        data: Mapping[str, float],
         *,
-        palette: str | list[str] = "RdYlBu_r",
+        palette: str | Sequence[str] = "RdYlBu_r",
         vmin: float | None = None,
         vmax: float | None = None,
         vcenter: float | None = None,
         na_color: str = "#cccccc",
-        breaks: list[float] | None = None,
+        breaks: Sequence[float] | None = None,
         opacity: float | None = None,
         preserve_stroke: bool = True,
         color_missing: bool = True,
         key_attr: str = "id",
-    ):
+    ) -> Self:
         """Apply data-driven coloring to paths.
 
         Args:
@@ -48,12 +53,12 @@ class ColoringMixin:
         scale = apply_heatmap(
             clone._tree,
             resolved_data,
-            palette=palette,
+            palette=list(palette) if not isinstance(palette, str) else palette,
             vmin=vmin,
             vmax=vmax,
             vcenter=vcenter,
             na_color=na_color,
-            breaks=breaks,
+            breaks=list(breaks) if breaks is not None else None,
             opacity=opacity,
             preserve_stroke=preserve_stroke,
             color_missing=color_missing,
@@ -64,21 +69,21 @@ class ColoringMixin:
 
     def heatmap_from_dataframe(
         self,
-        df,
+        df: Any,
         *,
         id_col: str,
         value_col: str,
-        palette: str | list[str] = "RdYlBu_r",
+        palette: str | Sequence[str] = "RdYlBu_r",
         vmin: float | None = None,
         vmax: float | None = None,
         vcenter: float | None = None,
         na_color: str = "#cccccc",
-        breaks: list[float] | None = None,
+        breaks: Sequence[float] | None = None,
         opacity: float | None = None,
         preserve_stroke: bool = True,
         color_missing: bool = True,
         key_attr: str = "id",
-    ):
+    ) -> Self:
         """Apply data-driven coloring from a Pandas DataFrame.
 
         Args:
@@ -121,12 +126,12 @@ class ColoringMixin:
 
     def recolor(
         self,
-        colors: dict[str, str],
+        colors: Mapping[str, str],
         *,
         opacity: float | None = None,
         preserve_stroke: bool = True,
         key_attr: str = "id",
-    ):
+    ) -> Self:
         """Apply manual color mapping to paths.
 
         Args:
@@ -153,14 +158,15 @@ class ColoringMixin:
 
     def recolor_by_category(
         self,
-        data: dict[str, str | None],
+        data: Mapping[str, str | None],
         *,
-        palette: dict[str, str] | str = "tab10",
+        palette: Mapping[str, str] | str = "tab10",
         na_color: str = "#cccccc",
         opacity: float | None = None,
         preserve_stroke: bool = True,
+        color_missing: bool = True,
         key_attr: str = "id",
-    ):
+    ) -> Self:
         """Apply categorical coloring to paths.
 
         Args:
@@ -170,6 +176,7 @@ class ColoringMixin:
             na_color: Color for missing category values and unmatched colorable elements.
             opacity: Opacity in the range 0–1. ``None`` preserves existing opacity.
             preserve_stroke: Whether to preserve original stroke styling.
+            color_missing: Whether to color paths that are not in the data with `na_color`.
             key_attr: Element attribute used to match data keys (default ``"id"``).
 
         Returns:
@@ -182,10 +189,11 @@ class ColoringMixin:
         cat_palette = apply_categorical(
             clone._tree,
             resolved_data,
-            palette=palette,
+            palette=dict(palette) if not isinstance(palette, str) else palette,
             na_color=na_color,
             opacity=opacity,
             preserve_stroke=preserve_stroke,
+            color_missing=color_missing,
             id_to_elem=resolved_index,
         )
         clone._last_categorical_palette = cat_palette

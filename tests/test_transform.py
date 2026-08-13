@@ -103,9 +103,24 @@ class TestBBoxFromPathD:
     def test_none_path_has_no_direct_geometry(self, d):
         assert bbox_from_path_d(d) == BBox(0, 0, 0, 0)
 
-    def test_text_starting_like_none_is_still_malformed(self):
-        with pytest.raises(ValueError):
-            bbox_from_path_d("none-ish")
+    def test_text_starting_like_none_yields_empty_bbox(self):
+        assert bbox_from_path_d("none-ish") == BBox(0, 0, 0, 0)
+
+    def test_truncated_trailing_parameters_parse_valid_prefix(self):
+        assert bbox_from_path_d("M 10 20 L 30 40 L 50") == BBox(10, 20, 20, 20)
+
+    def test_junk_suffix_parses_valid_prefix(self):
+        assert bbox_from_path_d("M0 0 L10 10 garbage") == BBox(0, 0, 10, 10)
+
+    def test_junk_before_any_command_yields_empty_bbox(self):
+        assert bbox_from_path_d("garbage M 10 20") == BBox(0, 0, 0, 0)
+
+    def test_truncated_moveto_yields_empty_bbox(self):
+        assert bbox_from_path_d("M 10") == BBox(0, 0, 0, 0)
+
+    def test_invalid_arc_flag_parses_valid_prefix(self):
+        d = "M 0 0 L 10 10 A 5 5 0 X 1 20 20"
+        assert bbox_from_path_d(d) == BBox(0, 0, 10, 10)
 
     def test_relative_h_v(self):
         d = "M 10 10 h 40 v 20 h -40 z"
@@ -261,16 +276,16 @@ class TestBBoxFromPathD:
         assert bbox_from_path_d(compact) == pytest.approx(bbox_from_path_d(separated))
 
     @pytest.mark.parametrize(
-        "d",
+        "arc",
         [
-            "M0 0A10 10 0 2 1 10 10",
-            "M0 0A10 10 0 01 10",
-            "M0 0A10 10 0 01x 10",
+            "A10 10 0 2 1 10 10",
+            "A10 10 0 01 10",
+            "A10 10 0 01x 10",
         ],
     )
-    def test_malformed_arc_data_raises_value_error(self, d):
-        with pytest.raises(ValueError):
-            bbox_from_path_d(d)
+    def test_malformed_arc_data_uses_valid_prefix(self, arc):
+        # Best-effort parsing keeps the valid prefix and drops the broken arc.
+        assert bbox_from_path_d(f"M0 0 L5 5 {arc}") == BBox(0, 0, 5, 5)
 
     def test_relative_moveto(self):
         d = "M 10 10 m 20 20 L 50 50"
@@ -374,6 +389,60 @@ class TestNestedSvgViewport:
             nested, "rect", x="100", y="50", width="20", height="30"
         )
         assert bbox_of_element(rect, {}) == pytest.approx(BBox(225, 347, 40, 60))
+
+    def test_percentage_dimensions_ignore_viewport_scaling(self):
+        # Percentages resolve against the parent viewport, which bbox
+        # computation does not track; the viewport's scaling is ignored
+        # instead of guessed at, so local coordinates pass through.
+        outer = etree.Element("svg")
+        nested = etree.SubElement(
+            outer, "svg", width="100%", height="100%", viewBox="0 0 10 10"
+        )
+        rect = etree.SubElement(nested, "rect", x="0", y="0", width="10", height="10")
+        assert bbox_of_element(rect, {}) == pytest.approx(BBox(0, 0, 10, 10))
+
+    def test_percentage_dimensions_keep_nested_x_y(self):
+        outer = etree.Element("svg")
+        nested = etree.SubElement(
+            outer, "svg", x="5", y="7", width="100%", viewBox="0 0 10 10"
+        )
+        rect = etree.SubElement(nested, "rect", x="0", y="0", width="10", height="10")
+        assert bbox_of_element(rect, {}) == pytest.approx(BBox(5, 7, 10, 10))
+
+    def test_unit_dimensions_parse_leniently(self):
+        outer = etree.Element("svg")
+        nested = etree.SubElement(
+            outer,
+            "svg",
+            x="1cm",
+            y="2cm",
+            width="20px",
+            height="30px",
+            viewBox="100 50 20 30",
+        )
+        rect = etree.SubElement(
+            nested, "rect", x="100", y="50", width="20", height="30"
+        )
+        assert bbox_of_element(rect, {}) == pytest.approx(BBox(1, 2, 20, 30))
+
+    def test_unparsable_dimension_ignores_viewport_transform(self):
+        outer = etree.Element("svg")
+        nested = etree.SubElement(
+            outer, "svg", x="5", y="7", width="auto", viewBox="100 50 20 30"
+        )
+        rect = etree.SubElement(
+            nested, "rect", x="100", y="50", width="20", height="30"
+        )
+        # Scaling is dropped but the parsable x/y translation is kept.
+        assert bbox_of_element(rect, {}) == pytest.approx(BBox(105, 57, 20, 30))
+
+    def test_malformed_nested_viewbox_does_not_raise(self):
+        outer = etree.Element("svg")
+        nested = etree.SubElement(
+            outer, "svg", x="5", y="7", width="100", height="100", viewBox="0 0 ten 10"
+        )
+        rect = etree.SubElement(nested, "rect", x="0", y="0", width="20", height="30")
+        assert bbox_of_element(rect, {}) == pytest.approx(BBox(5, 7, 20, 30))
 
     def test_merged_nonzero_viewbox_uses_nested_viewport_coordinates(self):
         from pathy_svg.document import SVGDocument
@@ -811,3 +880,59 @@ class TestBBoxOfElementExtended:
         assert bbox.y == pytest.approx(50)
         assert bbox.width == pytest.approx(20)
         assert bbox.height == pytest.approx(20)
+
+
+class TestDocumentBBoxLeniency:
+    """Document-level APIs must be lenient about real-world SVG quirks."""
+
+    PERCENT_SVG = (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" '
+        'viewBox="0 0 200 200">'
+        '<svg width="100%" viewBox="0 0 10 10">'
+        '<path id="a" d="M 1 1 L 5 5 L 1 5 Z"/></svg></svg>'
+    )
+
+    MALFORMED_D_SVG = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+        '<path id="a" d="M 10 20 L 30 40 L 50"/>'
+        '<g id="grp"><path id="b" d="M0 0 L10 10 garbage"/></g>'
+        '<path id="c" d="M 0 0 L 5 5"/></svg>'
+    )
+
+    def _doc(self, svg):
+        from pathy_svg.document import SVGDocument
+
+        return SVGDocument.from_string(svg)
+
+    def test_percentage_nested_svg_does_not_break_document_apis(self):
+        doc = self._doc(self.PERCENT_SVG)
+        assert isinstance(doc.bbox("a"), BBox)
+        assert doc.centroid("a")
+        assert doc.inspect_paths()
+        assert doc.annotate({"a": "label"}, placement="centroid") is not None
+
+    def test_truncated_path_bbox_uses_valid_prefix(self):
+        doc = self._doc(self.MALFORMED_D_SVG)
+        assert doc.bbox("a") == BBox(10, 20, 20, 20)
+
+    def test_junk_suffix_path_bbox_uses_valid_prefix(self):
+        doc = self._doc(self.MALFORMED_D_SVG)
+        assert doc.bbox("b") == BBox(0, 0, 10, 10)
+
+    def test_group_bbox_traversal_survives_malformed_path(self):
+        doc = self._doc(self.MALFORMED_D_SVG)
+        assert doc.bbox("grp") == BBox(0, 0, 10, 10)
+
+    def test_document_apis_survive_malformed_paths(self):
+        doc = self._doc(self.MALFORMED_D_SVG)
+        assert len(doc.inspect_paths()) == 3
+        assert doc.annotate({"c": "label"}, placement="centroid") is not None
+
+    def test_bbox_never_leaks_validation_error(self):
+        from pathy_svg.exceptions import PathNotFoundError
+
+        doc = self._doc(self.MALFORMED_D_SVG)
+        # Contract: bbox returns a BBox or raises PathNotFoundError.
+        assert isinstance(doc.bbox("a"), BBox)
+        with pytest.raises(PathNotFoundError):
+            doc.bbox("missing")

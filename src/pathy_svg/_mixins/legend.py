@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from lxml import etree
+from typing_extensions import Self
 
 from pathy_svg._constants import SVG_NS
 from pathy_svg.legend import (
@@ -33,7 +36,7 @@ class LegendMixin:
         direction: Direction = "vertical",
         num_ticks: int = 5,
         tick_format: str = "{:.2f}",
-        labels: list[str] | None = None,
+        labels: Sequence[str] | None = None,
         font_size: float | None = None,
         font_color: str = "black",
         font_family: str = "sans-serif",
@@ -44,7 +47,7 @@ class LegendMixin:
         background: str | None = None,
         padding: float = 5,
         expand_viewbox: bool = True,
-    ):
+    ) -> Self:
         """Add a legend to the SVG.
 
         Args:
@@ -95,7 +98,7 @@ class LegendMixin:
             direction=direction,
             num_ticks=num_ticks,
             tick_format=tick_format,
-            labels=labels,
+            labels=list(labels) if labels is not None else None,
             font_size=font_size,
             font_color=font_color,
             font_family=font_family,
@@ -124,7 +127,8 @@ class LegendMixin:
                 root.set("height", str(expanded.height))
 
         built.element.set("id", _unique_legend_id(root))
-        _store_source_canvas(built.element, source_attrs)
+        result_attrs = {attr: root.get(attr) for attr in _CANVAS_ATTRS}
+        _store_source_canvas(built.element, source_attrs, result_attrs)
         root.append(built.element)
         return clone
 
@@ -140,17 +144,21 @@ def _private_attr(name: str) -> str:
 
 
 def _store_source_canvas(
-    legend: etree._Element, source_attrs: dict[str, str | None]
+    legend: etree._Element,
+    source_attrs: dict[str, str | None],
+    result_attrs: dict[str, str | None],
 ) -> None:
     """Attach the complete private ownership and source-canvas schema."""
     legend.set(_PROVENANCE_ATTR, _PROVENANCE_VALUE)
-    for attr in _CANVAS_ATTRS:
-        value = source_attrs[attr]
-        legend.set(
-            _private_attr(f"source-{attr.lower()}-present"), str(value is not None)
-        )
-        if value is not None:
-            legend.set(_private_attr(f"source-{attr.lower()}"), value)
+    for role, attrs in (("source", source_attrs), ("result", result_attrs)):
+        for attr in _CANVAS_ATTRS:
+            value = attrs[attr]
+            legend.set(
+                _private_attr(f"{role}-{attr.lower()}-present"),
+                str(value is not None),
+            )
+            if value is not None:
+                legend.set(_private_attr(f"{role}-{attr.lower()}"), value)
 
 
 def _generated_legend_id(element_id: str | None) -> bool:
@@ -174,38 +182,49 @@ def _owned_generated_legend(element: etree._Element) -> bool:
         return False
     if element.get(_PROVENANCE_ATTR) != _PROVENANCE_VALUE:
         return False
-    for attr in _CANVAS_ATTRS:
-        present = element.get(_private_attr(f"source-{attr.lower()}-present"))
-        value = element.get(_private_attr(f"source-{attr.lower()}"))
-        if present not in ("True", "False"):
-            return False
-        if present == "True" and value is None:
-            return False
-        if present == "False" and value is not None:
-            return False
+    for role in ("source", "result"):
+        for attr in _CANVAS_ATTRS:
+            present = element.get(_private_attr(f"{role}-{attr.lower()}-present"))
+            value = element.get(_private_attr(f"{role}-{attr.lower()}"))
+            if present not in ("True", "False"):
+                return False
+            if present == "True" and value is None:
+                return False
+            if present == "False" and value is not None:
+                return False
     return True
 
 
 def _restore_source_canvas(root: etree._Element) -> dict[str, str | None]:
-    """Remove our prior direct-child legend and restore its source canvas."""
+    """Remove our prior direct-child legend and restore its source canvas.
+
+    An attribute is only rolled back while the document still carries the
+    value the previous legend() call produced; a user edit made in between
+    wins and becomes the new source value.
+    """
     generated = [child for child in root if _owned_generated_legend(child)]
     if not generated:
         return {attr: root.get(attr) for attr in _CANVAS_ATTRS}
 
     previous = generated[0]
-    source_attrs = {
-        attr: (
-            previous.get(_private_attr(f"source-{attr.lower()}"))
-            if previous.get(_private_attr(f"source-{attr.lower()}-present")) == "True"
-            else None
-        )
-        for attr in _CANVAS_ATTRS
-    }
-    for attr, stored in source_attrs.items():
-        if stored is not None:
-            root.set(attr, stored)
+
+    def stored(role: str, attr: str) -> str | None:
+        if previous.get(_private_attr(f"{role}-{attr.lower()}-present")) != "True":
+            return None
+        return previous.get(_private_attr(f"{role}-{attr.lower()}"))
+
+    source_attrs: dict[str, str | None] = {}
+    for attr in _CANVAS_ATTRS:
+        current = root.get(attr)
+        if current != stored("result", attr):
+            source_attrs[attr] = current
+            continue
+        source = stored("source", attr)
+        if source is not None:
+            root.set(attr, source)
         else:
             root.attrib.pop(attr, None)
+        source_attrs[attr] = source
     for child in generated:
         root.remove(child)
     return source_attrs

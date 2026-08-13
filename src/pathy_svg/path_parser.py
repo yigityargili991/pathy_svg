@@ -31,18 +31,34 @@ def _tokenize_path_d(d: str) -> list[str | float]:
     not be separated from one another or from the following coordinate.  A
     generic number regex would incorrectly read ``0110`` as one value rather
     than flags ``0``, ``1`` and coordinate ``10``.
+
+    Parsing is best-effort, matching how browsers render malformed paths:
+    tokenizing stops cleanly at the first invalid character or incomplete
+    parameter group, and the tokens for the valid prefix are returned.
     """
     tokens: list[str | float] = []
     command: str | None = None
     parameter_count = 0
     index = 0
 
-    def _validate_parameter_count() -> None:
+    def _parameter_group_complete() -> bool:
+        if command is None or command.upper() == "Z":
+            return True
+        arity = _PATH_COMMAND_ARITY[command.upper()]
+        return parameter_count > 0 and parameter_count % arity == 0
+
+    def _trim_incomplete_group() -> None:
         if command is None or command.upper() == "Z":
             return
-        arity = _PATH_COMMAND_ARITY[command.upper()]
-        if parameter_count == 0 or parameter_count % arity:
-            raise ValueError(f"Incomplete parameters for SVG path command {command!r}")
+        if parameter_count == 0:
+            del tokens[-1:]
+            return
+        remainder = parameter_count % _PATH_COMMAND_ARITY[command.upper()]
+        if remainder:
+            del tokens[-remainder:]
+            if parameter_count == remainder:
+                # No complete group survived; drop the bare command too.
+                del tokens[-1:]
 
     while index < len(d):
         char = d[index]
@@ -51,7 +67,8 @@ def _tokenize_path_d(d: str) -> list[str | float]:
             continue
 
         if char in "MmZzLlHhVvCcSsQqTtAa":
-            _validate_parameter_count()
+            if not _parameter_group_complete():
+                break
             command = char
             parameter_count = 0
             tokens.append(char)
@@ -59,25 +76,23 @@ def _tokenize_path_d(d: str) -> list[str | float]:
             continue
 
         if command is None or command.upper() == "Z":
-            raise ValueError(
-                f"Unexpected character in SVG path at offset {index}: {char!r}"
-            )
+            break
 
         parameter_index = parameter_count % _PATH_COMMAND_ARITY[command.upper()]
         if command.upper() == "A" and parameter_index in (3, 4):
             if char not in "01":
-                raise ValueError(f"Invalid SVG arc flag at offset {index}: {char!r}")
+                break
             tokens.append(float(char))
             index += 1
         else:
             match = _PATH_NUMBER_RE.match(d, index)
             if match is None:
-                raise ValueError(f"Invalid SVG path number at offset {index}: {char!r}")
+                break
             tokens.append(float(match.group()))
             index = match.end()
         parameter_count += 1
 
-    _validate_parameter_count()
+    _trim_incomplete_group()
     return tokens
 
 
@@ -228,6 +243,8 @@ def bbox_from_path_d(d: str, transform: Affine | None = None) -> BBox:
     """Compute an approximate bounding box from an SVG path ``d`` attribute.
 
     Handles M, L, H, V, C, S, Q, T, A, Z commands (both absolute and relative).
+    Malformed path data is handled best-effort: the valid prefix is used and
+    the remainder ignored, matching how browsers render such paths.
     Elliptical-arc extrema are computed exactly, including after an affine
     transform.  For Bézier curves, the bounding box is approximated using
     transformed control points rather than solving for the true geometric

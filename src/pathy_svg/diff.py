@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
 from typing import TYPE_CHECKING, Literal
 
 from lxml import etree
@@ -17,6 +17,7 @@ from pathy_svg._composition import (
     validate_composition_layout,
 )
 from pathy_svg._constants import SVG_NS, Layout
+from pathy_svg.exceptions import CompositionError, ValidationError
 from pathy_svg.transform import ViewBox
 
 if TYPE_CHECKING:
@@ -33,8 +34,8 @@ _DIFF_OPS: dict[str, Callable[[float, float], float]] = {
 
 
 def compute_diff(
-    baseline: dict[str, float],
-    treatment: dict[str, float],
+    baseline: Mapping[str, float],
+    treatment: Mapping[str, float],
     *,
     mode: DiffMode = "delta",
 ) -> dict[str, float]:
@@ -44,14 +45,14 @@ def compute_diff(
     """
     op = _DIFF_OPS.get(mode)
     if op is None:
-        raise ValueError(f"Unknown diff mode: {mode!r}")
+        raise ValidationError(f"Unknown diff mode: {mode!r}")
     common = baseline.keys() & treatment.keys()
     return {k: op(baseline[k], treatment[k]) for k in common}
 
 
 def compose_side_by_side(
-    docs: list[SVGDocument],
-    titles: list[str] | None = None,
+    docs: Sequence[SVGDocument],
+    titles: Sequence[str] | None = None,
     *,
     layout: Layout = "horizontal",
     spacing: float = 20,
@@ -62,7 +63,7 @@ def compose_side_by_side(
     Returns a new lxml ElementTree.
     """
     if not docs:
-        raise ValueError("No documents to compose")
+        raise CompositionError("No documents to compose")
     validate_composition_layout(layout)
 
     viewboxes = []

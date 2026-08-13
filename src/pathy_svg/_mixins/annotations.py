@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from lxml import etree
+from typing_extensions import Self
 
 from pathy_svg._constants import SVG_NS
 from pathy_svg.annotations import Placement, TooltipMethod
@@ -22,7 +25,7 @@ class AnnotationMixin:
 
     def annotate(
         self,
-        labels: dict[str, str],
+        labels: Mapping[str, str],
         *,
         placement: Placement = "centroid",
         font_size: float = 12,
@@ -31,7 +34,7 @@ class AnnotationMixin:
         background: str | None = None,
         offset: tuple[float, float] = (0, 0),
         key_attr: str = "id",
-    ):
+    ) -> Self:
         """Add text labels to paths.
 
         Args:
@@ -68,11 +71,11 @@ class AnnotationMixin:
 
     def add_tooltips(
         self,
-        tips: dict[str, str],
+        tips: Mapping[str, str],
         *,
         method: TooltipMethod = "title",
         key_attr: str = "id",
-    ):
+    ) -> Self:
         """Add tooltips to paths.
 
         Args:
@@ -99,10 +102,10 @@ class AnnotationMixin:
 
     def replace_text(
         self,
-        replacements: dict[str, str],
+        replacements: Mapping[str, str],
         *,
         text_color: str | None = None,
-    ):
+    ) -> Self:
         """Replace text content in ``<text>`` elements.
 
         Args:
@@ -115,10 +118,10 @@ class AnnotationMixin:
         from pathy_svg.annotations import replace_text
 
         clone = self._clone()
-        replace_text(clone._tree, replacements, text_color=text_color)
+        replace_text(clone._tree, dict(replacements), text_color=text_color)
         return clone
 
-    def xy_guide(self, *, color: str = "red", step: float = 50):
+    def xy_guide(self, *, color: str = "red", step: float = 50) -> Self:
         """Return a copy with a coordinate grid overlay for orientation."""
         clone = self._clone()
         vb = clone.viewbox

@@ -19,27 +19,27 @@ except (ImportError, OSError):
 class TestExportMissingDependency:
     def test_png_raises_import_error_without_cairo(self, simple_svg_path):
         doc = SVGDocument.from_file(simple_svg_path)
-        with patch(
-            "pathy_svg._compat.importlib.import_module", side_effect=ImportError
+        with (
+            patch("pathy_svg._compat.importlib.import_module", side_effect=ImportError),
+            pytest.raises(ImportError, match="pathy-svg"),
         ):
-            with pytest.raises(ImportError, match="pathy-svg"):
-                doc.to_png()
+            doc.to_png()
 
     def test_pdf_raises_import_error_without_cairo(self, simple_svg_path):
         doc = SVGDocument.from_file(simple_svg_path)
-        with patch(
-            "pathy_svg._compat.importlib.import_module", side_effect=ImportError
+        with (
+            patch("pathy_svg._compat.importlib.import_module", side_effect=ImportError),
+            pytest.raises(ImportError, match="pathy-svg"),
         ):
-            with pytest.raises(ImportError, match="pathy-svg"):
-                doc.to_pdf()
+            doc.to_pdf()
 
     def test_jpeg_raises_import_error_without_cairo(self, simple_svg_path):
         doc = SVGDocument.from_file(simple_svg_path)
-        with patch(
-            "pathy_svg._compat.importlib.import_module", side_effect=ImportError
+        with (
+            patch("pathy_svg._compat.importlib.import_module", side_effect=ImportError),
+            pytest.raises(ImportError, match="pathy-svg"),
         ):
-            with pytest.raises(ImportError, match="pathy-svg"):
-                doc.to_jpeg()
+            doc.to_jpeg()
 
 
 @pytest.mark.skipif(not HAS_CAIRO, reason="cairosvg/libcairo not available")
@@ -125,9 +125,11 @@ class TestPNGExportMocked:
         doc = SVGDocument.from_file(simple_svg_path)
         mock_cairo = MagicMock()
         mock_cairo.svg2png.side_effect = RuntimeError("cairo failed")
-        with patch("pathy_svg.export.require_cairosvg", return_value=mock_cairo):
-            with pytest.raises(ExportError, match="PNG export failed"):
-                doc.to_png()
+        with (
+            patch("pathy_svg.export.require_cairosvg", return_value=mock_cairo),
+            pytest.raises(ExportError, match="PNG export failed"),
+        ):
+            doc.to_png()
 
     def test_to_png_passes_dimensions(self, simple_svg_path):
         doc = SVGDocument.from_file(simple_svg_path)
@@ -167,9 +169,11 @@ class TestPDFExportMocked:
         doc = SVGDocument.from_file(simple_svg_path)
         mock_cairo = MagicMock()
         mock_cairo.svg2pdf.side_effect = ValueError("bad svg")
-        with patch("pathy_svg.export.require_cairosvg", return_value=mock_cairo):
-            with pytest.raises(ExportError, match="PDF export failed"):
-                doc.to_pdf()
+        with (
+            patch("pathy_svg.export.require_cairosvg", return_value=mock_cairo),
+            pytest.raises(ExportError, match="PDF export failed"),
+        ):
+            doc.to_pdf()
 
 
 class TestJPEGExportMocked:
@@ -229,9 +233,9 @@ class TestJPEGExportMocked:
         with (
             patch("pathy_svg.export.require_cairosvg", return_value=mock_cairo),
             patch("pathy_svg.export.require_pillow", return_value=__import__("PIL")),
+            pytest.raises(ExportError, match="PNG export failed"),
         ):
-            with pytest.raises(ExportError, match="PNG export failed"):
-                doc.to_jpeg()
+            doc.to_jpeg()
 
 
 class TestThumbnailMocked:
@@ -256,9 +260,9 @@ class TestThumbnailMocked:
         with (
             patch("pathy_svg.export.require_cairosvg", return_value=mock_cairo),
             patch("pathy_svg.export.require_pillow", return_value=__import__("PIL")),
+            pytest.raises(ExportError, match="PNG export failed"),
         ):
-            with pytest.raises(ExportError, match="PNG export failed"):
-                doc.thumbnail()
+            doc.thumbnail()
 
     def _make_png_bytes(self):
         from PIL import Image

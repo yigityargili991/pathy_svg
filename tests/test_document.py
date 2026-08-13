@@ -7,7 +7,7 @@ from lxml import etree
 
 from pathy_svg._constants import SVG_NS
 from pathy_svg.document import SVGDocument
-from pathy_svg.exceptions import PathNotFoundError, SVGParseError
+from pathy_svg.exceptions import PathNotFoundError, SVGParseError, ValidationError
 from pathy_svg.transform import ViewBox
 
 
@@ -189,6 +189,63 @@ class TestProperties:
 
 
 class TestImmutability:
+    def test_from_tree_defaults_to_copying_caller_owned_tree(self):
+        source_root = etree.fromstring(
+            b'<svg xmlns="http://www.w3.org/2000/svg"><path id="region"/></svg>'
+        )
+        source_tree = etree.ElementTree(source_root)
+
+        doc = SVGDocument.from_tree(source_tree)
+        source_root.find("{http://www.w3.org/2000/svg}path").set("id", "changed")
+
+        assert doc.element_ids == ["region"]
+
+    def test_from_tree_can_take_explicit_ownership(self):
+        source_root = etree.fromstring(
+            b'<svg xmlns="http://www.w3.org/2000/svg"><path id="region"/></svg>'
+        )
+        source_tree = etree.ElementTree(source_root)
+
+        doc = SVGDocument.from_tree(source_tree, copy=False)
+
+        assert doc._root is source_root
+
+    def test_from_tree_rejects_non_boolean_copy_flag(self):
+        source_tree = etree.ElementTree(etree.Element("svg"))
+
+        with pytest.raises(ValidationError, match="boolean"):
+            SVGDocument.from_tree(source_tree, copy=1)
+
+    def test_root_copy_is_the_explicit_snapshot_api(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        snapshot = doc.root_copy()
+        snapshot.set("width", "1")
+
+        assert doc.dimensions == (500, 400)
+
+    def test_xpath_returns_detached_elements(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        matches = doc.xpath(".//*[@id=$target]", target="heart")
+        matches[0].set("id", "changed")
+
+        assert doc._find_by_id("heart") is not None
+        assert doc._find_by_id("changed") is None
+
+    def test_xpath_supports_namespaces_and_scalar_results(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+
+        count = doc.xpath("count(//svg:path)", namespaces={"svg": SVG_NS})
+
+        assert count == 5.0
+
+    def test_xpath_attribute_values_do_not_retain_live_parents(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+
+        identifiers = doc.xpath("//@id")
+
+        assert identifiers
+        assert type(identifiers[0]) is str
+
     def test_slotted_subclass_factories_and_clones_preserve_custom_state(self):
         class CustomDocument(SVGDocument):
             __slots__ = ("custom_state",)

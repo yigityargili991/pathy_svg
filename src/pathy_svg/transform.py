@@ -9,6 +9,7 @@ from typing import NamedTuple
 import numpy as np
 
 from pathy_svg._constants import local_tag
+from pathy_svg.exceptions import ValidationError
 
 
 class ViewBox(NamedTuple):
@@ -39,7 +40,7 @@ def parse_viewbox(attr: str) -> ViewBox:
     """
     parts = re.split(r"[\s,]+", attr.strip())
     if len(parts) != 4:
-        raise ValueError(f"Invalid viewBox: {attr!r}")
+        raise ValidationError(f"Invalid viewBox: {attr!r}")
     return ViewBox(*[float(p) for p in parts])
 
 
@@ -68,7 +69,7 @@ def bbox_union(boxes: list[BBox]) -> BBox:
         ValueError: If the boxes list is empty.
     """
     if not boxes:
-        raise ValueError("Cannot compute union of zero bounding boxes")
+        raise ValidationError("Cannot compute union of zero bounding boxes")
     x_min = min(b.x for b in boxes)
     y_min = min(b.y for b in boxes)
     x_max = max(b.x + b.width for b in boxes)
@@ -326,19 +327,43 @@ def _svg_viewport_transform(element) -> np.ndarray:
 
     Supports the default ``xMidYMid meet``, ``none``, and all standard
     xMin/xMid/xMax + YMin/YMid/YMax alignments with ``meet`` or ``slice``.
+
+    Geometry attributes are parsed leniently, ignoring units like the
+    document-level width/height handling.  Percentage values depend on the
+    parent viewport's size, which is not tracked here, so they — like any
+    value that cannot be parsed to a number — make the nested viewport's
+    scaling be ignored rather than guessed at or raising.
     """
-    x = float(element.get("x", 0))
-    y = float(element.get("y", 0))
+    # Local import: _base imports this module at load time.
+    from pathy_svg._base import _parse_dimension
+
+    def _dimension(name: str, default: float) -> float | None:
+        value = element.get(name)
+        if value is None:
+            return default
+        if "%" in value:
+            return None
+        return _parse_dimension(value)
+
+    x = _dimension("x", 0.0)
+    y = _dimension("y", 0.0)
+    if x is None or y is None:
+        return _identity()
     viewbox_attr = element.get("viewBox")
     if not viewbox_attr:
         return _translate(x, y)
 
-    viewbox = parse_viewbox(viewbox_attr)
+    try:
+        viewbox = parse_viewbox(viewbox_attr)
+    except ValueError:
+        return _translate(x, y)
     if viewbox.width == 0 or viewbox.height == 0:
         return _translate(x, y)
 
-    width = float(element.get("width", viewbox.width))
-    height = float(element.get("height", viewbox.height))
+    width = _dimension("width", viewbox.width)
+    height = _dimension("height", viewbox.height)
+    if width is None or height is None:
+        return _translate(x, y)
     scale_x = width / viewbox.width
     scale_y = height / viewbox.height
 

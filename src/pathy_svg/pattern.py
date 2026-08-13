@@ -17,6 +17,7 @@ from pathy_svg._constants import (
 )
 from pathy_svg._css import set_style_property
 from pathy_svg.coloring import _matched_items_ancestor_first, _validate_opacity
+from pathy_svg.exceptions import ValidationError
 from pathy_svg.gradient import _get_or_create_defs, _remove_existing_def
 
 
@@ -50,11 +51,11 @@ def _validate_pattern_spec(pat_id: str, spec: PatternSpec) -> None:
                 parser=get_secure_parser(),
             )
         except etree.XMLSyntaxError as exc:
-            raise ValueError(
+            raise ValidationError(
                 f"Invalid custom pattern markup for '{pat_id}': {exc}"
             ) from exc
     elif spec.kind not in _PATTERN_BUILDERS:
-        raise ValueError(f"Unknown pattern kind: {spec.kind!r}")
+        raise ValidationError(f"Unknown pattern kind: {spec.kind!r}")
 
 
 def _build_pattern_element(
@@ -204,9 +205,7 @@ def apply_pattern_fill(
 
     defs = None
 
-    for eid, spec_or_str, elem in _matched_items_ancestor_first(
-        patterns, id_to_elem
-    ):
+    for eid, spec_or_str, elem in _matched_items_ancestor_first(patterns, id_to_elem):
         if isinstance(spec_or_str, str):
             spec = PatternSpec(kind=spec_or_str)
         else:

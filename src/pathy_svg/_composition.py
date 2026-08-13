@@ -4,14 +4,16 @@ from __future__ import annotations
 
 import copy
 import re
-from collections import Counter
-from collections.abc import Callable
+from collections import ChainMap, Counter
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from itertools import chain
 
 from lxml import etree
 
 from pathy_svg._constants import SVG_NS, Layout, local_tag
+from pathy_svg._css import style_property
+from pathy_svg.exceptions import CompositionError
 
 _ARIA_IDREF_ATTRIBUTES = frozenset(
     {
@@ -37,6 +39,8 @@ _URL_REFERENCE_ATTRIBUTES = frozenset(
         "marker-mid",
         "marker-start",
         "mask",
+        "shape-inside",
+        "shape-subtract",
         "stroke",
     }
 )
@@ -80,12 +84,13 @@ _ANIMATION_SHORTHAND_KEYWORDS = frozenset(
     }
 )
 
-_UNSAFE_CSS_AT_RULES = frozenset({"import", "font-face", "property", "counter-style"})
+_UNSAFE_CSS_AT_RULES = frozenset({"import", "property", "counter-style"})
 _SUPPORTED_CSS_AT_RULES = frozenset(
     {
         "-webkit-keyframes",
         "container",
         "document",
+        "font-face",
         "keyframes",
         "layer",
         "media",
@@ -130,14 +135,15 @@ _MAX_SELECTOR_VARIANTS = 64
 _PRIVATE_ANIMATION_NS = "urn:pathy-svg:private:animation:v1"
 _PRIVATE_KEYFRAME_ATTR = f"{{{_PRIVATE_ANIMATION_NS}}}keyframe"
 _CLOCK_VALUE_RE = re.compile(
-    r"^[+-]?(?:(?:(?:\d+(?:\.\d*)?|\.\d+)(?:h|min|s|ms))|"
+    r"^[+-]?(?:(?:(?:\d+(?:\.\d*)?|\.\d+)(?:h|min|s|ms)?)|"
     r"(?:\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?))$",
     re.IGNORECASE,
 )
 _CSS_NUMBER_RE = re.compile(r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$")
 _CSS_TIME_RE = re.compile(r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:ms|s)$", re.IGNORECASE)
 _NON_SYNCBASE_TIMING_RE = re.compile(
-    r"^(?:indefinite|media|wallclock\s*\(|accesskey\s*\(|repeat\s*\()",
+    r"^(?:indefinite|media|"
+    r"(?:wallclock|accesskey|repeat)\s*\([^()]*\)(?:\s*[+-][^;]*)?)$",
     re.IGNORECASE,
 )
 
@@ -157,7 +163,7 @@ class PanelCopyPlan:
 def validate_composition_layout(layout: str) -> None:
     """Validate the two layouts supported by all composition APIs."""
     if layout not in ("horizontal", "vertical"):
-        raise ValueError("layout must be 'horizontal' or 'vertical'")
+        raise CompositionError("layout must be 'horizontal' or 'vertical'")
 
 
 def composition_size(
@@ -302,10 +308,14 @@ def copy_svg_panel(
     source_root: etree._Element,
     target_root: etree._Element,
     plan: PanelCopyPlan,
-    width: float,
-    height: float,
+    width: float | None,
+    height: float | None,
 ) -> etree._Element:
-    """Copy one source as a real nested SVG viewport within an isolated panel."""
+    """Copy one source as a real nested SVG viewport within an isolated panel.
+
+    Passing ``None`` for *width* and *height* keeps the source's own
+    dimension attributes, embedding the panel without a fabricated viewport.
+    """
     panel = etree.SubElement(target_root, f"{{{SVG_NS}}}g")
     panel.set("id", plan.wrapper_id)
     panel.set("data-panel-index", str(plan.index))
@@ -314,8 +324,14 @@ def copy_svg_panel(
     panel.append(nested)
     nested.set("x", "0")
     nested.set("y", "0")
-    nested.set("width", str(width))
-    nested.set("height", str(height))
+    if width is not None and height is not None:
+        nested.set("width", str(width))
+        nested.set("height", str(height))
+    if (
+        nested.get("overflow") is None
+        and style_property(nested.get("style"), "overflow") is None
+    ):
+        nested.set("overflow", "visible")
 
     if plan.root_id is None:
         nested.attrib.pop("id", None)
@@ -342,9 +358,10 @@ def copy_svg_panel(
     for style in nested.iter():
         if not isinstance(style.tag, str) or local_tag(style.tag) != "style":
             continue
-        if style.text:
-            _validate_css_for_composition(style.text)
-            for name in _find_css_keyframes(style.text):
+        css = _style_css_content(style)
+        if css:
+            _validate_css_for_composition(css)
+            for name in _find_css_keyframes(css):
                 if name not in keyframe_names:
                     keyframe_names.append(name)
     keyframe_map: dict[str, str] = {}
@@ -364,12 +381,23 @@ def copy_svg_panel(
         plan.wrapper_id,
         keyframe_map,
     )
-    for elem in nested.iter():
+    for elem in list(nested.iter()):
         if not isinstance(elem.tag, str):
             continue
         rewriter.rewrite_element(elem)
 
     return panel
+
+
+def _style_css_content(style: etree._Element) -> str:
+    """Collect a <style> element's full CSS text in document order.
+
+    Comment and processing-instruction children contribute no CSS themselves,
+    but the text in their tails does.
+    """
+    parts = [style.text or ""]
+    parts.extend(child.tail or "" for child in style)
+    return "".join(parts)
 
 
 def place_svg_panel(panel: etree._Element, placement: str) -> None:
@@ -390,12 +418,15 @@ class _ReferenceRewriter:
         self.id_map = id_map
         self.blocked_ids = blocked_ids
         self.generated_ids: set[str] = set()
+        self.unresolved_map: dict[str, str] = {}
         self.unresolved_suffixes: dict[str, int] = {}
         self.scope_id = scope_id
         self.keyframe_map = keyframe_map
 
     def map_fragment(self, fragment: str) -> str:
         mapped = self.id_map.get(fragment)
+        if mapped is None:
+            mapped = self.unresolved_map.get(fragment)
         if mapped is not None:
             return mapped
         base = f"{self.scope_id}--unresolved--{_sanitize_id_component(fragment)}"
@@ -405,7 +436,7 @@ class _ReferenceRewriter:
             mapped = f"{base}--duplicate-{duplicate}"
             duplicate += 1
         self.unresolved_suffixes[base] = duplicate
-        self.id_map[fragment] = mapped
+        self.unresolved_map[fragment] = mapped
         self.generated_ids.add(mapped)
         return mapped
 
@@ -421,7 +452,7 @@ class _ReferenceRewriter:
                 rewritten = _rewrite_animation_declarations(
                     rewritten, self.keyframe_map
                 )
-            elif attr_local_name in _URL_REFERENCE_ATTRIBUTES or "url" in value.lower():
+            elif attr_local_name in _URL_REFERENCE_ATTRIBUTES:
                 rewritten = _rewrite_css_urls(value, self.map_fragment)
 
             if attr_local_name == "href":
@@ -430,19 +461,25 @@ class _ReferenceRewriter:
                 rewritten = _rewrite_idref_list(rewritten, self.map_fragment)
             elif attr_local_name in {"begin", "end"}:
                 rewritten = _rewrite_smil_timing(
-                    rewritten, self.id_map, self.map_fragment
+                    rewritten,
+                    ChainMap(self.id_map, self.unresolved_map),
+                    self.map_fragment,
                 )
             if rewritten != value:
                 elem.set(attr_name, rewritten)
 
-        if local_tag(elem.tag) == "style" and elem.text:
-            elem.text = _rewrite_css(
-                elem.text,
-                self.id_map,
-                self.map_fragment,
-                self.scope_id,
-                self.keyframe_map,
-            )
+        if local_tag(elem.tag) == "style":
+            css = _style_css_content(elem)
+            if css:
+                elem.text = _rewrite_css(
+                    css,
+                    self.id_map,
+                    self.map_fragment,
+                    self.scope_id,
+                    self.keyframe_map,
+                )
+                for child in list(elem):
+                    elem.remove(child)
 
 
 def _rewrite_href(value: str, map_fragment: Callable[[str], str]) -> str:
@@ -459,7 +496,7 @@ def _rewrite_idref_list(value: str, map_fragment: Callable[[str], str]) -> str:
 
 def _rewrite_smil_timing(
     value: str,
-    id_map: dict[str, str],
+    id_map: Mapping[str, str],
     map_fragment: Callable[[str], str],
 ) -> str:
     output: list[str] = []
@@ -544,14 +581,59 @@ def _validate_css_for_composition(css: str) -> None:
         end = _consume_css_identifier(css, index + 1)
         rule_name = _css_unescape(css[index + 1 : end]).lower()
         if rule_name in _UNSAFE_CSS_AT_RULES:
-            raise ValueError(f"Cannot safely compose SVG CSS containing @{rule_name}")
+            raise CompositionError(
+                f"Cannot safely compose SVG CSS containing @{rule_name}"
+            )
         if rule_name not in _SUPPORTED_CSS_AT_RULES:
-            raise ValueError(f"Cannot safely compose unsupported SVG CSS @{rule_name}")
+            raise CompositionError(
+                f"Cannot safely compose unsupported SVG CSS @{rule_name}"
+            )
         if rule_name == "layer" and (
             (prelude := _skip_css_gap(css, end)) >= len(css) or css[prelude] != "{"
         ):
-            raise ValueError("Cannot safely compose named CSS @layer rules")
+            raise CompositionError("Cannot safely compose named CSS @layer rules")
+        if rule_name == "font-face":
+            _reject_font_face_local_references(css, end)
         index = max(end, index + 1)
+
+
+def _reject_font_face_local_references(css: str, prelude_start: int) -> None:
+    """Reject @font-face blocks whose src references local url(#...) fragments."""
+    block_start = _skip_css_gap(css, prelude_start)
+    if block_start >= len(css) or css[block_start] != "{":
+        return
+    block_end = _consume_css_block(css, block_start)
+    fragments: list[str] = []
+
+    def record(fragment: str) -> str:
+        fragments.append(fragment)
+        return fragment
+
+    _rewrite_css_urls(css[block_start:block_end], record)
+    if fragments:
+        raise CompositionError(
+            "Cannot safely compose @font-face using local url(#...) references"
+        )
+
+
+def _consume_css_block(css: str, open_brace: int) -> int:
+    depth = 1
+    index = open_brace + 1
+    while index < len(css):
+        if css.startswith("/*", index):
+            index = _consume_css_comment(css, index)
+            continue
+        if css[index] in "\"'":
+            index = _consume_css_string(css, index)
+            continue
+        if css[index] == "{":
+            depth += 1
+        elif css[index] == "}":
+            depth -= 1
+            if depth == 0:
+                return index + 1
+        index += 1
+    return len(css)
 
 
 def _rewrite_css(
@@ -749,7 +831,7 @@ def _rewrite_single_selector(
             token = selector[index:end]
             variants = _rewrite_attribute_selector(token, id_map, map_fragment)
             if len(output) * len(variants) > _MAX_SELECTOR_VARIANTS:
-                raise ValueError(
+                raise CompositionError(
                     "Cannot safely compose CSS selector: case-insensitive IDREF "
                     f"expansion exceeds {_MAX_SELECTOR_VARIANTS} variants"
                 )
@@ -827,7 +909,7 @@ def _rewrite_attribute_selector(
             for options in value_options:
                 combinations *= len(options)
                 if combinations > _MAX_SELECTOR_VARIANTS:
-                    raise ValueError(
+                    raise CompositionError(
                         "Cannot safely compose CSS selector: case-insensitive "
                         "IDREF expansion exceeds "
                         f"{_MAX_SELECTOR_VARIANTS} variants"
@@ -867,7 +949,7 @@ def _reject_unsafe_reference_selector(
     if name not in {"id", "href", *_ARIA_IDREF_ATTRIBUTES}:
         return
     if name in _ARIA_IDREF_ATTRIBUTES:
-        raise ValueError(
+        raise CompositionError(
             "Cannot safely compose partial CSS attribute selector on ARIA IDREF "
             f"attribute {name!r}"
         )
@@ -899,12 +981,12 @@ def _reject_unsafe_reference_selector(
             matched_reference = True
             changed_reference |= old != new
     if changed_reference:
-        raise ValueError(
+        raise CompositionError(
             "Cannot safely compose partial CSS attribute selector on rewritten "
             f"{name!r} references"
         )
     if name == "href" and "#" in value and not matched_reference:
-        raise ValueError(
+        raise CompositionError(
             "Cannot safely compose partial CSS attribute selector on local href "
             "references"
         )
@@ -1109,7 +1191,7 @@ def _rewrite_animation_value(
                     and shorthand_name_seen
                     and (decoded in mapping or candidates)
                 ):
-                    raise ValueError(
+                    raise CompositionError(
                         "Cannot safely compose ambiguous CSS animation shorthand"
                     )
                 if decoded in mapping:
@@ -1118,11 +1200,7 @@ def _rewrite_animation_value(
                     shorthand_name_seen = True
                 index = end
                 continue
-            if value[index].isdigit() or (
-                value[index] in "+-."
-                and index + 1 < item_end
-                and value[index + 1].isdigit()
-            ):
+            if _starts_css_number(value, index, item_end):
                 end = _consume_css_component(value, index, item_end)
                 if shorthand:
                     component = value[index:end].lower()
@@ -1144,7 +1222,9 @@ def _rewrite_animation_value(
             if function_open < item_end and value[function_open] == "(":
                 lower = decoded.lower()
                 if lower == "var":
-                    raise ValueError("Cannot safely compose CSS animation using var()")
+                    raise CompositionError(
+                        "Cannot safely compose CSS animation using var()"
+                    )
                 if shorthand and (role := _ANIMATION_FUNCTION_ROLES.get(lower)):
                     shorthand_roles.add(role)
                 index = _consume_balanced_function(value, function_open)
@@ -1156,7 +1236,7 @@ def _rewrite_animation_value(
                     shorthand_roles.add(role)
                 elif lower in _ANIMATION_NAME_KEYWORDS:
                     if decoded in mapping:
-                        raise ValueError(
+                        raise CompositionError(
                             "Cannot safely compose CSS animation shorthand using "
                             f"reserved keyframe name {decoded!r}"
                         )
@@ -1165,7 +1245,7 @@ def _rewrite_animation_value(
                     if decoded in mapping:
                         candidates.append((index, end, decoded, ""))
                 elif decoded in mapping or candidates:
-                    raise ValueError(
+                    raise CompositionError(
                         "Cannot safely compose ambiguous CSS animation shorthand"
                     )
             elif decoded in mapping and lower not in _ANIMATION_NAME_KEYWORDS:
@@ -1173,7 +1253,9 @@ def _rewrite_animation_value(
             index = end
 
         if shorthand and len(candidates) > 1:
-            raise ValueError("Cannot safely compose ambiguous CSS animation shorthand")
+            raise CompositionError(
+                "Cannot safely compose ambiguous CSS animation shorthand"
+            )
         for start, end, decoded, quote in candidates:
             alias = mapping[decoded]
             replacement = (
@@ -1183,6 +1265,16 @@ def _rewrite_animation_value(
             )
             replacements.append((start, end, replacement))
     return _apply_replacements(value, replacements)
+
+
+def _starts_css_number(value: str, index: int, end: int) -> bool:
+    """Return whether a CSS number token starts at *index* (sign and integer
+    part optional, per the CSS number grammar)."""
+    if value[index] in "+-":
+        index += 1
+    if index < end and value[index] == ".":
+        index += 1
+    return index < end and value[index].isdigit()
 
 
 def _top_level_comma_ranges(value: str) -> list[tuple[int, int]]:

@@ -297,7 +297,9 @@ class TestRecolor:
         with pytest.raises((TypeError, ValueError), match="opacity"):
             doc.recolor({"stomach": "#ff0000"}, opacity=opacity)
 
-    @pytest.mark.parametrize("opacity", [np.float32(0.5), np.float64(0.5), Fraction(1, 2)])
+    @pytest.mark.parametrize(
+        "opacity", [np.float32(0.5), np.float64(0.5), Fraction(1, 2)]
+    )
     def test_real_scalar_opacity_is_normalized(self, simple_svg_path, opacity):
         doc = SVGDocument.from_file(simple_svg_path)
 
@@ -564,6 +566,145 @@ class TestResourceGeometry:
                 palette={"selected": "#ff0000"},
             )
             assert result._find_by_id("in-defs").get("fill") == "#ff0000"
+
+
+class TestColorMissingScope:
+    BACKGROUND_SVG = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+        '<rect width="100" height="100" fill="#ffffff"/>'
+        '<path id="a" d="M 0 0 L 10 0 L 10 10 Z" fill="#fff"/>'
+        '<path id="b" d="M 20 0 L 30 0 L 30 10 Z" fill="#fff"/>'
+        "</svg>"
+    )
+
+    def _background_rect(self, doc):
+        return doc.root.xpath("//*[local-name()='rect' and not(@id)]")[0]
+
+    def _gradient_bar_rects(self, doc):
+        return doc.root.xpath(
+            "//*[local-name()='rect' and starts-with(@fill, 'url(#pathy-grad-')]"
+        )
+
+    def test_legend_survives_second_heatmap(self):
+        doc = SVGDocument.from_string(self.BACKGROUND_SVG)
+
+        result = (
+            doc.heatmap({"a": 1.0, "b": 2.0}).legend().heatmap({"a": 3.0, "b": 4.0})
+        )
+
+        assert len(self._gradient_bar_rects(result)) == 1
+
+    def test_diff_does_not_destroy_legend(self):
+        doc = SVGDocument.from_string(self.BACKGROUND_SVG)
+
+        result = (
+            doc.heatmap({"a": 1.0, "b": 2.0})
+            .legend()
+            .diff({"a": 1.0, "b": 2.0}, {"a": 2.0, "b": 1.0})
+        )
+
+        assert len(self._gradient_bar_rects(result)) == 1
+        assert self._background_rect(result).get("fill") == "#ffffff"
+
+    def test_heatmap_sweep_skips_idless_background(self):
+        doc = SVGDocument.from_string(self.BACKGROUND_SVG)
+
+        result = doc.heatmap({"a": 1.0}, na_color="#aabbcc")
+
+        assert self._background_rect(result).get("fill") == "#ffffff"
+        assert result._find_by_id("b").get("fill") == "#aabbcc"
+
+    def test_recolor_by_category_skips_idless_background(self):
+        doc = SVGDocument.from_string(self.BACKGROUND_SVG)
+
+        result = doc.recolor_by_category(
+            {"a": "x"}, palette={"x": "#ff0000"}, na_color="#aabbcc"
+        )
+
+        assert self._background_rect(result).get("fill") == "#ffffff"
+        assert result._find_by_id("b").get("fill") == "#aabbcc"
+
+    def test_recolor_by_category_color_missing_false_touches_only_matched(self):
+        doc = SVGDocument.from_string(self.BACKGROUND_SVG)
+
+        result = doc.recolor_by_category(
+            {"a": "x"}, palette={"x": "#ff0000"}, color_missing=False
+        )
+
+        assert result._find_by_id("a").get("fill") == "#ff0000"
+        assert result._find_by_id("b").get("fill") == "#fff"
+        assert self._background_rect(result).get("fill") == "#ffffff"
+
+    def test_recolor_by_category_empty_data_is_noop(self):
+        doc = SVGDocument.from_string(self.BACKGROUND_SVG)
+
+        result = doc.recolor_by_category({})
+
+        assert result._find_by_id("a").get("fill") == "#fff"
+        assert result._find_by_id("b").get("fill") == "#fff"
+        assert self._background_rect(result).get("fill") == "#ffffff"
+
+    def test_recolor_by_category_preserves_annotation_background(self):
+        doc = SVGDocument.from_string(self.BACKGROUND_SVG)
+
+        result = doc.annotate({"a": "Region A"}, background="white")
+        result = result.recolor_by_category({"a": "x"}, palette={"x": "#ff0000"})
+
+        annotation_bg = result.root.xpath(
+            "//*[local-name()='g' and @id='pathy-annotations']/*[local-name()='rect']"
+        )[0]
+        assert annotation_bg.get("fill") == "white"
+
+    def test_na_color_works_on_composed_documents(self):
+        from pathy_svg.svg_tools import compose_svgs
+
+        a = SVGDocument.from_string(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+            '<path id="ca" d="M 0 0 L 10 0 L 10 10 Z" fill="#fff"/>'
+            '<path id="tx" d="M 20 0 L 30 0 L 30 10 Z" fill="#fff"/></svg>'
+        )
+        b = SVGDocument.from_string(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+            '<path id="ny" d="M 0 0 L 10 0 L 10 10 Z" fill="#fff"/></svg>'
+        )
+
+        result = compose_svgs([a, b]).document.heatmap({"ca": 1.0}, na_color="#aabbcc")
+
+        # Panel wrapper groups are library-generated, but the user geometry
+        # inside them is not: unmatched elements must still get na_color.
+        assert result._find_by_id("tx").get("fill") == "#aabbcc"
+        assert result._find_by_id("ny").get("fill") == "#aabbcc"
+        assert result._find_by_id("ca").get("fill") != "#aabbcc"
+
+    def test_indexed_group_missing_from_data_gets_na_color(self):
+        doc = SVGDocument.from_string(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+            '<g id="ca"><path d="M 0 0 L 10 0 L 10 10 Z" fill="#fff"/></g>'
+            '<g id="tx"><path d="M 20 0 L 30 0 L 30 10 Z" fill="#fff"/></g>'
+            "</svg>"
+        )
+
+        result = doc.heatmap({"ca": 1.0}, na_color="#aabbcc")
+
+        ns = "{http://www.w3.org/2000/svg}"
+        tx_child = result._find_by_id("tx").find(f"{ns}path")
+        assert tx_child.get("fill") == "#aabbcc"
+        ca_child = result._find_by_id("ca").find(f"{ns}path")
+        assert ca_child.get("fill") != "#aabbcc"
+
+    def test_group_sweep_skips_explicitly_matched_descendants(self):
+        doc = SVGDocument.from_string(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+            '<g id="grp"><path id="inner" d="M 0 0 L 10 0 L 10 10 Z" fill="#fff"/>'
+            '<path d="M 20 0 L 30 0 L 30 10 Z" fill="#fff"/></g>'
+            "</svg>"
+        )
+
+        result = doc.heatmap({"inner": 1.0}, na_color="#aabbcc")
+
+        assert result._find_by_id("inner").get("fill") != "#aabbcc"
+        anonymous = result.root.xpath("//*[local-name()='path' and not(@id)]")[0]
+        assert anonymous.get("fill") == "#aabbcc"
 
 
 class TestPreserveStroke:

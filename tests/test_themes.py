@@ -8,9 +8,9 @@ from pathy_svg.themes import (
     CategoricalPalette,
     ColorScale,
     ThemePreset,
+    geographic,
     heatmap_classic,
     medical,
-    geographic,
 )
 
 
@@ -58,6 +58,14 @@ class TestColorScale:
         for c in [cn, c0, cp]:
             assert re.match(r"^#[0-9a-fA-F]{6}$", c)
 
+    def test_colormap_instance(self):
+        import matplotlib.pyplot as plt
+
+        cmap = plt.get_cmap("viridis")
+        scale = ColorScale(cmap, vmin=0, vmax=1)
+        assert scale.palette_name == "viridis"
+        assert scale(0.5) == ColorScale("viridis", vmin=0, vmax=1)(0.5)
+
 
 class TestCategoricalPalette:
     def test_explicit_mapping(self):
@@ -84,6 +92,15 @@ class TestCategoricalPalette:
         pal("y")
         assert "x" in pal.mapping
         assert "y" in pal.mapping
+
+    def test_colormap_instance(self):
+        import matplotlib.pyplot as plt
+
+        pal = CategoricalPalette(plt.get_cmap("tab10"))
+        c1 = pal("alpha")
+        c2 = pal("beta")
+        assert c1 != c2
+        assert pal("alpha") == c1
 
 
 class TestThemePreset:

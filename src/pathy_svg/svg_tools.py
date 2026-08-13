@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import copy
+import re
+from collections.abc import Iterable
+from typing import TYPE_CHECKING, TypeVar
 
 from pathy_svg._composition import (
     composition_size,
@@ -13,6 +16,14 @@ from pathy_svg._composition import (
     validate_composition_layout,
 )
 from pathy_svg._constants import SVG_NS, Layout, local_tag
+from pathy_svg.composition import CompositionResult, PanelComposition
+from pathy_svg.exceptions import CompositionError, ValidationError
+
+if TYPE_CHECKING:
+    from pathy_svg.document import SVGDocument
+    from pathy_svg.transform import ViewBox
+
+_DocumentT = TypeVar("_DocumentT", bound="SVGDocument")
 
 _CRUFT_NS = frozenset(
     {
@@ -41,6 +52,7 @@ _KEEP_EMPTY = frozenset(
 )
 
 __all__ = [
+    "compose_svgs",
     "extract_styles",
     "merge_svgs",
     "optimize_svg",
@@ -52,7 +64,7 @@ __all__ = [
 def viewbox_to_pixel(
     vb_x: float,
     vb_y: float,
-    viewbox,
+    viewbox: ViewBox | tuple[float, float, float, float],
     width_px: float,
     height_px: float,
 ) -> tuple[float, float]:
@@ -78,13 +90,79 @@ def viewbox_to_pixel(
     """
     vb_ox, vb_oy, vb_w, vb_h = viewbox
     if vb_w == 0 or vb_h == 0:
-        raise ValueError("viewBox width and height must be non-zero")
+        raise ValidationError("viewBox width and height must be non-zero")
     px = (vb_x - vb_ox) / vb_w * width_px
     py = (vb_y - vb_oy) / vb_h * height_px
     return (px, py)
 
 
-def merge_svgs(svgs, layout: Layout = "horizontal", spacing: float = 20):
+def compose_svgs(
+    svgs: Iterable[SVGDocument],
+    layout: Layout = "horizontal",
+    spacing: float = 20,
+) -> CompositionResult:
+    """Compose SVG documents and return the document plus panel ID mappings.
+
+    Unique valid IDs are preserved. When composition must rename an ID,
+    ``result.panels[index].id_map`` exposes its output value.
+    """
+    from lxml import etree
+
+    from pathy_svg.document import SVGDocument
+
+    docs = list(svgs)
+    if not docs:
+        raise CompositionError("svgs must be non-empty")
+    validate_composition_layout(layout)
+
+    viewports: list[tuple[float, float] | None] = []
+    for doc in docs:
+        vb = doc.viewbox
+        if vb is not None:
+            viewports.append((vb.width, vb.height))
+            continue
+        w = _user_unit_length(doc._root.get("width"))
+        h = _user_unit_length(doc._root.get("height"))
+        if w is not None and h is not None:
+            viewports.append((w, h))
+        else:
+            viewports.append(None)
+
+    sizes = [
+        viewport if viewport is not None else (500.0, 500.0) for viewport in viewports
+    ]
+    total_w, total_h = composition_size(sizes, layout, spacing)
+
+    root = etree.Element(f"{{{SVG_NS}}}svg", nsmap={None: SVG_NS})
+    root.set("viewBox", f"0 0 {total_w} {total_h}")
+
+    plans = plan_svg_panels([doc._root for doc in docs])
+    offset = 0.0
+    for doc, (width, height), viewport, plan in zip(docs, sizes, viewports, plans):
+        tx, ty = composition_translation(layout, main_offset=offset)
+        offset += (width if layout == "horizontal" else height) + spacing
+
+        panel_width, panel_height = viewport if viewport is not None else (None, None)
+        panel = copy_svg_panel(doc._root, root, plan, panel_width, panel_height)
+        place_svg_panel(panel, f"translate({tx}, {ty})")
+
+    document = SVGDocument._from_owned_tree(etree.ElementTree(root))
+    panels = tuple(
+        PanelComposition._create(
+            plan.index,
+            plan.wrapper_id,
+            plan.reference_map,
+        )
+        for plan in plans
+    )
+    return CompositionResult(document=document, panels=panels)
+
+
+def merge_svgs(
+    svgs: Iterable[SVGDocument],
+    layout: Layout = "horizontal",
+    spacing: float = 20,
+) -> SVGDocument:
     """Combine multiple SVGDocument instances into a single SVGDocument.
 
     Args:
@@ -98,53 +176,32 @@ def merge_svgs(svgs, layout: Layout = "horizontal", spacing: float = 20):
     Raises:
         ValueError: If the svgs iterable is empty or layout is unsupported.
     """
-    from lxml import etree
-
-    from pathy_svg.document import SVGDocument
-
-    docs = list(svgs)
-    if not docs:
-        raise ValueError("svgs must be non-empty")
-    validate_composition_layout(layout)
-
-    infos = []
-    for doc in docs:
-        vb = doc.viewbox
-        w, h = doc.dimensions
-        if vb is not None:
-            infos.append({"w": vb.width, "h": vb.height, "vb": vb})
-        elif w is not None and h is not None:
-            infos.append({"w": w, "h": h, "vb": None})
-        else:
-            infos.append({"w": 500.0, "h": 500.0, "vb": None})
-
-    total_w, total_h = composition_size(
-        [(info["w"], info["h"]) for info in infos], layout, spacing
-    )
-
-    root = etree.Element(
-        f"{{{SVG_NS}}}svg",
-        nsmap={None: SVG_NS},
-    )
-    root.set("viewBox", f"0 0 {total_w} {total_h}")
-
-    plans = plan_svg_panels([doc._root for doc in docs])
-    offset = 0.0
-    for doc, info, plan in zip(docs, infos, plans):
-        tx, ty = composition_translation(layout, main_offset=offset)
-        if layout == "horizontal":
-            offset += info["w"] + spacing
-        else:
-            offset += info["h"] + spacing
-
-        g = copy_svg_panel(doc._root, root, plan, info["w"], info["h"])
-        place_svg_panel(g, f"translate({tx}, {ty})")
-
-    tree = etree.ElementTree(root)
-    return SVGDocument._from_owned_tree(tree)
+    return compose_svgs(svgs, layout=layout, spacing=spacing).document
 
 
-def strip_metadata(doc):
+_USER_UNIT_LENGTH_RE = re.compile(
+    r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?(?:[pP][xX])?"
+)
+
+
+def _user_unit_length(value: str | None) -> float | None:
+    """Parse a root dimension only when it is a plain number or px length.
+
+    Percentage and physical-unit dimensions carry no user-unit magnitude, so
+    they must not be used as a nested panel viewport size.
+    """
+    if value is None:
+        return None
+    match = _USER_UNIT_LENGTH_RE.fullmatch(value.strip())
+    if match is None:
+        return None
+    text = match.group(0)
+    if text[-2:].lower() == "px":
+        text = text[:-2]
+    return float(text)
+
+
+def strip_metadata(doc: _DocumentT) -> _DocumentT:
     """Return a new SVGDocument with Inkscape/Illustrator namespace elements removed.
 
     Removes elements from these namespaces:
@@ -199,7 +256,7 @@ def strip_metadata(doc):
     return clone
 
 
-def optimize_svg(doc):
+def optimize_svg(doc: _DocumentT) -> _DocumentT:
     """Return a new SVGDocument with XML comments removed and whitespace collapsed.
 
     Specifically:
@@ -247,7 +304,7 @@ def optimize_svg(doc):
     return clone
 
 
-def extract_styles(doc):
+def extract_styles(doc: _DocumentT) -> _DocumentT:
     """Pull inline `style="..."` attributes into a single `<style>` block.
 
     Each unique inline style string is assigned a generated class name

@@ -14,6 +14,7 @@ from pathy_svg._constants import SVG_NS, local_tag
 from pathy_svg._constants import (
     rendered_colorable_elements as _rendered_colorable_elements,
 )
+from pathy_svg.exceptions import ValidationError
 
 AnimationEffect = Literal["pulse", "fade_in", "blink", "sequential"]
 
@@ -228,7 +229,7 @@ def inject_animation(
     tree: etree._ElementTree,
     *,
     effect: AnimationEffect = "pulse",
-    duration: float = 2.0,
+    duration: float | Real = 2.0,
     loop: bool = True,
     data_order: Sequence[str] | None = None,
 ) -> None:
@@ -242,12 +243,13 @@ def inject_animation(
 
     For the sequential effect, ``data_order`` controls the stagger order. When
     omitted, IDs on colorable elements are discovered in document order.
-    Colorable elements without IDs are left unchanged.
+    When no element has an ID (or the resolved order is empty), all colorable
+    elements animate together instead.
     """
     if not isinstance(effect, str):
         raise TypeError("Animation effect must be a string")
     if effect not in _ANIMATION_EFFECTS:
-        raise ValueError(f"Unknown animation effect: {effect!r}")
+        raise ValidationError(f"Unknown animation effect: {effect!r}")
     if not isinstance(duration, Real):
         raise TypeError("Animation duration must be a real number")
     if isinstance(duration, bool):
@@ -255,11 +257,13 @@ def inject_animation(
     try:
         duration_value = float(duration)
     except OverflowError:
-        raise ValueError(
+        raise ValidationError(
             "Animation duration must be a finite number greater than 0"
         ) from None
     if not math.isfinite(duration_value) or duration_value <= 0:
-        raise ValueError("Animation duration must be a finite number greater than 0")
+        raise ValidationError(
+            "Animation duration must be a finite number greater than 0"
+        )
     if not isinstance(loop, bool):
         raise TypeError("Animation loop must be a boolean")
     explicit_order = (
@@ -312,6 +316,24 @@ def inject_animation(
             "  100% { opacity: 1; }"
             "}"
         )
+        if not ordered_ids:
+            # No IDs to stagger: animate every rendered colorable element at
+            # once instead of emitting a no-op. Scoped via a generated class,
+            # like the other effects, so resource geometry (patterns,
+            # clipPaths) and elements added later are not captured.
+            rule = f"animation: {keyframe_name} {duration_value}s ease-in {iteration};"
+            target_class, class_marker = _add_generated_class(
+                root, _rendered_colorable_elements(root)
+            )
+            _add_style(
+                defs,
+                f"{keyframes}\n.{target_class} {{ {rule} }}",
+                effect=effect,
+                keyframe_name=keyframe_name,
+                target_class=target_class,
+                class_marker=class_marker,
+            )
+            return
         css_parts = [keyframes]
         count = len(ordered_ids)
         for index, eid in enumerate(ordered_ids):

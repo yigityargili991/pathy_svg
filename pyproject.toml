@@ -10,7 +10,7 @@ authors = [
     {name = "Yigit Yargili", email = "160510618+yigityargili991@users.noreply.github.com"},
 ]
 classifiers = [
-    "Development Status :: 5 - Production/Stable",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
@@ -31,6 +31,7 @@ dependencies = [
     "lxml>=5.0",
     "matplotlib>=3.7",
     "numpy>=1.24",
+    "typing-extensions>=4.6",
 ]
 
 [project.urls]
@@ -41,8 +42,17 @@ Issues = "https://github.com/yigityargili991/pathy_svg/issues"
 Changelog = "https://github.com/yigityargili991/pathy_svg/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
+dataframe = ["pandas>=2.0"]
+tabular = ["pandas>=2.0", "openpyxl>=3.1", "pyarrow>=15.0"]
 export = ["cairosvg>=2.9.0", "Pillow>=10.0"]
-full = ["cairosvg>=2.9.0", "Pillow>=10.0", "IPython>=8.0"]
+full = [
+    "cairosvg>=2.9.0",
+    "IPython>=8.0",
+    "openpyxl>=3.1",
+    "pandas>=2.0",
+    "Pillow>=10.0",
+    "pyarrow>=15.0",
+]
 
 [project.scripts]
 pathy-svg = "pathy_svg.cli:main"

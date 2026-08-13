@@ -74,6 +74,16 @@ def test_click_is_a_required_dependency():
     assert '"click>=8.0"' in text
 
 
+def test_release_metadata_declares_0_4_dependency_contract():
+    pyproject = (ROOT / "pyproject.toml").read_text()
+
+    assert __version__ == "0.4.0"
+    assert '"typing-extensions>=4.6"' in pyproject
+    assert "dataframe =" in pyproject
+    assert "tabular =" in pyproject
+    assert '"Development Status :: 4 - Beta"' in pyproject
+
+
 def test_sdist_includes_source_examples_and_tests(built_distributions):
     sdist, _ = built_distributions
     members = set(_sdist_members(sdist))
@@ -115,6 +125,7 @@ def test_wheel_contains_runtime_files_only(built_distributions):
     expected = {
         "pathy_svg/__init__.py",
         "pathy_svg/cli.py",
+        "pathy_svg/composition.py",
         "pathy_svg/py.typed",
         "pathy_svg/_mixins/serialization.py",
         f"pathy_svg-{__version__}.dist-info/METADATA",
@@ -127,6 +138,16 @@ def test_wheel_contains_runtime_files_only(built_distributions):
     assert not any(name.startswith("examples/") for name in members)
     assert not any(name.startswith("docs/") for name in members)
     assert not any(name.startswith("docs_templates/") for name in members)
+
+
+def test_wheel_advertises_public_extras(built_distributions):
+    _, wheel = built_distributions
+    metadata_name = f"pathy_svg-{__version__}.dist-info/METADATA"
+    with zipfile.ZipFile(wheel) as archive:
+        metadata = archive.read(metadata_name).decode()
+
+    for extra in ("dataframe", "export", "full", "tabular"):
+        assert f"Provides-Extra: {extra}" in metadata
 
 
 def test_artifacts_exclude_build_junk(built_distributions):

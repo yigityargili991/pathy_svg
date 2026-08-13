@@ -15,8 +15,10 @@ pip install pathy-svg
 Optional extras:
 
 ```bash
-pip install pathy-svg[export]  # PNG, PDF, JPEG export (cairosvg + Pillow)
-pip install pathy-svg[full]    # All features including Jupyter display
+pip install pathy-svg[dataframe]  # pandas DataFrame integration
+pip install pathy-svg[tabular]    # pandas plus Excel and Parquet engines
+pip install pathy-svg[export]     # PNG, PDF, JPEG export (cairosvg + Pillow)
+pip install pathy-svg[full]       # Every optional integration, including Jupyter
 ```
 
 ## Quick Start
@@ -112,6 +114,39 @@ result.save("layered.svg")
 
 ![Layered visualization](docs/examples/07_layered.svg)
 
+### Collision-safe SVG composition
+
+`compose_svgs()` returns both the composed document and the ID mapping for each
+source panel. This makes it possible to address elements after colliding IDs
+have been isolated and renamed. `merge_svgs()` remains available when only the
+document is needed.
+
+```python
+from pathy_svg import compose_svgs
+
+composition = compose_svgs([left, right], layout="horizontal", spacing=20)
+composition.document.save("comparison.svg")
+
+left_output_id = composition.panel(0).output_id("shared-region")
+```
+
+Composition preserves each source SVG as a nested viewport, scopes panel CSS,
+and localizes fragment references. CSS constructs that cannot be isolated
+safely raise `CompositionError` before an output document is returned.
+
+### Immutable tree access
+
+The public tree APIs never expose live mutable elements from a document:
+
+```python
+snapshot = doc.root_copy()  # independent lxml element
+paths = doc.xpath("//svg:path", namespaces={"svg": "http://www.w3.org/2000/svg"})
+```
+
+Element-valued XPath results are detached copies. `SVGDocument.from_tree(tree)`
+also copies by default; advanced callers can use `copy=False` to transfer
+exclusive ownership of a fresh tree.
+
 The source distribution includes a runnable `examples/` directory with:
 
 - `examples/map.svg`
@@ -172,6 +207,7 @@ pathy-svg export examples/map.svg -o map.png --width 1200
 | `SVGDocument.from_file(path)` | Load from file path |
 | `SVGDocument.from_string(svg)` | Load from SVG string |
 | `SVGDocument.from_url(url)` | Load from URL |
+| `SVGDocument.from_tree(tree, copy=True)` | Load from an lxml tree with explicit ownership semantics |
 
 ### Coloring
 
@@ -219,6 +255,15 @@ pathy-svg export examples/map.svg -o map.png --width 1200
 | `.dimensions` | `(width, height)` tuple |
 | `.inspect_paths()` | Detailed metadata for all colorable elements |
 | `.validate_ids(ids)` | Check which IDs match SVG elements |
+| `.root_copy()` | Independent copy of the root element |
+| `.xpath(expression, ...)` | XPath query with detached element results |
+
+### Composition
+
+| Function | Description |
+|--------|-------------|
+| `compose_svgs(docs, layout=..., spacing=...)` | Compose SVGs and return `CompositionResult` with per-panel ID mappings |
+| `merge_svgs(docs, layout=..., spacing=...)` | Compose SVGs and return only the document |
 
 ### Export
 
@@ -231,6 +276,14 @@ pathy-svg export examples/map.svg -o map.png --width 1200
 | `.to_pdf(path)` | Export to PDF |
 | `.to_jpeg(path)` | Export to JPEG |
 | `.show()` | Display in Jupyter |
+
+### Exceptions
+
+All library-defined exceptions inherit from `PathySVGError`. Public categories
+include `SVGParseError`, `PathNotFoundError`, `DataMappingError`,
+`ColorScaleError`, `ValidationError`, `CompositionError`, and `ExportError`.
+Validation and composition errors also remain compatible with code that catches
+`ValueError`.
 
 ## Documentation
 

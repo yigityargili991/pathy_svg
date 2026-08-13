@@ -10,6 +10,7 @@ from typing import Literal
 from lxml import etree
 
 from pathy_svg._constants import SVG_NS, svg_sub
+from pathy_svg.exceptions import ValidationError
 from pathy_svg.themes import CategoricalPalette, ColorScale
 from pathy_svg.transform import BBox, ViewBox, bbox_union
 
@@ -34,28 +35,30 @@ def _validate_layout_parameters(
     title_size: float | None,
 ) -> None:
     if direction not in ("vertical", "horizontal"):
-        raise ValueError("direction must be 'vertical' or 'horizontal'")
+        raise ValidationError("direction must be 'vertical' or 'horizontal'")
     if len(position) != 2 or not all(math.isfinite(value) for value in position):
-        raise ValueError("position must contain two finite numbers")
+        raise ValidationError("position must contain two finite numbers")
     if len(size) != 2 or not all(math.isfinite(value) for value in size):
-        raise ValueError("size must contain two finite numbers")
+        raise ValidationError("size must contain two finite numbers")
     if not all(value > 0 for value in size):
-        raise ValueError("size values must be greater than zero")
+        raise ValidationError("size values must be greater than zero")
     if not math.isfinite(padding) or padding < 0:
-        raise ValueError("padding must be a finite, non-negative number")
+        raise ValidationError("padding must be a finite, non-negative number")
     if font_size is not None and (not math.isfinite(font_size) or font_size <= 0):
-        raise ValueError("font_size must be a finite, positive number")
+        raise ValidationError("font_size must be a finite, positive number")
     if title_size is not None and (not math.isfinite(title_size) or title_size <= 0):
-        raise ValueError("title_size must be a finite, positive number")
+        raise ValidationError("title_size must be a finite, positive number")
 
 
-def _validate_labels(labels: list[str], *, expected: int | None = None) -> None:
-    if not labels:
-        raise ValueError("labels must contain at least one label")
+def _validate_labels(
+    labels: list[str], *, expected: int | None = None, allow_empty: bool = False
+) -> None:
+    if not labels and not allow_empty:
+        raise ValidationError("labels must contain at least one label")
     if not all(isinstance(label, str) for label in labels):
         raise TypeError("labels must contain only strings")
     if expected is not None and len(labels) != expected:
-        raise ValueError(f"labels must contain exactly {expected} entries")
+        raise ValidationError(f"labels must contain exactly {expected} entries")
 
 
 def _with_stroke(bounds: BBox, border: bool) -> BBox:
@@ -246,7 +249,7 @@ def _build_gradient_legend(
     # Tick labels
     if labels is None:
         if num_ticks < 1:
-            raise ValueError("num_ticks must be at least 1")
+            raise ValidationError("num_ticks must be at least 1")
         if num_ticks == 1:
             tick_values = [(vmin + vmax) / 2]
         else:
@@ -254,7 +257,8 @@ def _build_gradient_legend(
                 vmin + i / (num_ticks - 1) * (vmax - vmin) for i in range(num_ticks)
             ]
         labels = [tick_format.format(v) for v in tick_values]
-    _validate_labels(labels)
+    # An explicit empty list renders the gradient bar with no tick labels.
+    _validate_labels(labels, allow_empty=True)
 
     rendered_bounds = [_with_stroke(BBox(x, y, w, h), border)]
 
@@ -362,7 +366,7 @@ def _build_discrete_legend(
         position, size, direction, padding, font_size, title_size
     )
     if not colors:
-        raise ValueError("colors must contain at least one color")
+        raise ValidationError("colors must contain at least one color")
     if not all(isinstance(color, str) for color in colors):
         raise TypeError("colors must contain only strings")
     _validate_labels(labels, expected=len(colors))
@@ -448,7 +452,7 @@ def resolve_legend_kind(
     if cat_pal is not None:
         return "categorical"
     if scale is None:
-        raise ValueError(
+        raise ValidationError(
             "Cannot auto-detect legend kind: no prior .heatmap() or "
             ".recolor_by_category() call. Pass kind='gradient', "
             "'discrete', or 'categorical' explicitly, or call a "
@@ -553,7 +557,7 @@ def _build_legend_layout(
 
     if kind == "gradient":
         if scale is None:
-            raise ValueError(
+            raise ValidationError(
                 "Cannot build gradient legend without a ColorScale. "
                 "Call .heatmap() first or pass kind='categorical'."
             )
@@ -592,7 +596,7 @@ def _build_legend_layout(
                 **shared,
             )
         if scale is None:
-            raise ValueError(
+            raise ValidationError(
                 "Cannot build discrete legend without a ColorScale. "
                 "Call .heatmap() first."
             )
@@ -620,7 +624,7 @@ def _build_legend_layout(
                 **shared,
             )
         if scale is None:
-            raise ValueError(
+            raise ValidationError(
                 "Cannot build categorical legend without a CategoricalPalette. "
                 "Call .recolor_by_category() first."
             )
@@ -635,4 +639,4 @@ def _build_legend_layout(
             **shared,
         )
 
-    raise ValueError(f"Unknown legend kind: {kind!r}")
+    raise ValidationError(f"Unknown legend kind: {kind!r}")

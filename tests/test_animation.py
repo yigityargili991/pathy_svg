@@ -43,9 +43,7 @@ class TestAnimate:
             '<path id="a"/><rect id="b"/><circle id="c"/>'
             "</svg>"
         )
-        result = doc.animate(
-            effect="sequential", duration=2.0, data_order=("c", "a")
-        )
+        result = doc.animate(effect="sequential", duration=2.0, data_order=("c", "a"))
         css = result.root.find(".//{http://www.w3.org/2000/svg}style").text
         assert css.index('id="c"') < css.index('id="a"')
         assert 'id="b"' not in css
@@ -62,17 +60,63 @@ class TestAnimate:
         css = result.root.find(".//{http://www.w3.org/2000/svg}style").text
         assert css.count("animation-delay:") == 1
         assert 'id="identified"' in css
-        assert "[id=\"None\"]" not in css
+        assert '[id="None"]' not in css
 
-    def test_sequential_with_no_identifiable_elements(self):
+    def test_sequential_with_no_identifiable_elements_animates_all(self):
         doc = SVGDocument.from_string(
             '<svg xmlns="http://www.w3.org/2000/svg"><path/><rect/></svg>'
         )
         result = doc.animate(effect="sequential")
-        css = result.root.find(".//{http://www.w3.org/2000/svg}style").text
+        root = result.root
+        style = root.find(".//{http://www.w3.org/2000/svg}style")
+        css = style.text
+        target_class = style.get("data-pathy-animation-class")
         assert "@keyframes pathy-seq" in css
-        assert "animation-delay:" not in css
+        assert "animation: pathy-seq" in css
+        assert target_class
+        assert f".{target_class} {{" in css
+        for tag in ("path", "rect"):
+            elem = root.find(f".//{{http://www.w3.org/2000/svg}}{tag}")
+            assert target_class in (elem.get("class") or "").split()
+        # The fallback must be scoped: no global tag selectors.
         assert "path, rect" not in css
+
+    def test_sequential_with_empty_data_order_animates_all(self):
+        doc = SVGDocument.from_string(
+            '<svg xmlns="http://www.w3.org/2000/svg"><path id="a"/><rect id="b"/></svg>'
+        )
+        result = doc.animate(effect="sequential", data_order=[])
+        style = result.root.find(".//{http://www.w3.org/2000/svg}style")
+        css = style.text
+        target_class = style.get("data-pathy-animation-class")
+        assert "animation: pathy-seq" in css
+        assert target_class
+        assert f".{target_class} {{" in css
+        assert "animation-delay:" not in css
+        assert 'id="a"' not in css
+
+    def test_sequential_fallback_skips_resource_geometry(self):
+        doc = SVGDocument.from_string(
+            '<svg xmlns="http://www.w3.org/2000/svg">'
+            '<defs><pattern id="p"><rect width="1" height="1"/></pattern>'
+            '<clipPath id="c"><circle r="1"/></clipPath></defs>'
+            "<path/></svg>"
+        )
+        result = doc.animate(effect="sequential")
+        root = result.root
+        style = root.find(".//{http://www.w3.org/2000/svg}style")
+        target_class = style.get("data-pathy-animation-class")
+        assert target_class
+        pattern_rect = root.find(
+            ".//{http://www.w3.org/2000/svg}pattern/{http://www.w3.org/2000/svg}rect"
+        )
+        clip_circle = root.find(
+            ".//{http://www.w3.org/2000/svg}clipPath/{http://www.w3.org/2000/svg}circle"
+        )
+        for resource in (pattern_rect, clip_circle):
+            assert target_class not in (resource.get("class") or "").split()
+        path = root.find(".//{http://www.w3.org/2000/svg}path")
+        assert target_class in (path.get("class") or "").split()
 
     def test_immutability(self, simple_svg_path):
         doc = SVGDocument.from_file(simple_svg_path)
@@ -301,14 +345,12 @@ class TestInjectAnimationDirect:
         svg = (
             '<svg xmlns="http://www.w3.org/2000/svg"><defs><style>'
             f"@keyframes {user_keyframe} {{ from {{ opacity: .2; }} }}"
-            "</style></defs><path id=\"visible\"/></svg>"
+            '</style></defs><path id="visible"/></svg>'
         )
         tree = etree.ElementTree(etree.fromstring(svg.encode()))
 
         inject_animation(tree, effect=effect)
-        first_styles = tree.getroot().findall(
-            ".//{http://www.w3.org/2000/svg}style"
-        )
+        first_styles = tree.getroot().findall(".//{http://www.w3.org/2000/svg}style")
         first_generated = next(
             style
             for style in first_styles
@@ -317,9 +359,7 @@ class TestInjectAnimationDirect:
         first_name = first_generated.xpath("string(@*[local-name()='keyframe'])")
 
         inject_animation(tree, effect=effect)
-        second_styles = tree.getroot().findall(
-            ".//{http://www.w3.org/2000/svg}style"
-        )
+        second_styles = tree.getroot().findall(".//{http://www.w3.org/2000/svg}style")
         second_generated = next(
             style
             for style in second_styles
@@ -361,9 +401,7 @@ class TestInjectAnimationDirect:
         assert len(generated) == 1
         assert "@keyframes user-marker" in styles[0].text
         assert styles[0].get("data-pathy-animation-class") == "user-marker"
-        assert path.get("class").startswith(
-            "user-marker pathy-animation-target kept "
-        )
+        assert path.get("class").startswith("user-marker pathy-animation-target kept ")
         assert path.get("class").split().count("user-marker") == 1
         assert path.get("class").split().count("pathy-animation-target") == 1
         assert generated[0].get("data-pathy-animation-class") == (
@@ -406,10 +444,13 @@ class TestInjectAnimationDirect:
         )
         assert path.get("class").split().count(generated_class) == 1
         assert path.get("class").split()[-2:] == ["kept", generated_class]
-        assert path.xpath(
-            f"string(@*[namespace-uri()='{private_ns}' "
-            f"and local-name()='class-owner-{suffix}'])"
-        ) == generated_class
+        assert (
+            path.xpath(
+                f"string(@*[namespace-uri()='{private_ns}' "
+                f"and local-name()='class-owner-{suffix}'])"
+            )
+            == generated_class
+        )
         for number in range(1, suffix):
             marker_name = "class-owner" if number == 1 else f"class-owner-{number}"
             assert root.get(f"{{{private_ns}}}{marker_name}") == "user-spoof"

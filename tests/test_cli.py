@@ -2,10 +2,11 @@
 
 import csv
 
+import click
 import pytest
 from click.testing import CliRunner
 
-from pathy_svg.cli import main, _read_data, _read_csv_data, _read_ids
+from pathy_svg.cli import _read_csv_data, _read_data, _read_ids, main
 
 
 @pytest.fixture
@@ -254,7 +255,7 @@ class TestReadData:
             w = csv.writer(f)
             w.writerow(["wrong_col", "val"])
             w.writerow(["a", "1.0"])
-        with pytest.raises(Exception):
+        with pytest.raises(click.BadParameter, match="'id' not found"):
             _read_data(str(p), "id", "val")
 
     def test_read_data_missing_value_col(self, tmp_path):
@@ -263,7 +264,7 @@ class TestReadData:
             w = csv.writer(f)
             w.writerow(["id", "wrong_col"])
             w.writerow(["a", "1.0"])
-        with pytest.raises(Exception):
+        with pytest.raises(click.BadParameter, match="'val' not found"):
             _read_data(str(p), "id", "val")
 
 

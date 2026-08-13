@@ -18,7 +18,7 @@ from pathy_svg._constants import (
 )
 from pathy_svg._css import set_style_property
 from pathy_svg._css import style_property as _style_property
-from pathy_svg.exceptions import ColorScaleError
+from pathy_svg.exceptions import ColorScaleError, ValidationError
 from pathy_svg.themes import CategoricalPalette, ColorScale
 
 _T = TypeVar("_T")
@@ -33,11 +33,11 @@ def _validate_opacity(opacity: object) -> float | None:
     try:
         normalized = float(opacity)
     except (OverflowError, TypeError, ValueError) as exc:
-        raise ValueError(
+        raise ValidationError(
             "opacity must be a real number between 0.0 and 1.0"
         ) from exc
     if not isfinite(normalized) or not 0.0 <= normalized <= 1.0:
-        raise ValueError("opacity must be a real number between 0.0 and 1.0")
+        raise ValidationError("opacity must be a real number between 0.0 and 1.0")
     return normalized
 
 
@@ -54,12 +54,12 @@ def _matched_items_ancestor_first(
     return [(key, value, elem) for _, _, key, value, elem in matched]
 
 
-def _protect_explicit_match(
-    element: etree._Element, protected_paths: set[str]
-) -> None:
+def _protect_explicit_match(element: etree._Element, protected_paths: set[str]) -> None:
     """Protect a mapped element, including colorable descendants of groups."""
     if local_tag(element.tag) == "g":
-        protected_paths.update(_stable_element_path(child) for child in _colorable_children(element))
+        protected_paths.update(
+            _stable_element_path(child) for child in _colorable_children(element)
+        )
     elif local_tag(element.tag) in COLORABLE_TAGS:
         protected_paths.add(_stable_element_path(element))
 
@@ -104,6 +104,63 @@ def _set_fill_on_group(element: etree._Element, color: str, **kwargs):
     """Set fill on all colorable children of a group."""
     for child in _colorable_children(element):
         _set_fill(child, color, **kwargs)
+
+
+def _library_generated(element: etree._Element) -> bool:
+    """Whether pathy_svg itself injected the element into the document.
+
+    Library-generated elements (legend internals, annotation backgrounds,
+    guides, ...) are marked with reserved ``pathy-`` prefixed ids or
+    ``data-pathy-`` attributes. Only the element's own markers are
+    consulted — never its ancestors' — because composition wraps ordinary
+    user geometry in ``pathy-panel-*`` groups.
+    """
+    elem_id = element.get("id")
+    if elem_id is not None and elem_id.startswith("pathy-"):
+        return True
+    return any(
+        isinstance(name, str) and name.startswith("data-pathy-")
+        for name in element.attrib
+    )
+
+
+def _color_missing_indexed(
+    tree: etree._ElementTree,
+    data: dict[str, object],
+    id_to_elem: dict[str, etree._Element],
+    protected_paths: set[str],
+    na_color: str,
+    fill_kwargs: dict[str, object],
+) -> None:
+    """Paint indexed rendered elements absent from *data* with *na_color*.
+
+    Only data-addressable elements (those present in *id_to_elem*) are
+    repainted; ID-less geometry and elements injected by the library
+    itself (legends, annotations, ...) are left untouched.
+    """
+    rendered_paths = {
+        _stable_element_path(elem)
+        for elem in rendered_colorable_elements(tree.getroot())
+    }
+
+    def _sweep(elem: etree._Element) -> None:
+        path = _stable_element_path(elem)
+        if path in protected_paths or path not in rendered_paths:
+            return
+        if _library_generated(elem) or _has_explicit_none_fill(elem):
+            return
+        _set_fill(elem, na_color, **fill_kwargs)
+
+    for eid, elem in id_to_elem.items():
+        if eid in data:
+            continue
+        if _library_generated(elem):
+            continue
+        if local_tag(elem.tag) == "g":
+            for child in _colorable_children(elem):
+                _sweep(child)
+        else:
+            _sweep(elem)
 
 
 def _has_explicit_none_fill(element: etree._Element) -> bool:
@@ -189,12 +246,9 @@ def apply_heatmap(
 
     # Color paths with no data
     if color_missing:
-        for elem in rendered_colorable_elements(tree.getroot()):
-            if (
-                _stable_element_path(elem) not in protected_paths
-                and not _has_explicit_none_fill(elem)
-            ):
-                _set_fill(elem, na_color, **fill_kwargs)
+        _color_missing_indexed(
+            tree, data, id_to_elem, protected_paths, na_color, fill_kwargs
+        )
 
     return scale
 
@@ -235,6 +289,7 @@ def apply_categorical(
     na_color: str = "#cccccc",
     opacity: float | None = None,
     preserve_stroke: bool = True,
+    color_missing: bool = True,
     id_to_elem: dict[str, etree._Element] | None = None,
 ) -> CategoricalPalette:
     """Apply categorical coloring to SVG elements. Modifies tree in-place.
@@ -248,6 +303,7 @@ def apply_categorical(
             represented in *data*.
         opacity: Opacity in the range 0–1. ``None`` preserves existing opacity.
         preserve_stroke: Whether to preserve original stroke styling.
+        color_missing: Whether to color paths that are not in the data with `na_color`.
 
     Returns:
         The CategoricalPalette object used for coloring.
@@ -268,12 +324,10 @@ def apply_categorical(
         else:
             _set_fill(elem, color, **fill_kwargs)
 
-    for elem in rendered_colorable_elements(tree.getroot()):
-        if (
-            _stable_element_path(elem) not in protected_paths
-            and not _has_explicit_none_fill(elem)
-        ):
-            _set_fill(elem, na_color, **fill_kwargs)
+    if color_missing and data:
+        _color_missing_indexed(
+            tree, data, id_to_elem, protected_paths, na_color, fill_kwargs
+        )
 
     return cat_palette
 
@@ -319,7 +373,9 @@ def aggregate_by_group(
     elif agg in agg_funcs:
         func = agg_funcs[agg]
     else:
-        raise ValueError(f"Unknown aggregation: {agg!r}. Choose from {list(agg_funcs)}")
+        raise ValidationError(
+            f"Unknown aggregation: {agg!r}. Choose from {list(agg_funcs)}"
+        )
 
     result = {}
     for elem in tree.iter():

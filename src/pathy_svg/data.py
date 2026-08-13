@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import bisect
+from collections.abc import Mapping, Sequence
+from typing import Any
+
+from pathy_svg.exceptions import DataMappingError, ValidationError
 
 
-def normalize_values(data: dict[str, float]) -> dict[str, float]:
+def normalize_values(data: Mapping[str, float]) -> dict[str, float]:
     """Min-max normalise a dict of float values to the range [0, 1].
 
     If all values are identical the function returns all zeros to avoid division-by-zero.
@@ -31,7 +35,7 @@ def normalize_values(data: dict[str, float]) -> dict[str, float]:
     return {k: (v - lo) / rng for k, v in data.items()}
 
 
-def bin_values(data: dict[str, float], breaks: list[float]) -> dict[str, int]:
+def bin_values(data: Mapping[str, float], breaks: Sequence[float]) -> dict[str, int]:
     """Assign each value in data to a bin index defined by breaks.
 
     Bin indices are 0-based. A value ``v`` falls into bin ``i`` when
@@ -53,7 +57,7 @@ def bin_values(data: dict[str, float], breaks: list[float]) -> dict[str, int]:
         # {"a": 0, "b": 1, "c": 2}
     """
     if len(breaks) < 2:
-        raise ValueError("breaks must contain at least two values")
+        raise ValidationError("breaks must contain at least two values")
     sorted_breaks = sorted(breaks)
     n_bins = len(sorted_breaks) - 1
     return {
@@ -62,7 +66,7 @@ def bin_values(data: dict[str, float], breaks: list[float]) -> dict[str, int]:
     }
 
 
-def dataframe_to_dict(df, id_col: str, value_col: str) -> dict[str, float]:
+def dataframe_to_dict(df: Any, id_col: str, value_col: str) -> dict[str, float]:
     """Extract a data dict from a Pandas DataFrame.
 
     Args:
@@ -85,9 +89,9 @@ def dataframe_to_dict(df, id_col: str, value_col: str) -> dict[str, float]:
     import pandas as pd
 
     if id_col not in df.columns:
-        raise ValueError(f"Column '{id_col}' not found in DataFrame")
+        raise DataMappingError(f"Column '{id_col}' not found in DataFrame")
     if value_col not in df.columns:
-        raise ValueError(f"Column '{value_col}' not found in DataFrame")
+        raise DataMappingError(f"Column '{value_col}' not found in DataFrame")
     numeric = pd.to_numeric(df[value_col], errors="coerce")
     valid = numeric.dropna()
     return dict(zip(df.loc[valid.index, id_col].astype(str), valid))

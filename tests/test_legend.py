@@ -1,6 +1,7 @@
 """Tests for pathy_svg.legend module."""
 
 import pytest
+from lxml import etree
 
 from pathy_svg.document import SVGDocument
 from pathy_svg.legend import (
@@ -51,6 +52,13 @@ class TestGradientLegend:
         g = result._find_by_id("pathy-legend")
         texts = g.findall(".//{http://www.w3.org/2000/svg}text")
         assert len(texts) >= 1
+
+    def test_empty_labels_render_bar_without_ticks(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        result = doc.heatmap({"stomach": 0.2, "liver": 0.8}).legend(labels=[])
+        g = result._find_by_id("pathy-legend")
+        assert g.find(".//{http://www.w3.org/2000/svg}linearGradient") is not None
+        assert g.findall(".//{http://www.w3.org/2000/svg}text") == []
 
     def test_legend_immutability(self, simple_svg_path):
         doc = SVGDocument.from_file(simple_svg_path)
@@ -172,6 +180,31 @@ class TestLegendChaining:
         text = "".join(legends[0].itertext())
         assert "New" in text
         assert "Old" not in text
+
+    def test_user_viewbox_edit_between_legend_calls_survives(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        once = doc.heatmap({"stomach": 0.5}).legend()
+
+        root = once.root_copy()
+        root.set("viewBox", "0 0 300 300")
+        edited = SVGDocument.from_tree(etree.ElementTree(root))
+        twice = edited.heatmap({"stomach": 0.5}).legend()
+
+        _, _, width, height = (
+            float(value) for value in twice.root.get("viewBox").split()
+        )
+        # The user's 300x300 canvas must be the expansion base — a rollback
+        # to the first call's stored canvas would yield a much smaller box.
+        assert height == pytest.approx(300)
+        assert width > 300
+
+    def test_unchanged_canvas_is_still_restored_between_calls(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        once = doc.heatmap({"stomach": 0.5}).legend()
+        twice = once.legend()
+        assert twice.root.get("viewBox") == once.root.get("viewBox")
+        assert twice.root.get("width") == once.root.get("width")
+        assert twice.root.get("height") == once.root.get("height")
 
     def test_generated_legend_is_marked(self, simple_svg_path):
         doc = SVGDocument.from_file(simple_svg_path)
@@ -320,6 +353,24 @@ class TestBuildGradientLegendDirect:
         text_values = [t.text for t in texts]
         assert "Low" in text_values
         assert "High" in text_values
+
+    def test_empty_labels_render_bar_without_ticks(self):
+        scale = self._make_scale()
+        vb = ViewBox(0, 0, 500, 400)
+        g = build_gradient_legend(scale, vb, labels=[])
+        assert g.findall(".//{http://www.w3.org/2000/svg}text") == []
+        bars = [
+            r
+            for r in g.findall(".//{http://www.w3.org/2000/svg}rect")
+            if r.get("fill", "").startswith("url(#")
+        ]
+        assert len(bars) == 1
+
+    def test_non_string_labels_raise(self):
+        scale = self._make_scale()
+        vb = ViewBox(0, 0, 500, 400)
+        with pytest.raises(TypeError, match="only strings"):
+            build_gradient_legend(scale, vb, labels=["ok", 1])
 
     def test_horizontal_direction(self):
         scale = self._make_scale()

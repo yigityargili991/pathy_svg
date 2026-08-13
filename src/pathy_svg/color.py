@@ -7,6 +7,8 @@ import re
 
 import matplotlib.colors as _mcolors
 
+from pathy_svg.exceptions import ValidationError
+
 
 def hex_to_rgb(hex_str: str) -> tuple[int, int, int]:
     """Convert a CSS hex colour string to an (R, G, B) int tuple.
@@ -32,11 +34,11 @@ def hex_to_rgb(hex_str: str) -> tuple[int, int, int]:
     if len(h) == 3:
         h = "".join(c * 2 for c in h)
     if len(h) != 6:
-        raise ValueError(f"Invalid hex colour: {hex_str!r}")
+        raise ValidationError(f"Invalid hex colour: {hex_str!r}")
     try:
         r, g, b = bytes.fromhex(h)
     except ValueError as exc:
-        raise ValueError(f"Invalid hex colour: {hex_str!r}") from exc
+        raise ValidationError(f"Invalid hex colour: {hex_str!r}") from exc
     return (r, g, b)
 
 
@@ -60,7 +62,7 @@ def rgb_to_hex(r: int, g: int, b: int) -> str:
     """
     for name, val in (("r", r), ("g", g), ("b", b)):
         if not (0 <= val <= 255):
-            raise ValueError(f"Channel {name} out of range [0, 255]: {val}")
+            raise ValidationError(f"Channel {name} out of range [0, 255]: {val}")
     return f"#{r:02x}{g:02x}{b:02x}"
 
 
@@ -79,7 +81,7 @@ def interpolate_color(color1: str, color2: str, t: float) -> str:
         ValueError: If t is not in [0, 1].
     """
     if not (0.0 <= t <= 1.0):
-        raise ValueError(f"Interpolation factor t must be in [0, 1], got {t}")
+        raise ValidationError(f"Interpolation factor t must be in [0, 1], got {t}")
     r1, g1, b1 = hex_to_rgb(color1)
     r2, g2, b2 = hex_to_rgb(color2)
     r = round(r1 + (r2 - r1) * t)
@@ -123,7 +125,7 @@ def parse_svg_color(color_str: str) -> tuple[int, int, int]:
         r, g, b = int(m.group(1)), int(m.group(2)), int(m.group(3))
         for ch in (r, g, b):
             if not (0 <= ch <= 255):
-                raise ValueError(f"RGB channel out of range [0, 255]: {ch}")
+                raise ValidationError(f"RGB channel out of range [0, 255]: {ch}")
         return (r, g, b)
 
     m = re.fullmatch(
@@ -146,4 +148,4 @@ def parse_svg_color(color_str: str) -> tuple[int, int, int]:
     except ValueError:
         pass
 
-    raise ValueError(f"Unrecognised SVG colour: {color_str!r}")
+    raise ValidationError(f"Unrecognised SVG colour: {color_str!r}")

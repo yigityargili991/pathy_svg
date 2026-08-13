@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
+from typing import Any
+
+from typing_extensions import Self
+
 from pathy_svg._constants import Layout
 from pathy_svg.diff import DiffMode
 
@@ -13,16 +18,16 @@ class DiffMixin:
 
     def diff(
         self,
-        baseline: dict[str, float],
-        treatment: dict[str, float],
+        baseline: Mapping[str, float],
+        treatment: Mapping[str, float],
         *,
         mode: DiffMode = "delta",
-        palette: str | list[str] = "coolwarm",
+        palette: str | Sequence[str] = "coolwarm",
         vcenter: float | None = 0,
         vmin: float | None = None,
         vmax: float | None = None,
-        **heatmap_kwargs,
-    ):
+        **heatmap_kwargs: Any,
+    ) -> Self:
         """Compute per-path differences and apply as a heatmap.
 
         Args:
@@ -52,13 +57,13 @@ class DiffMixin:
 
     def compare(
         self,
-        datasets: dict[str, dict[str, float]],
+        datasets: Mapping[str, Mapping[str, float]],
         *,
-        palette: str | list[str] = "YlOrRd",
+        palette: str | Sequence[str] = "YlOrRd",
         layout: Layout = "horizontal",
         spacing: float = 20,
-        **heatmap_kwargs,
-    ):
+        **heatmap_kwargs: Any,
+    ) -> Self:
         """Create side-by-side comparison of multiple datasets.
 
         Args:

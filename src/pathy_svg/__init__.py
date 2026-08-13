@@ -239,17 +239,19 @@ layered.save("layered.svg")
 Full source: [`examples/us_states_workflow.py`](https://github.com/yigityargili991/pathy_svg/blob/main/examples/us_states_workflow.py)
 """
 
-__version__ = "0.3.1"
+__version__ = "0.4.0"
 
 from pathy_svg._constants import Layout
 from pathy_svg.animation import AnimationEffect
 from pathy_svg.annotations import Placement, TooltipMethod
 from pathy_svg.color import hex_to_rgb, interpolate_color, parse_svg_color, rgb_to_hex
+from pathy_svg.composition import CompositionResult, PanelComposition, compose_svgs
 from pathy_svg.data import bin_values, dataframe_to_dict, normalize_values
 from pathy_svg.diff import DiffMode
 from pathy_svg.document import SVGDocument
 from pathy_svg.exceptions import (
     ColorScaleError,
+    CompositionError,
     DataMappingError,
     ExportError,
     PathNotFoundError,
@@ -285,6 +287,8 @@ __all__ = [
     "CategoricalPalette",
     "ColorScale",
     "ColorScaleError",
+    "CompositionError",
+    "CompositionResult",
     "CustomPatternSpec",
     "DataMappingError",
     "DiffMode",
@@ -294,6 +298,7 @@ __all__ = [
     "LayerManager",
     "Layout",
     "LegendKind",
+    "PanelComposition",
     "PathInfo",
     "PathNotFoundError",
     "PathySVGError",
@@ -308,6 +313,7 @@ __all__ = [
     "ViewBox",
     "__version__",
     "bin_values",
+    "compose_svgs",
     "dataframe_to_dict",
     "extract_styles",
     "geographic",

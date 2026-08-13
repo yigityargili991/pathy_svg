@@ -5,10 +5,12 @@ from __future__ import annotations
 import copy
 import re
 import urllib.request
+from collections.abc import Iterable, Mapping
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from lxml import etree
+from typing_extensions import Self
 
 from pathy_svg._constants import (
     SVG_NS,
@@ -16,7 +18,7 @@ from pathy_svg._constants import (
     build_id_index,
     get_secure_parser,
 )
-from pathy_svg.exceptions import PathNotFoundError, SVGParseError
+from pathy_svg.exceptions import PathNotFoundError, SVGParseError, ValidationError
 from pathy_svg.transform import (
     BBox,
     ViewBox,
@@ -27,6 +29,10 @@ from pathy_svg.transform import (
 
 if TYPE_CHECKING:
     from os import PathLike
+
+    from pathy_svg.inspect import PathInfo, ValidationResult
+
+_ValueT = TypeVar("_ValueT")
 
 
 class SVGDocumentBase:
@@ -71,7 +77,7 @@ class SVGDocumentBase:
     @classmethod
     def _from_owned_tree(
         cls, tree: etree._ElementTree, *, _nsmap: dict[str, str] | None = None
-    ):
+    ) -> Self:
         """Build from a fresh internal tree, honoring custom subclass setup."""
         if cls.__init__ is SVGDocumentBase.__init__ and cls.__new__ is object.__new__:
             instance = cls.__new__(cls)
@@ -85,7 +91,7 @@ class SVGDocumentBase:
         return cls(tree)
 
     @classmethod
-    def from_file(cls, path: str | PathLike):
+    def from_file(cls, path: str | PathLike) -> Self:
         """Load from a local SVG file.
 
         Args:
@@ -108,7 +114,7 @@ class SVGDocumentBase:
         return cls._from_owned_tree(tree)
 
     @classmethod
-    def from_string(cls, svg: str | bytes):
+    def from_string(cls, svg: str | bytes) -> Self:
         """Parse raw SVG markup.
 
         Args:
@@ -129,7 +135,7 @@ class SVGDocumentBase:
         return cls._from_owned_tree(tree)
 
     @classmethod
-    def from_url(cls, url: str, *, timeout: float = 10.0):
+    def from_url(cls, url: str, *, timeout: float = 10.0) -> Self:
         """Fetch and parse a remote SVG.
 
         Args:
@@ -140,10 +146,27 @@ class SVGDocumentBase:
             A new SVGDocument instance parsed from the response.
         """
         if not url.startswith(("http://", "https://")):
-            raise ValueError("Only http and https URLs are supported")
+            raise ValidationError("Only http and https URLs are supported")
         with urllib.request.urlopen(url, timeout=timeout) as resp:
             data = resp.read()
         return cls.from_string(data)
+
+    @classmethod
+    def from_tree(cls, tree: etree._ElementTree, *, copy: bool = True) -> Self:
+        """Build a document from an lxml element tree.
+
+        Args:
+            tree: Parsed SVG element tree.
+            copy: Copy the input tree when true (the default). When false,
+                ownership is transferred to the document and the caller must
+                not mutate the tree afterward.
+
+        Returns:
+            A new immutable document.
+        """
+        if not isinstance(copy, bool):
+            raise ValidationError("copy must be a boolean")
+        return cls(tree) if copy else cls._from_owned_tree(tree)
 
     @property
     def root(self) -> etree._Element:
@@ -153,7 +176,35 @@ class SVGDocumentBase:
         mutating it does not change this immutable document. Use the document's
         transformation methods to create a modified copy.
         """
+        return self.root_copy()
+
+    def root_copy(self) -> etree._Element:
+        """Return an independent copy of the root ``<svg>`` element.
+
+        This is the explicit form of :attr:`root`. Mutating the returned lxml
+        element never changes the document.
+        """
         return copy.deepcopy(self._root)
+
+    def xpath(
+        self,
+        expression: str,
+        *,
+        namespaces: Mapping[str, str] | None = None,
+        **variables: object,
+    ) -> Any:
+        """Evaluate XPath without exposing mutable elements from the document.
+
+        Element results are copied individually; scalar XPath results are
+        returned unchanged. This is cheaper than copying the entire root when
+        only a subset of the document is needed.
+        """
+        result = self._tree.xpath(
+            expression,
+            namespaces=dict(namespaces) if namespaces is not None else None,
+            **variables,
+        )
+        return _snapshot_xpath_result(result)
 
     @property
     def _root(self) -> etree._Element:
@@ -238,8 +289,8 @@ class SVGDocumentBase:
         return build_attr_index(self._tree, key_attr)
 
     def _resolve_key_attr(
-        self, data: dict, key_attr: str
-    ) -> tuple[dict, dict[str, etree._Element]]:
+        self, data: Mapping[str, _ValueT], key_attr: str
+    ) -> tuple[dict[str, _ValueT], dict[str, etree._Element]]:
         """Expand *data* and build an element index for the given attribute.
 
         For ``key_attr="id"`` this is a no-op: returns (*data*, id-index).
@@ -250,7 +301,7 @@ class SVGDocumentBase:
         Unmatched elements are also included in the index (for color_missing).
         """
         if key_attr == "id":
-            return data, self._element_index
+            return dict(data), self._element_index
 
         multi: dict[str, list[etree._Element]] = {}
         for elem in self._tree.iter():
@@ -258,7 +309,7 @@ class SVGDocumentBase:
             if val:
                 multi.setdefault(val, []).append(elem)
 
-        expanded_data: dict = {}
+        expanded_data: dict[str, _ValueT] = {}
         expanded_index: dict[str, etree._Element] = {}
         matched_keys: set[str] = set()
         for attr_val, elems in multi.items():
@@ -307,19 +358,19 @@ class SVGDocumentBase:
         """Get the centroid of an element by ID."""
         return centroid_of_bbox(self.bbox(element_id))
 
-    def inspect_paths(self):
+    def inspect_paths(self) -> list[PathInfo]:
         """Return detailed info about all colorable elements."""
         from pathy_svg.inspect import inspect_paths
 
         return inspect_paths(self._tree, self._nsmap)
 
-    def validate_ids(self, ids):
+    def validate_ids(self, ids: Iterable[str]) -> ValidationResult:
         """Check which data IDs match elements in the SVG."""
         from pathy_svg.inspect import validate_ids
 
         return validate_ids(self._tree, ids)
 
-    def _clone(self):
+    def _clone(self) -> Self:
         """Return an independent copy of this document."""
         return self._with_owned_tree(
             copy.deepcopy(self._tree),
@@ -328,7 +379,7 @@ class SVGDocumentBase:
 
     def _with_owned_tree(
         self, tree: etree._ElementTree, *, _nsmap: dict[str, str] | None = None
-    ):
+    ) -> Self:
         """Deep-copy instance state while adopting a fresh internal tree.
 
         Custom subclass state must support Python's ``copy.deepcopy`` protocol.
@@ -369,7 +420,7 @@ def _parse_dimension(val: str | None) -> float | None:
     """Parse a dimension like '500', '500px', '50%' into a float (ignoring units)."""
     if val is None:
         return None
-    match = re.match(r"([+-]?\d*\.?\d+)", val.strip())
+    match = re.match(r"([+-]?\d*\.?\d+(?:[eE][+-]?\d+)?)", val.strip())
     return float(match.group(1)) if match else None
 
 
@@ -383,3 +434,16 @@ def _detect_namespace_map(root: etree._Element) -> dict[str, str]:
     if "svg" not in nsmap and SVG_NS not in nsmap.values():
         nsmap["svg"] = SVG_NS
     return nsmap
+
+
+def _snapshot_xpath_result(result: Any) -> Any:
+    """Copy element-valued XPath results while retaining scalar results."""
+    if isinstance(result, etree._Element):
+        return copy.deepcopy(result)
+    if isinstance(result, etree._ElementUnicodeResult):
+        return str(result)
+    if isinstance(result, list):
+        return [_snapshot_xpath_result(item) for item in result]
+    if isinstance(result, tuple):
+        return tuple(_snapshot_xpath_result(item) for item in result)
+    return result

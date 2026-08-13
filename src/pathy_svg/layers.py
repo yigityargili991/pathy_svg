@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from typing import TYPE_CHECKING
+from collections.abc import Callable, Sequence
+from typing import Generic, TypeVar
 
-if TYPE_CHECKING:
-    from pathy_svg.document import SVGDocument
+from pathy_svg.exceptions import ValidationError
+
+_DocumentT = TypeVar("_DocumentT")
 
 
-class LayerManager:
+class LayerManager(Generic[_DocumentT]):
     """Immutable layer composition manager.
 
     Each layer is a named function that transforms an SVGDocument.
@@ -20,15 +21,18 @@ class LayerManager:
 
     def __init__(
         self,
-        base: SVGDocument,
-        _layers: list[tuple[str, Callable, bool]] | None = None,
-    ):
+        base: _DocumentT,
+        _layers: list[tuple[str, Callable[[_DocumentT], _DocumentT], bool]]
+        | None = None,
+    ) -> None:
         self._base = base
         self._layers = list(_layers) if _layers is not None else []
 
     def _copy(
-        self, layers: list[tuple[str, Callable, bool]] | None = None
-    ) -> LayerManager:
+        self,
+        layers: list[tuple[str, Callable[[_DocumentT], _DocumentT], bool]]
+        | None = None,
+    ) -> LayerManager[_DocumentT]:
         return LayerManager(self._base, layers if layers is not None else self._layers)
 
     def _find(self, name: str) -> int:
@@ -45,13 +49,15 @@ class LayerManager:
     def visible(self) -> dict[str, bool]:
         return {n: v for n, _, v in self._layers}
 
-    def add(self, name: str, fn: Callable[[SVGDocument], SVGDocument]) -> LayerManager:
+    def add(
+        self, name: str, fn: Callable[[_DocumentT], _DocumentT]
+    ) -> LayerManager[_DocumentT]:
         if self._find(name) >= 0:
-            raise ValueError(f"Layer '{name}' already exists")
+            raise ValidationError(f"Layer '{name}' already exists")
         new_layers = self._layers + [(name, fn, True)]
         return self._copy(new_layers)
 
-    def hide(self, name: str) -> LayerManager:
+    def hide(self, name: str) -> LayerManager[_DocumentT]:
         idx = self._find(name)
         if idx < 0:
             raise KeyError(f"Layer '{name}' not found")
@@ -60,7 +66,7 @@ class LayerManager:
         new_layers[idx] = (n, fn, False)
         return self._copy(new_layers)
 
-    def show(self, name: str) -> LayerManager:
+    def show(self, name: str) -> LayerManager[_DocumentT]:
         idx = self._find(name)
         if idx < 0:
             raise KeyError(f"Layer '{name}' not found")
@@ -69,17 +75,17 @@ class LayerManager:
         new_layers[idx] = (n, fn, True)
         return self._copy(new_layers)
 
-    def remove(self, name: str) -> LayerManager:
+    def remove(self, name: str) -> LayerManager[_DocumentT]:
         idx = self._find(name)
         if idx < 0:
             raise KeyError(f"Layer '{name}' not found")
         new_layers = [layer for layer in self._layers if layer[0] != name]
         return self._copy(new_layers)
 
-    def reorder(self, names: list[str]) -> LayerManager:
+    def reorder(self, names: Sequence[str]) -> LayerManager[_DocumentT]:
         current_names = set(self.names)
         if set(names) != current_names or len(names) != len(self._layers):
-            raise ValueError(
+            raise ValidationError(
                 f"reorder() must contain exactly the same layer names. "
                 f"Expected {sorted(current_names)}, got {sorted(names)}"
             )
@@ -87,7 +93,7 @@ class LayerManager:
         new_layers = [lookup[n] for n in names]
         return self._copy(new_layers)
 
-    def flatten(self) -> SVGDocument:
+    def flatten(self) -> _DocumentT:
         """Apply all visible layers in order and return the result."""
         doc = self._base._clone()
         for name, fn, vis in self._layers:

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Collection
+from collections.abc import Callable, Collection, Mapping, Sequence
 from typing import TYPE_CHECKING
+
+from typing_extensions import Self
 
 if TYPE_CHECKING:
     from pathy_svg.gradient import GradientSpec
@@ -17,12 +19,12 @@ class StyleMixin:
 
     def gradient_fill(
         self,
-        gradients: dict[str, GradientSpec],
+        gradients: Mapping[str, GradientSpec],
         *,
         opacity: float | None = None,
         preserve_stroke: bool = True,
         key_attr: str = "id",
-    ):
+    ) -> Self:
         """Apply gradient fills to elements.
 
         Args:
@@ -49,12 +51,12 @@ class StyleMixin:
 
     def pattern_fill(
         self,
-        patterns: dict[str, str | PatternSpec],
+        patterns: Mapping[str, str | PatternSpec],
         *,
         opacity: float | None = None,
         preserve_stroke: bool = True,
         key_attr: str = "id",
-    ):
+    ) -> Self:
         """Apply pattern fills to elements.
 
         Args:
@@ -81,7 +83,7 @@ class StyleMixin:
 
     def stroke_map(
         self,
-        data: dict[str, float],
+        data: Mapping[str, float],
         *,
         width_range: tuple[float, float] | None = (1.0, 5.0),
         palette: str | None = None,
@@ -91,7 +93,7 @@ class StyleMixin:
         na_width: float = 1.0,
         na_color: str | None = None,
         key_attr: str = "id",
-    ):
+    ) -> Self:
         """Map data to stroke width and/or color.
 
         Args:
@@ -135,7 +137,7 @@ class StyleMixin:
         dim_opacity: float = 0.2,
         desaturate: bool = True,
         key_attr: str = "id",
-    ):
+    ) -> Self:
         """Highlight specified elements, dim all others.
 
         Args:
@@ -163,19 +165,19 @@ class StyleMixin:
 
     def heatmap_groups(
         self,
-        data: dict[str, float],
+        data: Mapping[str, float],
         *,
         agg: str | Callable[[list[float]], float] = "mean",
-        palette: str | list[str] = "RdYlBu_r",
+        palette: str | Sequence[str] = "RdYlBu_r",
         vmin: float | None = None,
         vmax: float | None = None,
         vcenter: float | None = None,
         na_color: str = "#cccccc",
-        breaks: list[float] | None = None,
+        breaks: Sequence[float] | None = None,
         opacity: float | None = None,
         preserve_stroke: bool = True,
         key_attr: str = "id",
-    ):
+    ) -> Self:
         """Color groups by aggregating their children's data values.
 
         Args:
@@ -200,19 +202,19 @@ class StyleMixin:
         clone = self._clone()
         group_data = aggregate_by_group(
             clone._tree,
-            data,
+            dict(data),
             agg=agg,
             key_attr=key_attr,
         )
         scale = apply_heatmap(
             clone._tree,
             group_data,
-            palette=palette,
+            palette=list(palette) if not isinstance(palette, str) else palette,
             vmin=vmin,
             vmax=vmax,
             vcenter=vcenter,
             na_color=na_color,
-            breaks=breaks,
+            breaks=list(breaks) if breaks is not None else None,
             opacity=opacity,
             preserve_stroke=preserve_stroke,
             color_missing=False,

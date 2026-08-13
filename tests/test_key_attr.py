@@ -128,7 +128,7 @@ class TestHeatmapKeyAttr:
         assert na_fill != "#aabbcc"
         assert nb_fill != "#aabbcc"
 
-    def test_color_missing_covers_elements_outside_custom_key_index(self):
+    def test_color_missing_limited_to_custom_key_index(self):
         doc = SVGDocument.from_string(PARTIAL_ATTR_SVG)
 
         result = doc.heatmap(
@@ -138,8 +138,8 @@ class TestHeatmapKeyAttr:
         )
 
         anonymous = result.root.xpath("//*[@data-marker='anonymous']")[0]
-        assert result._find_by_id("without-key").get("fill") == "#aabbcc"
-        assert anonymous.get("fill") == "#aabbcc"
+        assert result._find_by_id("without-key").get("fill") == "#fff"
+        assert anonymous.get("fill") == "#fff"
         assert result._find_by_id("unfilled").get("fill") == "none"
 
 
@@ -190,7 +190,7 @@ class TestRecolorByCategoryKeyAttr:
         assert result._find_by_id("na").get("fill") == "#ff0000"
         assert result._find_by_id("nb").get("fill") == "#ff0000"
 
-    def test_na_color_covers_elements_outside_custom_key_index(self):
+    def test_na_color_limited_to_custom_key_index(self):
         doc = SVGDocument.from_string(PARTIAL_ATTR_SVG)
 
         result = doc.recolor_by_category(
@@ -201,8 +201,8 @@ class TestRecolorByCategoryKeyAttr:
         )
 
         anonymous = result.root.xpath("//*[@data-marker='anonymous']")[0]
-        assert result._find_by_id("without-key").get("fill") == "#aabbcc"
-        assert anonymous.get("fill") == "#aabbcc"
+        assert result._find_by_id("without-key").get("fill") == "#fff"
+        assert anonymous.get("fill") == "#fff"
         assert result._find_by_id("unfilled").get("fill") == "none"
 
 

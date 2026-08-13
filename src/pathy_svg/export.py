@@ -3,18 +3,44 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, overload
 
 from pathy_svg._compat import require_cairosvg, require_ipython_display, require_pillow
 from pathy_svg.exceptions import ExportError
 
 if TYPE_CHECKING:
+    from os import PathLike
+
+    from PIL.Image import Image
+
     from pathy_svg.document import SVGDocument
+
+
+@overload
+def to_png(
+    doc: SVGDocument,
+    path: None = None,
+    *,
+    width: int | None = None,
+    height: int | None = None,
+    dpi: int = 96,
+) -> bytes: ...
+
+
+@overload
+def to_png(
+    doc: SVGDocument,
+    path: str | PathLike,
+    *,
+    width: int | None = None,
+    height: int | None = None,
+    dpi: int = 96,
+) -> None: ...
 
 
 def to_png(
     doc: SVGDocument,
-    path: str | Path | None = None,
+    path: str | PathLike | None = None,
     *,
     width: int | None = None,
     height: int | None = None,
@@ -39,9 +65,17 @@ def to_png(
     return png_data
 
 
+@overload
+def to_pdf(doc: SVGDocument, path: None = None) -> bytes: ...
+
+
+@overload
+def to_pdf(doc: SVGDocument, path: str | PathLike) -> None: ...
+
+
 def to_pdf(
     doc: SVGDocument,
-    path: str | Path | None = None,
+    path: str | PathLike | None = None,
 ) -> bytes | None:
     """Render SVG to PDF. Returns bytes if path is None, else writes to file."""
     cairosvg = require_cairosvg()
@@ -57,9 +91,33 @@ def to_pdf(
     return pdf_data
 
 
+@overload
 def to_jpeg(
     doc: SVGDocument,
-    path: str | Path | None = None,
+    path: None = None,
+    *,
+    quality: int = 90,
+    width: int | None = None,
+    height: int | None = None,
+    dpi: int = 96,
+) -> bytes: ...
+
+
+@overload
+def to_jpeg(
+    doc: SVGDocument,
+    path: str | PathLike,
+    *,
+    quality: int = 90,
+    width: int | None = None,
+    height: int | None = None,
+    dpi: int = 96,
+) -> None: ...
+
+
+def to_jpeg(
+    doc: SVGDocument,
+    path: str | PathLike | None = None,
     *,
     quality: int = 90,
     width: int | None = None,
@@ -94,7 +152,7 @@ def thumbnail(
     doc: SVGDocument,
     *,
     width: int = 300,
-):
+) -> Image:
     """Return a PIL Image thumbnail of the SVG."""
     import io
 
@@ -105,7 +163,7 @@ def thumbnail(
     return PIL.Image.open(io.BytesIO(png_data))
 
 
-def show(doc: SVGDocument, *, width: int | None = None):
+def show(doc: SVGDocument, *, width: int | None = None) -> None:
     """Display the SVG in a Jupyter notebook."""
     display_mod = require_ipython_display()
     svg_str = doc.to_string()

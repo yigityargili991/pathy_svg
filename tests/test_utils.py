@@ -7,6 +7,7 @@ import pytest
 from pathy_svg.color import hex_to_rgb, interpolate_color, parse_svg_color, rgb_to_hex
 from pathy_svg.data import bin_values, normalize_values
 from pathy_svg.svg_tools import (
+    compose_svgs,
     extract_styles,
     merge_svgs,
     optimize_svg,
@@ -950,7 +951,7 @@ class TestMergeSvgs:
         assert "@starting-style { opacity:0 }" in css
         assert "@scope (#pathy-panel-0 .parent) to (#pathy-panel-0--child)" in css
 
-    @pytest.mark.parametrize("rule", ["@import url(x.css);", "@font-face {}"])
+    @pytest.mark.parametrize("rule", ["@import url(x.css);", "@property --x {}"])
     def test_rejects_document_global_css_at_rules(self, rule):
         from pathy_svg.document import SVGDocument
 
@@ -1585,9 +1586,95 @@ class TestTopLevelImports:
             "normalize_values",
             "bin_values",
             "viewbox_to_pixel",
+            "compose_svgs",
             "merge_svgs",
             "strip_metadata",
             "optimize_svg",
             "extract_styles",
         ]:
             assert hasattr(pathy_svg, name), f"Missing from pathy_svg: {name}"
+
+
+class TestCompositionResult:
+    def test_public_result_and_error_types_are_top_level_exports(self):
+        import pathy_svg
+
+        for name in ("CompositionError", "CompositionResult", "PanelComposition"):
+            assert name in pathy_svg.__all__
+            assert hasattr(pathy_svg, name)
+
+    def test_public_result_annotations_are_runtime_resolvable(self):
+        from typing import get_type_hints
+
+        from pathy_svg.composition import CompositionResult, PanelComposition
+        from pathy_svg.document import SVGDocument
+
+        assert get_type_hints(CompositionResult)["document"] is SVGDocument
+        assert get_type_hints(PanelComposition)["id_map"] is not None
+
+    def test_validation_errors_remain_value_error_compatible(self):
+        from pathy_svg.exceptions import (
+            CompositionError,
+            DataMappingError,
+            PathySVGError,
+            ValidationError,
+        )
+
+        for error in (CompositionError, DataMappingError, ValidationError):
+            assert issubclass(error, PathySVGError)
+            assert issubclass(error, ValueError)
+
+    def test_exposes_per_panel_id_mappings_without_mutating_inputs(self):
+        from pathy_svg.composition import CompositionResult, PanelComposition
+        from pathy_svg.document import SVGDocument
+
+        first = SVGDocument.from_string(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">'
+            '<path id="shared"/></svg>'
+        )
+        second = SVGDocument.from_string(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">'
+            '<path id="shared"/></svg>'
+        )
+        before = (first.to_bytes(), second.to_bytes())
+
+        result = compose_svgs([first, second])
+
+        assert isinstance(result, CompositionResult)
+        assert isinstance(result.panel(0), PanelComposition)
+        assert isinstance(result.document, SVGDocument)
+        assert result.panel(0).wrapper_id == "pathy-panel-0"
+        assert result.panel(0).output_id("shared") == "pathy-panel-0--shared"
+        assert result.panel(1).output_id("shared") == "pathy-panel-1--shared"
+        assert result.document._find_by_id("pathy-panel-0--shared") is not None
+        assert (first.to_bytes(), second.to_bytes()) == before
+
+    def test_panel_mapping_is_read_only(self):
+        from pathy_svg.document import SVGDocument
+
+        doc = SVGDocument.from_string(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">'
+            '<path id="region"/></svg>'
+        )
+        panel = compose_svgs([doc]).panel(0)
+
+        with pytest.raises(TypeError):
+            panel.id_map["region"] = "changed"
+
+    def test_unique_ids_are_reported_unchanged(self):
+        from pathy_svg.document import SVGDocument
+
+        doc = SVGDocument.from_string(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">'
+            '<path id="region"/></svg>'
+        )
+
+        result = compose_svgs([doc])
+
+        assert result.panel(0).id_map == {"region": "region"}
+
+    def test_empty_composition_uses_public_exception(self):
+        from pathy_svg.exceptions import CompositionError
+
+        with pytest.raises(CompositionError):
+            compose_svgs([])

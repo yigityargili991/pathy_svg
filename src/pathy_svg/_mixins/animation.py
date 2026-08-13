@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from numbers import Real
+
+from typing_extensions import Self
 
 from pathy_svg.animation import AnimationEffect
 
@@ -16,10 +19,10 @@ class AnimationMixin:
         self,
         *,
         effect: AnimationEffect = "pulse",
-        duration: float = 2.0,
+        duration: float | Real = 2.0,
         loop: bool = True,
         data_order: Sequence[str] | None = None,
-    ):
+    ) -> Self:
         """Inject CSS animation into the SVG.
 
         Args:

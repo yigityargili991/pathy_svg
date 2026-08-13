@@ -2,13 +2,20 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+from typing_extensions import Self
+
+if TYPE_CHECKING:
+    from pathy_svg.layers import LayerManager
+
 
 class LayerMixin:
     """Provides the layers() method for multi-layer composition."""
 
     __slots__ = ()
 
-    def layers(self):
+    def layers(self) -> LayerManager[Self]:
         """Create a LayerManager for composing named visualization layers.
 
         Returns:
