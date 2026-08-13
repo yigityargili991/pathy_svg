@@ -3,15 +3,70 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from math import isfinite
+from numbers import Real
+from typing import TypeVar
 
 import numpy as np
 from lxml import etree
 
-from pathy_svg._constants import COLORABLE_TAGS, build_id_index, local_tag
+from pathy_svg._constants import (
+    COLORABLE_TAGS,
+    build_id_index,
+    local_tag,
+    rendered_colorable_elements,
+)
 from pathy_svg._css import set_style_property
 from pathy_svg._css import style_property as _style_property
 from pathy_svg.exceptions import ColorScaleError
 from pathy_svg.themes import CategoricalPalette, ColorScale
+
+_T = TypeVar("_T")
+
+
+def _validate_opacity(opacity: object) -> float | None:
+    """Validate and normalize an optional SVG opacity value."""
+    if opacity is None:
+        return None
+    if isinstance(opacity, (bool, np.bool_)) or not isinstance(opacity, Real):
+        raise TypeError("opacity must be a real number between 0.0 and 1.0")
+    try:
+        normalized = float(opacity)
+    except (OverflowError, TypeError, ValueError) as exc:
+        raise ValueError(
+            "opacity must be a real number between 0.0 and 1.0"
+        ) from exc
+    if not isfinite(normalized) or not 0.0 <= normalized <= 1.0:
+        raise ValueError("opacity must be a real number between 0.0 and 1.0")
+    return normalized
+
+
+def _matched_items_ancestor_first(
+    data: dict[str, _T], id_to_elem: dict[str, etree._Element]
+) -> list[tuple[str, _T, etree._Element]]:
+    """Return matched mapping items ordered from SVG ancestors to descendants."""
+    matched = [
+        (sum(1 for _ in elem.iterancestors()), position, key, value, elem)
+        for position, (key, value) in enumerate(data.items())
+        if (elem := id_to_elem.get(key)) is not None
+    ]
+    matched.sort(key=lambda item: (item[0], item[1]))
+    return [(key, value, elem) for _, _, key, value, elem in matched]
+
+
+def _protect_explicit_match(
+    element: etree._Element, protected_paths: set[str]
+) -> None:
+    """Protect a mapped element, including colorable descendants of groups."""
+    if local_tag(element.tag) == "g":
+        protected_paths.update(_stable_element_path(child) for child in _colorable_children(element))
+    elif local_tag(element.tag) in COLORABLE_TAGS:
+        protected_paths.add(_stable_element_path(element))
+
+
+def _stable_element_path(element: etree._Element) -> str:
+    """Return a tree-stable identity unaffected by lxml Python wrapper reuse."""
+    return element.getroottree().getpath(element)
 
 
 def _set_fill(
@@ -25,11 +80,11 @@ def _set_fill(
     # Keep SVG presentation attributes aligned with CSS so renderers that
     # sanitize inline styles still preserve the intended fill color.
     element.set("fill", color)
-    if opacity is not None and opacity < 1.0:
+    if opacity is not None:
         element.set("fill-opacity", str(opacity))
 
     style = set_style_property(element.get("style"), "fill", color)
-    if opacity is not None and opacity < 1.0:
+    if opacity is not None:
         style = set_style_property(style, "fill-opacity", str(opacity))
     if not preserve_stroke:
         element.set("stroke", "none")
@@ -39,9 +94,9 @@ def _set_fill(
 
 
 def _colorable_children(element: etree._Element):
-    """Yield all colorable descendant elements of a group."""
-    for child in element.iter():
-        if child is not element and local_tag(child.tag) in COLORABLE_TAGS:
+    """Yield rendered colorable descendant elements of a group."""
+    for child in rendered_colorable_elements(element):
+        if child is not element:
             yield child
 
 
@@ -90,13 +145,15 @@ def apply_heatmap(
         vcenter: Center value for diverging color scales.
         na_color: Color to use for missing or NaN values.
         breaks: List of boundary values for discrete color scales.
-        opacity: Opacity for the filled paths.
+        opacity: Opacity in the range 0–1. ``None`` preserves existing opacity.
         preserve_stroke: Whether to preserve original stroke styling.
         color_missing: Whether to color paths that are not in the data with `na_color`.
 
     Returns:
         The fitted ColorScale object used for coloring, or None if data is empty.
     """
+    opacity = _validate_opacity(opacity)
+
     if not data:
         return None
 
@@ -105,8 +162,7 @@ def apply_heatmap(
         id_to_elem = build_id_index(tree)
 
     scale = None
-    protected_keys: set[str] = set()
-    protected_elems: set[int] = set()
+    protected_paths: set[str] = set()
 
     if data:
         try:
@@ -119,31 +175,26 @@ def apply_heatmap(
             ) from exc
 
         scale.fit(list(data.values()))
-        protected_keys = set(data.keys())
-
         # Color elements that have data
-        for eid, value in data.items():
-            elem = id_to_elem.get(eid)
-            if elem is None:
-                continue
+        for _, value, elem in _matched_items_ancestor_first(data, id_to_elem):
+            _protect_explicit_match(elem, protected_paths)
             if np.isfinite(value):
                 color = scale(value)
             else:
                 color = na_color
             if local_tag(elem.tag) == "g":
-                for child in _colorable_children(elem):
-                    protected_elems.add(id(child))
                 _set_fill_on_group(elem, color, **fill_kwargs)
             else:
                 _set_fill(elem, color, **fill_kwargs)
 
     # Color paths with no data
     if color_missing:
-        for eid, elem in id_to_elem.items():
-            if eid not in protected_keys and id(elem) not in protected_elems:
-                local = local_tag(elem.tag)
-                if local in COLORABLE_TAGS and not _has_explicit_none_fill(elem):
-                    _set_fill(elem, na_color, **fill_kwargs)
+        for elem in rendered_colorable_elements(tree.getroot()):
+            if (
+                _stable_element_path(elem) not in protected_paths
+                and not _has_explicit_none_fill(elem)
+            ):
+                _set_fill(elem, na_color, **fill_kwargs)
 
     return scale
 
@@ -161,17 +212,15 @@ def apply_recolor(
     Args:
         tree: The lxml ElementTree representation of the SVG.
         colors: A dictionary mapping element IDs to hex color strings.
-        opacity: Opacity for the filled paths.
+        opacity: Opacity in the range 0–1. ``None`` preserves existing opacity.
         preserve_stroke: Whether to preserve original stroke styling.
     """
+    opacity = _validate_opacity(opacity)
     fill_kwargs = {"opacity": opacity, "preserve_stroke": preserve_stroke}
     if id_to_elem is None:
         id_to_elem = build_id_index(tree)
 
-    for eid, color in colors.items():
-        elem = id_to_elem.get(eid)
-        if elem is None:
-            continue
+    for _, color, elem in _matched_items_ancestor_first(colors, id_to_elem):
         if local_tag(elem.tag) == "g":
             _set_fill_on_group(elem, color, **fill_kwargs)
         else:
@@ -180,7 +229,7 @@ def apply_recolor(
 
 def apply_categorical(
     tree: etree._ElementTree,
-    data: dict[str, str],
+    data: dict[str, str | None],
     *,
     palette: dict[str, str] | str = "tab10",
     na_color: str = "#cccccc",
@@ -192,31 +241,51 @@ def apply_categorical(
 
     Args:
         tree: The lxml ElementTree representation of the SVG.
-        data: A dictionary mapping element IDs to categorical labels.
+        data: A dictionary mapping element IDs to categorical labels. ``None``
+            and NaN values are treated as missing categories.
         palette: A dictionary mapping categories to hex colors, or the name of a matplotlib colormap.
-        na_color: Color to use for missing or NaN categories.
-        opacity: Opacity for the filled paths.
+        na_color: Color for missing category values and colorable elements not
+            represented in *data*.
+        opacity: Opacity in the range 0–1. ``None`` preserves existing opacity.
         preserve_stroke: Whether to preserve original stroke styling.
 
     Returns:
         The CategoricalPalette object used for coloring.
     """
+    opacity = _validate_opacity(opacity)
     cat_palette = CategoricalPalette(palette)
     fill_kwargs = {"opacity": opacity, "preserve_stroke": preserve_stroke}
     if id_to_elem is None:
         id_to_elem = build_id_index(tree)
 
-    for eid, category in data.items():
-        elem = id_to_elem.get(eid)
-        if elem is None:
-            continue
-        color = cat_palette(category)
+    protected_paths: set[str] = set()
+
+    for _, category, elem in _matched_items_ancestor_first(data, id_to_elem):
+        _protect_explicit_match(elem, protected_paths)
+        color = na_color if _is_missing_category(category) else cat_palette(category)
         if local_tag(elem.tag) == "g":
             _set_fill_on_group(elem, color, **fill_kwargs)
         else:
             _set_fill(elem, color, **fill_kwargs)
 
+    for elem in rendered_colorable_elements(tree.getroot()):
+        if (
+            _stable_element_path(elem) not in protected_paths
+            and not _has_explicit_none_fill(elem)
+        ):
+            _set_fill(elem, na_color, **fill_kwargs)
+
     return cat_palette
+
+
+def _is_missing_category(category: object) -> bool:
+    """Return whether a categorical value should use ``na_color``."""
+    if category is None:
+        return True
+    try:
+        return bool(np.isscalar(category) and np.isnan(category))
+    except (TypeError, ValueError):
+        return False
 
 
 def aggregate_by_group(

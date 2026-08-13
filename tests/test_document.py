@@ -3,6 +3,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+from lxml import etree
 
 from pathy_svg._constants import SVG_NS
 from pathy_svg.document import SVGDocument
@@ -78,9 +79,11 @@ class TestFromUrl:
             SVGDocument.from_url("file:///etc/passwd")
 
     def test_network_error_propagates(self):
-        with patch("urllib.request.urlopen", side_effect=OSError("Connection refused")):
-            with pytest.raises(OSError):
-                SVGDocument.from_url("https://example.com/test.svg")
+        with (
+            patch("urllib.request.urlopen", side_effect=OSError("Connection refused")),
+            pytest.raises(OSError),
+        ):
+            SVGDocument.from_url("https://example.com/test.svg")
 
 
 class TestXXEPrevention:
@@ -186,6 +189,140 @@ class TestProperties:
 
 
 class TestImmutability:
+    def test_slotted_subclass_factories_and_clones_preserve_custom_state(self):
+        class CustomDocument(SVGDocument):
+            __slots__ = ("custom_state",)
+            init_calls = 0
+
+            def __init__(self, tree):
+                type(self).init_calls += 1
+                super().__init__(tree)
+                self.custom_state = ["initialized"]
+                self.dict_state = {"history": ["initialized"]}
+
+        doc = CustomDocument.from_string(
+            '<svg xmlns="http://www.w3.org/2000/svg">'
+            '<path id="region" d="M 1 2 L 5 6" fill="#fff"/></svg>'
+        )
+        doc.custom_state.append("retained")
+        doc.dict_state["history"].append("retained")
+        original_custom_state = ["initialized", "retained"]
+        assert doc.element_ids == ["region"]
+
+        clone = doc._clone()
+        transformed = doc.recolor({"region": "#123456"})
+        compared = doc.compare(
+            {"first": {"region": 1}, "second": {"region": 2}},
+            palette=["#000000", "#ffffff"],
+        )
+
+        assert isinstance(doc, CustomDocument)
+        assert doc.custom_state == original_custom_state
+        assert isinstance(clone, CustomDocument)
+        assert clone.custom_state == original_custom_state
+        assert isinstance(transformed, CustomDocument)
+        assert transformed.custom_state == original_custom_state
+        assert isinstance(compared, CustomDocument)
+        assert compared.custom_state == original_custom_state
+        assert CustomDocument.init_calls == 1
+
+        for i, result in enumerate((clone, transformed, compared)):
+            assert result.custom_state is not doc.custom_state
+            assert result.dict_state is not doc.dict_state
+            assert result.dict_state["history"] is not doc.dict_state["history"]
+            result.custom_state.append(f"clone-{i}")
+            result.dict_state["history"].append(f"clone-{i}")
+
+        assert doc.custom_state == original_custom_state
+        assert doc.dict_state == {"history": original_custom_state}
+        assert clone.custom_state != transformed.custom_state
+        assert clone.dict_state != transformed.dict_state
+        assert transformed._find_by_id("region").get("fill") == "#123456"
+        assert doc._find_by_id("region").get("fill") == "#fff"
+
+    def test_constructor_does_not_retain_or_mutate_caller_tree(self):
+        source_root = etree.fromstring(
+            b'<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10" '
+            b'viewBox="0 0 20 10"><title>Original</title><desc>Description</desc>'
+            b'<path id="region" d="M 1 2 L 5 6"/></svg>'
+        )
+        source_tree = etree.ElementTree(source_root)
+        source_before_construction = etree.tostring(source_tree)
+
+        doc = SVGDocument(source_tree)
+
+        assert etree.tostring(source_tree) == source_before_construction
+        expected_svg = doc.to_bytes()
+        expected_ids = doc.element_ids
+        expected_metadata = doc.metadata
+        expected_bbox = doc.bbox("region")
+
+        source_root.set("width", "999")
+        source_root.find("{http://www.w3.org/2000/svg}title").text = "Changed"
+        source_path = source_root.find("{http://www.w3.org/2000/svg}path")
+        source_path.set("id", "renamed")
+        source_path.set("d", "M 100 100 L 200 200")
+        source_root.remove(source_path)
+        source_tree._setroot(etree.Element("replacement", id="external"))
+
+        assert doc.to_bytes() == expected_svg
+        assert doc.element_ids == expected_ids
+        assert doc.path_ids == ["region"]
+        assert doc.metadata == expected_metadata
+        assert doc.bbox("region") == expected_bbox
+
+    def test_root_mutations_do_not_change_document_before_cache_construction(
+        self, simple_svg_path
+    ):
+        doc = SVGDocument.from_file(simple_svg_path)
+        original_svg = doc.to_bytes()
+        snapshot = doc.root
+
+        snapshot.set("viewBox", "1 2 3 4")
+        stomach = snapshot.xpath(".//*[@id='stomach']")[0]
+        stomach.set("id", "renamed")
+        stomach.getparent().remove(stomach)
+        snapshot.append(etree.Element("path", id="added"))
+
+        assert doc.viewbox == ViewBox(0, 0, 500, 400)
+        assert "stomach" in doc.path_ids
+        assert "renamed" not in doc.element_ids
+        assert "added" not in doc.element_ids
+        assert doc.to_bytes() == original_svg
+
+    def test_root_mutations_do_not_change_document_after_cache_construction(
+        self, simple_svg_path
+    ):
+        doc = SVGDocument.from_file(simple_svg_path)
+        original_ids = doc.element_ids
+        original_svg = doc.to_bytes()
+        snapshot = doc.root
+
+        snapshot.set("width", "1")
+        liver = snapshot.xpath(".//*[@id='liver']")[0]
+        liver.set("id", "renamed")
+        liver.getparent().remove(liver)
+        snapshot.append(etree.Element("path", id="added"))
+
+        assert doc.dimensions == (500, 400)
+        assert doc.element_ids == original_ids
+        assert "liver" in doc.path_ids
+        assert doc._find_by_id("liver") is not None
+        assert doc._find_by_id("renamed") is None
+        assert doc._find_by_id("added") is None
+        assert doc.to_bytes() == original_svg
+
+    def test_root_snapshots_are_independent_and_support_xpath(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+
+        first = doc.root
+        second = doc.root
+        first.set("data-test", "changed")
+
+        assert first is not second
+        assert second.get("data-test") is None
+        assert second.xpath(".//*[@id='heart']")[0].get("id") == "heart"
+
     def test_clone_is_independent(self, simple_svg_path):
         doc = SVGDocument.from_file(simple_svg_path)
         clone = doc._clone()
@@ -270,6 +407,15 @@ class TestGeometricQueries:
         doc = SVGDocument.from_file(simple_svg_path)
         with pytest.raises(PathNotFoundError):
             doc.bbox("nonexistent")
+
+    def test_bbox_none_path_reports_cannot_compute(self):
+        doc = SVGDocument.from_string(
+            '<svg xmlns="http://www.w3.org/2000/svg">'
+            '<path id="empty" d=" NoNe "/>'
+            "</svg>"
+        )
+        with pytest.raises(PathNotFoundError, match="Cannot compute bounding box"):
+            doc.bbox("empty")
 
 
 class TestStyledSVG:

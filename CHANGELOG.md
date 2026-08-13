@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- `SVGDocument.root` now returns an independent snapshot and the constructor copies caller-owned element trees, so direct lxml mutations cannot alter an immutable document or make its cached ID index stale
+
 ## [0.3.1] - 2026-07-18
 
 ### Added

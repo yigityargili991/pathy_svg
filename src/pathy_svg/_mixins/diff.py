@@ -85,4 +85,4 @@ class DiffMixin:
             layout=layout,
             spacing=spacing,
         )
-        return type(self)(new_tree)  # type: ignore
+        return self._with_owned_tree(new_tree)

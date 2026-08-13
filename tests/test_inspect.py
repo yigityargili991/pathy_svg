@@ -1,6 +1,19 @@
 """Tests for pathy_svg.inspect module."""
 
+from lxml import etree
+
+from pathy_svg._constants import local_tag
 from pathy_svg.document import SVGDocument
+
+
+class TestLocalTag:
+    def test_returns_empty_name_for_non_element_nodes(self):
+        assert local_tag(etree.Comment("note").tag) == ""
+        assert local_tag(etree.ProcessingInstruction("target", "value").tag) == ""
+
+    def test_preserves_normal_tag_behavior(self):
+        assert local_tag("path") == "path"
+        assert local_tag("{http://www.w3.org/2000/svg}path") == "path"
 
 
 class TestInspectPaths:
@@ -42,6 +55,19 @@ class TestInspectPaths:
         infos = doc.inspect_paths()
         north_a = next(p for p in infos if p.id == "north_a")
         assert north_a.parent_group == "north"
+
+    def test_ignores_comments_and_processing_instructions(self):
+        doc = SVGDocument.from_string(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">'
+            "<!-- region annotation -->"
+            '<?pathy status="draft"?>'
+            '<path id="region" d="M 0 0 L 10 0 L 10 10 Z" fill="#fff"/>'
+            "</svg>"
+        )
+
+        infos = doc.inspect_paths()
+
+        assert [info.id for info in infos] == ["region"]
 
 
 class TestValidateIds:

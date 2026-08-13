@@ -125,7 +125,7 @@ class AnnotationMixin:
         if vb is None:
             return clone
 
-        root = clone.root
+        root = clone._root
         ns = root.nsmap.get(None, SVG_NS)
         g = etree.SubElement(root, f"{{{ns}}}g" if ns else "g", id="pathy-guide")
         g.set("style", f"stroke:{color};stroke-width:0.5;fill:none;opacity:0.5")

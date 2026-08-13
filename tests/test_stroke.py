@@ -133,6 +133,24 @@ class TestApplyStrokeMapEdge:
         assert float(c1.get("stroke-width")) == pytest.approx(5.0)
         assert float(c2.get("stroke-width")) == pytest.approx(5.0)
 
+    @pytest.mark.parametrize(
+        "data",
+        [
+            {"grp": 0.0, "c1": 1.0},
+            {"c1": 1.0, "grp": 0.0},
+        ],
+    )
+    def test_explicit_descendant_overrides_group_in_both_orders(self, data):
+        tree = _make_grouped_tree()
+
+        apply_stroke_map(tree, data, width_range=(1.0, 5.0), vmin=0.0, vmax=1.0)
+
+        ns = "{http://www.w3.org/2000/svg}"
+        c1 = tree.getroot().find(f".//{ns}path[@id='c1']")
+        c2 = tree.getroot().find(f".//{ns}path[@id='c2']")
+        assert float(c1.get("stroke-width")) == pytest.approx(5.0)
+        assert float(c2.get("stroke-width")) == pytest.approx(1.0)
+
     def test_opacity(self):
         tree = _make_tree()
         apply_stroke_map(tree, {"a": 0.5}, width_range=(1.0, 5.0), opacity=0.5)
@@ -140,6 +158,36 @@ class TestApplyStrokeMapEdge:
         ns = "{http://www.w3.org/2000/svg}"
         a = tree.getroot().find(f".//{ns}path[@id='a']")
         assert a.get("stroke-opacity") == "0.5"
+
+    def test_full_opacity_resets_attribute_and_inline_style(self):
+        tree = _make_tree()
+        ns = "{http://www.w3.org/2000/svg}"
+        a = tree.getroot().find(f".//{ns}path[@id='a']")
+        a.set("stroke-opacity", "0.2")
+        a.set("style", "stroke-opacity:0.3;stroke:#000")
+
+        apply_stroke_map(
+            tree,
+            {"a": 0.5},
+            width_range=(1.0, 5.0),
+            opacity=1.0,
+        )
+
+        assert a.get("stroke-opacity") == "1.0"
+        assert "stroke-opacity:1.0" in a.get("style", "")
+        assert "stroke-opacity:0.3" not in a.get("style", "")
+
+    def test_none_opacity_preserves_existing_opacity(self):
+        tree = _make_tree()
+        ns = "{http://www.w3.org/2000/svg}"
+        a = tree.getroot().find(f".//{ns}path[@id='a']")
+        a.set("stroke-opacity", "0.2")
+        a.set("style", "stroke-opacity:0.3;stroke:#000")
+
+        apply_stroke_map(tree, {"a": 0.5}, opacity=None)
+
+        assert a.get("stroke-opacity") == "0.2"
+        assert "stroke-opacity:0.3" in a.get("style", "")
 
 
 class TestStrokeMapMixin:

@@ -1,5 +1,7 @@
 """Tests for pathy_svg.transform module."""
 
+import math
+
 import numpy as np
 import pytest
 from lxml import etree
@@ -97,6 +99,14 @@ class TestBBoxFromPathD:
         bbox = bbox_from_path_d("")
         assert bbox == BBox(0, 0, 0, 0)
 
+    @pytest.mark.parametrize("d", ["none", " NONE ", "\tnOnE\n"])
+    def test_none_path_has_no_direct_geometry(self, d):
+        assert bbox_from_path_d(d) == BBox(0, 0, 0, 0)
+
+    def test_text_starting_like_none_is_still_malformed(self):
+        with pytest.raises(ValueError):
+            bbox_from_path_d("none-ish")
+
     def test_relative_h_v(self):
         d = "M 10 10 h 40 v 20 h -40 z"
         bbox = bbox_from_path_d(d)
@@ -128,6 +138,18 @@ class TestBBoxFromPathD:
         assert bbox.y == pytest.approx(0)
         assert bbox.width == pytest.approx(100)
         assert bbox.height == pytest.approx(50)
+
+    def test_smooth_cubic_includes_reflected_control(self):
+        d = "M 0 0 C 10 100 20 100 30 0 S 50 0 60 0"
+        assert bbox_from_path_d(d) == pytest.approx(BBox(0, -100, 60, 200))
+
+    def test_smooth_cubic_resets_reflection_after_line(self):
+        d = "M 0 0 C 10 -100 20 -100 30 0 L 40 0 S 50 0 60 0"
+        assert bbox_from_path_d(d) == pytest.approx(BBox(0, -100, 60, 100))
+
+    def test_repeated_relative_smooth_cubic_updates_reflected_control(self):
+        d = "M 0 0 c 10 20 20 20 30 0 s 10 0 20 0 10 0 20 0"
+        assert bbox_from_path_d(d) == pytest.approx(BBox(0, -20, 70, 40))
 
     def test_quadratic_absolute(self):
         d = "M 0 0 Q 50 100 100 0"
@@ -161,19 +183,94 @@ class TestBBoxFromPathD:
         assert bbox.width == pytest.approx(90)
         assert bbox.height == pytest.approx(40)
 
+    def test_smooth_quadratic_includes_reflected_control(self):
+        d = "M 0 0 Q 10 100 20 0 T 40 0"
+        assert bbox_from_path_d(d) == pytest.approx(BBox(0, -100, 40, 200))
+
+    def test_smooth_quadratic_resets_reflection_after_close(self):
+        d = "M 0 0 Q 10 -100 20 0 Z T 40 0"
+        assert bbox_from_path_d(d) == pytest.approx(BBox(0, -100, 40, 100))
+
+    def test_repeated_relative_smooth_quadratic_updates_reflected_control(self):
+        d = "M 0 0 q 10 20 20 0 t 20 0 20 0"
+        assert bbox_from_path_d(d) == pytest.approx(BBox(0, -20, 60, 40))
+
     def test_arc_absolute(self):
         d = "M 0 0 A 50 50 0 0 1 100 0"
         bbox = bbox_from_path_d(d)
         assert bbox.x == pytest.approx(0)
-        assert bbox.y == pytest.approx(0)
+        assert bbox.y == pytest.approx(-50)
         assert bbox.width == pytest.approx(100)
+        assert bbox.height == pytest.approx(50)
+
+    def test_arc_sweep_direction_selects_other_semicircle(self):
+        d = "M 0 0 A 50 50 0 0 0 100 0"
+        bbox = bbox_from_path_d(d)
+        assert bbox == pytest.approx(BBox(0, 0, 100, 50))
 
     def test_arc_relative(self):
-        d = "M 0 0 a 50 50 0 0 1 100 0"
+        d = "M 10 20 a 50 50 0 0 1 100 0"
         bbox = bbox_from_path_d(d)
-        assert bbox.x == pytest.approx(0)
-        assert bbox.y == pytest.approx(0)
+        assert bbox.x == pytest.approx(10)
+        assert bbox.y == pytest.approx(-30)
         assert bbox.width == pytest.approx(100)
+        assert bbox.height == pytest.approx(50)
+
+    def test_rotated_elliptical_arc_extrema(self):
+        diagonal = 30 * 2**0.5
+        d = f"M {-diagonal} {-diagonal} A 60 20 45 0 1 {diagonal} {diagonal}"
+        bbox = bbox_from_path_d(d)
+        assert bbox.x == pytest.approx(-diagonal)
+        assert bbox.y == pytest.approx(-20 * 5**0.5)
+        assert bbox.width == pytest.approx(diagonal + 20 * 5**0.5)
+        assert bbox.height == pytest.approx(diagonal + 20 * 5**0.5)
+
+    def test_large_arc_includes_long_sweep_extrema(self):
+        small = bbox_from_path_d("M 50 0 A 50 50 0 0 1 0 50")
+        large = bbox_from_path_d("M 50 0 A 50 50 0 1 1 0 50")
+        assert small == pytest.approx(BBox(0, 0, 50, 50))
+        assert large == pytest.approx(BBox(0, 0, 100, 100))
+
+    def test_repeated_arc_segments(self):
+        d = "M 0 0 A 10 10 0 0 1 10 10 10 10 0 0 1 20 0"
+        bbox = bbox_from_path_d(d)
+        assert bbox == pytest.approx(BBox(0, 0, 20, 10))
+
+    @pytest.mark.parametrize(
+        "d, expected",
+        [
+            ("M 10 20 A 0 30 45 1 1 50 60", BBox(10, 20, 40, 40)),
+            ("M 10 20 A 30 20 45 1 1 10 20", BBox(10, 20, 0, 0)),
+        ],
+    )
+    def test_degenerate_arc(self, d, expected):
+        assert bbox_from_path_d(d) == pytest.approx(expected)
+
+    @pytest.mark.parametrize(
+        ("large_arc", "sweep"),
+        [(0, 0), (0, 1), (1, 0), (1, 1)],
+    )
+    def test_compact_arc_flags_match_separated_flags(self, large_arc, sweep):
+        compact = f"M0 0A10 10 0 {large_arc}{sweep}10 10"
+        separated = f"M0 0A10 10 0 {large_arc} {sweep} 10 10"
+        assert bbox_from_path_d(compact) == pytest.approx(bbox_from_path_d(separated))
+
+    def test_compact_flags_in_repeated_relative_arcs(self):
+        compact = "M0 0a10 10 0 0110 10 10 10 0 10-10 10"
+        separated = "M0 0a10 10 0 0 1 10 10 10 10 0 1 0 -10 10"
+        assert bbox_from_path_d(compact) == pytest.approx(bbox_from_path_d(separated))
+
+    @pytest.mark.parametrize(
+        "d",
+        [
+            "M0 0A10 10 0 2 1 10 10",
+            "M0 0A10 10 0 01 10",
+            "M0 0A10 10 0 01x 10",
+        ],
+    )
+    def test_malformed_arc_data_raises_value_error(self, d):
+        with pytest.raises(ValueError):
+            bbox_from_path_d(d)
 
     def test_relative_moveto(self):
         d = "M 10 10 m 20 20 L 50 50"
@@ -201,6 +298,97 @@ class TestBBoxOfElement:
         assert bbox is not None
         assert bbox.width == pytest.approx(100)
         assert bbox.height == pytest.approx(50)
+
+    @pytest.mark.parametrize("d", ["none", " NONE ", "\tnOnE\n"])
+    def test_none_path_element_has_no_bbox(self, d):
+        elem = etree.Element("path", d=d)
+        assert bbox_of_element(elem, {}) is None
+
+
+class TestNestedSvgViewport:
+    def test_nonzero_viewbox_maps_into_nested_viewport(self):
+        outer = etree.Element("svg")
+        nested = etree.SubElement(
+            outer, "svg", width="20", height="30", viewBox="100 50 20 30"
+        )
+        rect = etree.SubElement(
+            nested, "rect", x="100", y="50", width="20", height="30"
+        )
+        assert bbox_of_element(rect, {}) == pytest.approx(BBox(0, 0, 20, 30))
+        assert bbox_of_element(nested, {}) == pytest.approx(BBox(0, 0, 20, 30))
+
+    def test_preserve_aspect_ratio_none_uses_independent_scales(self):
+        outer = etree.Element("svg")
+        nested = etree.SubElement(
+            outer,
+            "svg",
+            x="10",
+            y="20",
+            width="200",
+            height="150",
+            viewBox="100 50 20 30",
+            preserveAspectRatio="none",
+        )
+        rect = etree.SubElement(nested, "rect", x="102", y="53", width="4", height="6")
+        assert bbox_of_element(rect, {}) == pytest.approx(BBox(30, 35, 40, 30))
+
+    @pytest.mark.parametrize(
+        ("preserve", "expected"),
+        [
+            (None, BBox(60, 20, 100, 150)),
+            ("xMaxYMin meet", BBox(110, 20, 100, 150)),
+            ("xMinYMax slice", BBox(10, -130, 200, 300)),
+        ],
+    )
+    def test_preserve_aspect_ratio_alignment(self, preserve, expected):
+        outer = etree.Element("svg")
+        attrs = {
+            "x": "10",
+            "y": "20",
+            "width": "200",
+            "height": "150",
+            "viewBox": "100 50 20 30",
+        }
+        if preserve is not None:
+            attrs["preserveAspectRatio"] = preserve
+        nested = etree.SubElement(outer, "svg", **attrs)
+        rect = etree.SubElement(
+            nested, "rect", x="100", y="50", width="20", height="30"
+        )
+        assert bbox_of_element(rect, {}) == pytest.approx(expected)
+
+    def test_viewport_composes_with_panel_and_root_transforms(self):
+        outer = etree.Element("svg", transform="translate(5 7)")
+        panel = etree.SubElement(outer, "g", transform="translate(200 300)")
+        nested = etree.SubElement(
+            panel,
+            "svg",
+            x="10",
+            y="20",
+            width="20",
+            height="30",
+            viewBox="100 50 20 30",
+            transform="scale(2)",
+        )
+        rect = etree.SubElement(
+            nested, "rect", x="100", y="50", width="20", height="30"
+        )
+        assert bbox_of_element(rect, {}) == pytest.approx(BBox(225, 347, 40, 60))
+
+    def test_merged_nonzero_viewbox_uses_nested_viewport_coordinates(self):
+        from pathy_svg.document import SVGDocument
+        from pathy_svg.svg_tools import merge_svgs
+
+        source = SVGDocument.from_string(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="100 50 20 30">'
+            '<rect x="100" y="50" width="20" height="30"/></svg>'
+        )
+        merged = merge_svgs([source, source], spacing=0)
+        rects = merged.root.xpath('.//*[local-name()="rect"]')
+
+        assert len(rects) == 2
+        assert bbox_of_element(rects[0], {}) == pytest.approx(BBox(0, 0, 20, 30))
+        assert bbox_of_element(rects[1], {}) == pytest.approx(BBox(20, 0, 20, 30))
 
 
 class TestTransformSupport:
@@ -311,6 +499,210 @@ class TestTransformSupport:
         assert bbox.y == pytest.approx(50, abs=0.01)
         assert bbox.width == pytest.approx(10)
         assert bbox.height == pytest.approx(10)
+
+    def test_rotated_partial_arc_uses_transformed_extrema(self):
+        elem = etree.Element(
+            "path", d="M 50 0 A 50 50 0 0 1 0 50", transform="rotate(45)"
+        )
+        bbox = bbox_of_element(elem, {})
+        assert bbox is not None
+        diagonal = 50 / math.sqrt(2)
+        assert bbox == pytest.approx(
+            BBox(-diagonal, diagonal, 2 * diagonal, 50 - diagonal)
+        )
+
+    def test_partial_arc_combines_element_and_ancestor_transforms(self):
+        group = etree.Element("g", transform="translate(100 200)")
+        elem = etree.SubElement(
+            group,
+            "path",
+            d="M 50 0 A 50 50 0 0 1 0 50",
+            transform="rotate(45)",
+        )
+        bbox = bbox_of_element(elem, {})
+        assert bbox is not None
+        diagonal = 50 / math.sqrt(2)
+        assert bbox == pytest.approx(
+            BBox(100 - diagonal, 200 + diagonal, 2 * diagonal, 50 - diagonal)
+        )
+
+    def test_partial_arc_under_skew_and_nonuniform_scale(self):
+        elem = etree.Element(
+            "path",
+            d="M 50 0 A 50 50 0 0 1 0 50",
+            transform="skewX(30) scale(2 .5)",
+        )
+        bbox = bbox_of_element(elem, {})
+        assert bbox is not None
+        shear = math.tan(math.radians(30))
+        x_min = 25 * shear
+        x_max = 50 * math.hypot(2, 0.5 * shear)
+        assert bbox == pytest.approx(BBox(x_min, 0, x_max - x_min, 25))
+
+    def test_matrix_transformed_arc_matches_dense_sampling(self):
+        matrix = (2, 0.5, 1.25, -1.5, 7, -11)
+        elem = etree.Element(
+            "path",
+            d="M 50 0 A 50 50 0 0 1 0 50",
+            transform="matrix(2 .5 1.25 -1.5 7 -11)",
+        )
+        bbox = bbox_of_element(elem, {})
+        assert bbox is not None
+
+        angles = np.linspace(0, math.pi / 2, 10_001)
+        x = 50 * np.cos(angles)
+        y = 50 * np.sin(angles)
+        sampled_x = matrix[0] * x + matrix[2] * y + matrix[4]
+        sampled_y = matrix[1] * x + matrix[3] * y + matrix[5]
+        self._assert_tight_sample_containment(bbox, sampled_x, sampled_y)
+
+    def test_matrix_transformed_relative_repeated_arcs_match_sampling(self):
+        matrix = (1.25, -0.75, 0.4, 2, -13, 8)
+        elem = etree.Element(
+            "path",
+            d="M 50 0 a 50 50 0 0 1 -50 50 50 50 0 0 1 -50 -50",
+            transform="matrix(1.25 -.75 .4 2 -13 8)",
+        )
+        bbox = bbox_of_element(elem, {})
+        assert bbox is not None
+
+        angles = np.linspace(0, math.pi, 10_001)
+        x = 50 * np.cos(angles)
+        y = 50 * np.sin(angles)
+        sampled_x = matrix[0] * x + matrix[2] * y + matrix[4]
+        sampled_y = matrix[1] * x + matrix[3] * y + matrix[5]
+        self._assert_tight_sample_containment(bbox, sampled_x, sampled_y)
+
+    def test_degenerate_arc_endpoint_is_transformed(self):
+        elem = etree.Element(
+            "path", d="M 10 20 A 0 30 45 1 1 50 60", transform="rotate(90)"
+        )
+        assert bbox_of_element(elem, {}) == pytest.approx(BBox(-60, 10, 40, 40))
+
+    def test_bezier_control_point_approximation_is_transformed_directly(self):
+        elem = etree.Element("path", d="M 0 0 Q 50 100 100 0", transform="rotate(45)")
+        bbox = bbox_of_element(elem, {})
+        assert bbox is not None
+        diagonal = 50 * math.sqrt(2)
+        assert bbox == pytest.approx(
+            BBox(-diagonal / 2, 0, 1.5 * diagonal, 1.5 * diagonal)
+        )
+
+    @pytest.mark.parametrize(
+        ("path_d", "controls"),
+        [
+            (
+                "M 0 0 C 10 100 20 100 30 0 S 50 0 60 0",
+                [(0, 0), (10, 100), (20, 100), (30, 0), (40, -100), (50, 0), (60, 0)],
+            ),
+            (
+                "M 0 0 Q 10 100 20 0 T 40 0",
+                [(0, 0), (10, 100), (20, 0), (30, -100), (40, 0)],
+            ),
+        ],
+    )
+    def test_affine_smooth_curve_includes_reflected_control(self, path_d, controls):
+        matrix = (1.2, -0.7, 0.4, 1.8, 5, -3)
+        elem = etree.Element("path", d=path_d, transform="matrix(1.2 -.7 .4 1.8 5 -3)")
+        bbox = bbox_of_element(elem, {})
+        assert bbox is not None
+
+        controls_array = np.array(controls, dtype=np.float64)
+        transformed_x = (
+            matrix[0] * controls_array[:, 0]
+            + matrix[2] * controls_array[:, 1]
+            + matrix[4]
+        )
+        transformed_y = (
+            matrix[1] * controls_array[:, 0]
+            + matrix[3] * controls_array[:, 1]
+            + matrix[5]
+        )
+        assert bbox == pytest.approx(
+            BBox(
+                float(transformed_x.min()),
+                float(transformed_y.min()),
+                float(np.ptp(transformed_x)),
+                float(np.ptp(transformed_y)),
+            )
+        )
+
+    @pytest.mark.parametrize("degree", [2, 3])
+    def test_affine_smooth_curve_bbox_contains_dense_geometry(self, degree):
+        matrix = (1.2, -0.7, 0.4, 1.8, 5, -3)
+        if degree == 3:
+            elem = etree.Element(
+                "path",
+                d="M 0 0 C 10 100 20 100 30 0 S 50 0 60 0",
+                transform="matrix(1.2 -.7 .4 1.8 5 -3)",
+            )
+            segments = [
+                np.array([(0, 0), (10, 100), (20, 100), (30, 0)]),
+                np.array([(30, 0), (40, -100), (50, 0), (60, 0)]),
+            ]
+        else:
+            elem = etree.Element(
+                "path",
+                d="M 0 0 Q 10 100 20 0 T 40 0",
+                transform="matrix(1.2 -.7 .4 1.8 5 -3)",
+            )
+            segments = [
+                np.array([(0, 0), (10, 100), (20, 0)]),
+                np.array([(20, 0), (30, -100), (40, 0)]),
+            ]
+        bbox = bbox_of_element(elem, {})
+        assert bbox is not None
+
+        t = np.linspace(0, 1, 10_001)[:, None]
+        if degree == 3:
+            samples = [
+                (1 - t) ** 3 * p[0]
+                + 3 * (1 - t) ** 2 * t * p[1]
+                + 3 * (1 - t) * t**2 * p[2]
+                + t**3 * p[3]
+                for p in segments
+            ]
+        else:
+            samples = [
+                (1 - t) ** 2 * p[0] + 2 * (1 - t) * t * p[1] + t**2 * p[2]
+                for p in segments
+            ]
+        samples_array = np.concatenate(samples)
+        sampled_x = (
+            matrix[0] * samples_array[:, 0]
+            + matrix[2] * samples_array[:, 1]
+            + matrix[4]
+        )
+        sampled_y = (
+            matrix[1] * samples_array[:, 0]
+            + matrix[3] * samples_array[:, 1]
+            + matrix[5]
+        )
+        assert np.all(sampled_x >= bbox.x - 1e-10)
+        assert np.all(sampled_x <= bbox.x + bbox.width + 1e-10)
+        assert np.all(sampled_y >= bbox.y - 1e-10)
+        assert np.all(sampled_y <= bbox.y + bbox.height + 1e-10)
+
+    def test_skewed_circle_uses_ellipse_extrema(self):
+        elem = etree.Element("circle", cx="0", cy="0", r="50", transform="skewX(45)")
+        bbox = bbox_of_element(elem, {})
+        assert bbox is not None
+        radius_x = 50 * math.sqrt(2)
+        assert bbox == pytest.approx(BBox(-radius_x, -50, 2 * radius_x, 100))
+
+    @staticmethod
+    def _assert_tight_sample_containment(
+        bbox: BBox, sampled_x: np.ndarray, sampled_y: np.ndarray
+    ) -> None:
+        """Check that an analytic box tightly encloses an independent dense sample."""
+        assert np.all(sampled_x >= bbox.x - 1e-10)
+        assert np.all(sampled_x <= bbox.x + bbox.width + 1e-10)
+        assert np.all(sampled_y >= bbox.y - 1e-10)
+        assert np.all(sampled_y <= bbox.y + bbox.height + 1e-10)
+        assert bbox.x == pytest.approx(float(sampled_x.min()), abs=1e-5)
+        assert bbox.x + bbox.width == pytest.approx(float(sampled_x.max()), abs=1e-5)
+        assert bbox.y == pytest.approx(float(sampled_y.min()), abs=1e-5)
+        assert bbox.y + bbox.height == pytest.approx(float(sampled_y.max()), abs=1e-5)
 
     def test_parse_translate_single_arg(self):
         m = _parse_transform("translate(10)")

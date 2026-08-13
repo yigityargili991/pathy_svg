@@ -16,6 +16,7 @@ from pathy_svg._constants import (
     svg_sub,
 )
 from pathy_svg._css import set_style_property
+from pathy_svg.coloring import _matched_items_ancestor_first, _validate_opacity
 from pathy_svg.gradient import _get_or_create_defs, _remove_existing_def
 
 
@@ -179,7 +180,7 @@ def _set_pattern_ref(
     ref = f"url(#{pat_id})"
     element.set("fill", ref)
     style = set_style_property(element.get("style"), "fill", ref)
-    if opacity is not None and opacity < 1.0:
+    if opacity is not None:
         element.set("fill-opacity", str(opacity))
         style = set_style_property(style, "fill-opacity", str(opacity))
     if not preserve_stroke:
@@ -197,16 +198,15 @@ def apply_pattern_fill(
     id_to_elem: dict[str, etree._Element] | None = None,
 ) -> None:
     """Apply pattern fills to SVG elements. Modifies tree in-place."""
+    opacity = _validate_opacity(opacity)
     if id_to_elem is None:
         id_to_elem = build_id_index(tree)
 
     defs = None
 
-    for eid, spec_or_str in patterns.items():
-        elem = id_to_elem.get(eid)
-        if elem is None:
-            continue
-
+    for eid, spec_or_str, elem in _matched_items_ancestor_first(
+        patterns, id_to_elem
+    ):
         if isinstance(spec_or_str, str):
             spec = PatternSpec(kind=spec_or_str)
         else:

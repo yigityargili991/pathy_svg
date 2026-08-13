@@ -1,5 +1,6 @@
 """Tests for pathy_svg.gradient module."""
 
+import pytest
 from lxml import etree
 
 from pathy_svg.document import SVGDocument
@@ -154,6 +155,29 @@ class TestApplyGradientFill:
         assert c1.get("fill", "").startswith("url(#pathy-grad-")
         assert c2.get("fill", "").startswith("url(#pathy-grad-")
 
+    @pytest.mark.parametrize(
+        "gradients",
+        [
+            {
+                "grp": GradientSpec(start="#ff0000", end="#0000ff"),
+                "c1": GradientSpec(start="#00ff00", end="#ffff00"),
+            },
+            {
+                "c1": GradientSpec(start="#00ff00", end="#ffff00"),
+                "grp": GradientSpec(start="#ff0000", end="#0000ff"),
+            },
+        ],
+    )
+    def test_explicit_descendant_overrides_group_in_both_orders(self, gradients):
+        tree = _make_grouped_tree()
+
+        apply_gradient_fill(tree, gradients)
+
+        ns = "{http://www.w3.org/2000/svg}"
+        c1 = tree.getroot().find(f".//{ns}path[@id='c1']")
+        c2 = tree.getroot().find(f".//{ns}path[@id='c2']")
+        assert c1.get("fill") != c2.get("fill")
+
     def test_opacity(self):
         tree = _make_tree()
         spec = GradientSpec(start="#ff0000", end="#0000ff")
@@ -162,6 +186,33 @@ class TestApplyGradientFill:
         ns = "{http://www.w3.org/2000/svg}"
         elem = tree.getroot().find(f".//{ns}path[@id='a']")
         assert elem.get("fill-opacity") == "0.5"
+
+    def test_full_opacity_resets_attribute_and_inline_style(self):
+        tree = _make_tree()
+        ns = "{http://www.w3.org/2000/svg}"
+        elem = tree.getroot().find(f".//{ns}path[@id='a']")
+        elem.set("fill-opacity", "0.2")
+        elem.set("style", "fill-opacity:0.3;fill:#fff")
+
+        spec = GradientSpec(start="#ff0000", end="#0000ff")
+        apply_gradient_fill(tree, {"a": spec}, opacity=1.0)
+
+        assert elem.get("fill-opacity") == "1.0"
+        assert "fill-opacity:1.0" in elem.get("style", "")
+        assert "fill-opacity:0.3" not in elem.get("style", "")
+
+    def test_zero_opacity_is_applied(self):
+        tree = _make_tree()
+        apply_gradient_fill(
+            tree,
+            {"a": GradientSpec(start="#ff0000", end="#0000ff")},
+            opacity=0.0,
+        )
+
+        ns = "{http://www.w3.org/2000/svg}"
+        elem = tree.getroot().find(f".//{ns}path[@id='a']")
+        assert elem.get("fill-opacity") == "0.0"
+        assert "fill-opacity:0.0" in elem.get("style", "")
 
 
 class TestGradientFillMixin:

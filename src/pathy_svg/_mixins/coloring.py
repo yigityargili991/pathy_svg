@@ -33,7 +33,7 @@ class ColoringMixin:
             vcenter: Center value for diverging color scales.
             na_color: Color to use for missing or NaN values.
             breaks: List of boundary values for discrete color scales.
-            opacity: Opacity for the filled paths.
+            opacity: Opacity in the range 0–1. ``None`` preserves existing opacity.
             preserve_stroke: Whether to preserve original stroke styling.
             color_missing: Whether to color paths that are not in the data with `na_color`.
             key_attr: Element attribute used to match data keys (default ``"id"``).
@@ -91,7 +91,7 @@ class ColoringMixin:
             vcenter: Center value for diverging color scales.
             na_color: Color to use for missing or NaN values.
             breaks: List of boundary values for discrete color scales.
-            opacity: Opacity for the filled paths.
+            opacity: Opacity in the range 0–1. ``None`` preserves existing opacity.
             preserve_stroke: Whether to preserve original stroke styling.
             color_missing: Whether to color paths that are not in the data with `na_color`.
             key_attr: Element attribute used to match data keys (default ``"id"``).
@@ -131,7 +131,7 @@ class ColoringMixin:
 
         Args:
             colors: A dictionary mapping element attribute values to hex color strings.
-            opacity: Opacity for the filled paths.
+            opacity: Opacity in the range 0–1. ``None`` preserves existing opacity.
             preserve_stroke: Whether to preserve original stroke styling.
             key_attr: Element attribute used to match data keys (default ``"id"``).
 
@@ -153,7 +153,7 @@ class ColoringMixin:
 
     def recolor_by_category(
         self,
-        data: dict[str, str],
+        data: dict[str, str | None],
         *,
         palette: dict[str, str] | str = "tab10",
         na_color: str = "#cccccc",
@@ -165,9 +165,10 @@ class ColoringMixin:
 
         Args:
             data: A dictionary mapping element attribute values to category labels.
+                ``None`` and NaN values are treated as missing categories.
             palette: A dictionary mapping categories to colors, or the name of a matplotlib colormap.
-            na_color: Color to use for missing categories.
-            opacity: Opacity for the filled paths.
+            na_color: Color for missing category values and unmatched colorable elements.
+            opacity: Opacity in the range 0–1. ``None`` preserves existing opacity.
             preserve_stroke: Whether to preserve original stroke styling.
             key_attr: Element attribute used to match data keys (default ``"id"``).
 

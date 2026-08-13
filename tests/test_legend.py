@@ -2,7 +2,6 @@
 
 import pytest
 
-
 from pathy_svg.document import SVGDocument
 from pathy_svg.legend import (
     build_discrete_legend,
@@ -73,6 +72,39 @@ class TestCategoricalLegend:
         svg_str = result.to_string()
         assert "System" in svg_str
 
+    def test_horizontal_categorical_layout(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        palette = CategoricalPalette({"first": "#e6ab02", "second": "#e7298a"})
+        result = doc.legend(
+            palette=palette, direction="horizontal", expand_viewbox=False
+        )
+        g = result._find_by_id("pathy-legend")
+        swatches = g.findall("./{http://www.w3.org/2000/svg}rect")
+        assert len(swatches) == 2
+        assert swatches[0].get("y") == swatches[1].get("y")
+        assert float(swatches[0].get("x")) < float(swatches[1].get("x"))
+
+    def test_categorical_background_honors_padding(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        palette = CategoricalPalette({"first": "#e6ab02", "second": "#e7298a"})
+        result = doc.legend(
+            palette=palette,
+            background="white",
+            padding=11,
+            expand_viewbox=False,
+        )
+        g = result._find_by_id("pathy-legend")
+        rects = g.findall("./{http://www.w3.org/2000/svg}rect")
+        background, first_swatch = rects[0], rects[1]
+        assert background.get("fill") == "white"
+        assert float(first_swatch.get("x")) - float(background.get("x")) == 11
+
+    def test_custom_label_count_must_match_categories(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        palette = CategoricalPalette({"first": "#e6ab02", "second": "#e7298a"})
+        with pytest.raises(ValueError, match="exactly 2"):
+            doc.legend(palette=palette, labels=["only one"])
+
 
 class TestExplicitScaleAndPalette:
     def test_explicit_scale_on_fresh_document(self, simple_svg_path):
@@ -129,6 +161,117 @@ class TestLegendChaining:
         assert result._find_by_id("pathy-legend") is not None
         svg_str = result.to_string()
         assert "Gene Expression" in svg_str
+
+    def test_repeated_calls_replace_the_canonical_legend(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        once = doc.heatmap({"stomach": 0.3, "liver": 0.7}).legend(title="Old")
+        twice = once.legend(title="New")
+
+        legends = twice.root.xpath(".//*[@id='pathy-legend']")
+        assert len(legends) == 1
+        text = "".join(legends[0].itertext())
+        assert "New" in text
+        assert "Old" not in text
+
+    def test_generated_legend_is_marked(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        result = doc.heatmap({"stomach": 0.3}).legend()
+        legend = result._find_by_id("pathy-legend")
+        assert legend.get("data-pathy-legend") == "generated"
+        private_attrs = {
+            key: value
+            for key, value in legend.attrib.items()
+            if key.startswith("{urn:pathy-svg:private:legend:v1}")
+        }
+        assert private_attrs["{urn:pathy-svg:private:legend:v1}provenance"] == (
+            "pathy-generated-legend-v1"
+        )
+        assert len(private_attrs) >= 7
+
+    def test_user_owned_colliding_id_is_preserved(self):
+        doc = SVGDocument.from_string(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+            '<g id="pathy-legend"><text>User content</text></g>'
+            '<path id="p" d="M0 0h100v100z"/></svg>'
+        )
+        scale = ColorScale("viridis", vmin=0, vmax=1)
+        scale.fit([0, 1])
+
+        once = doc.legend(scale=scale, title="Generated")
+        twice = once.legend(scale=scale, title="Replacement")
+        root = twice.root
+        user = root.xpath("./*[@id='pathy-legend']")
+        generated = root.xpath("./*[@data-pathy-legend='generated']")
+
+        assert len(user) == 1
+        assert "User content" in "".join(user[0].itertext())
+        assert len(generated) == 1
+        assert generated[0].get("id") == "pathy-legend-2"
+        assert "Replacement" in "".join(generated[0].itertext())
+        assert "Generated" not in "".join(generated[0].itertext())
+
+    def test_only_direct_child_generated_legend_is_replaced(self):
+        doc = SVGDocument.from_string(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+            '<g id="user-wrapper"><g id="pathy-legend" '
+            'data-pathy-legend="generated"><text>Nested user content</text></g></g>'
+            "</svg>"
+        )
+        scale = ColorScale("viridis", vmin=0, vmax=1)
+        scale.fit([0, 1])
+        result = doc.legend(scale=scale)
+
+        nested = result.root.xpath("./*[@id='user-wrapper']/*[@id='pathy-legend']")
+        generated = result.root.xpath("./*[@data-pathy-legend='generated']")
+        assert len(nested) == 1
+        assert "Nested user content" in "".join(nested[0].itertext())
+        assert len(generated) == 1
+        assert generated[0].get("id") == "pathy-legend-2"
+
+    def test_marker_and_partial_private_metadata_do_not_claim_user_groups(self):
+        private_ns = "urn:pathy-svg:private:legend:v1"
+        doc = SVGDocument.from_string(
+            '<svg xmlns="http://www.w3.org/2000/svg" '
+            f'xmlns:pathy-private="{private_ns}" viewBox="0 0 100 100">'
+            '<g id="pathy-legend" data-pathy-legend="generated">'
+            "<text>Marker only</text></g>"
+            '<g id="pathy-legend-2" data-pathy-legend="generated" '
+            'data-pathy-source-canvas="1"><text>Old partial schema</text></g>'
+            '<g id="pathy-legend-3" data-pathy-legend="generated" '
+            'pathy-private:provenance="pathy-generated-legend-v1">'
+            "<text>Private marker without source schema</text></g>"
+            '<g id="user-marker" data-pathy-legend="generated" '
+            'pathy-private:provenance="pathy-generated-legend-v1">'
+            "<text>Non-generated ID</text></g>"
+            "</svg>"
+        )
+        scale = ColorScale("viridis", vmin=0, vmax=1)
+        scale.fit([0, 1])
+
+        once = doc.legend(scale=scale, title="First generated")
+        twice = once.legend(scale=scale, title="Replacement generated")
+        root = twice.root
+
+        for element_id, text in (
+            ("pathy-legend", "Marker only"),
+            ("pathy-legend-2", "Old partial schema"),
+            ("pathy-legend-3", "Private marker without source schema"),
+            ("user-marker", "Non-generated ID"),
+        ):
+            matches = root.xpath(f"./*[@id='{element_id}']")
+            assert len(matches) == 1
+            assert text in "".join(matches[0].itertext())
+
+        owned = [
+            child
+            for child in root
+            if child.get("{urn:pathy-svg:private:legend:v1}provenance")
+            == "pathy-generated-legend-v1"
+            and child.get("id") == "pathy-legend-4"
+        ]
+        assert len(owned) == 1
+        assert "Replacement generated" in "".join(owned[0].itertext())
+        assert "First generated" not in "".join(owned[0].itertext())
 
 
 class TestBuildGradientLegendDirect:
@@ -211,6 +354,35 @@ class TestBuildDiscreteLegendDirect:
         )
         rects = g.findall(".//{http://www.w3.org/2000/svg}rect")
         assert all(r.get("stroke") == "blue" for r in rects)
+
+    def test_horizontal_places_swatches_side_by_side(self):
+        vb = ViewBox(0, 0, 500, 400)
+        g = build_discrete_legend(
+            ["#ff0000", "#00ff00"], ["A", "B"], vb, direction="horizontal"
+        )
+        rects = g.findall("./{http://www.w3.org/2000/svg}rect")
+        assert rects[0].get("y") == rects[1].get("y")
+        assert float(rects[0].get("x")) < float(rects[1].get("x"))
+
+    @pytest.mark.parametrize(
+        ("kwargs", "message"),
+        [
+            ({"direction": "diagonal"}, "direction"),
+            ({"position": (float("nan"), 0.5)}, "position"),
+            ({"size": (0, 0.4)}, "size"),
+            ({"padding": -1}, "padding"),
+            ({"font_size": 0}, "font_size"),
+        ],
+    )
+    def test_invalid_layout_parameters_raise(self, kwargs, message):
+        vb = ViewBox(0, 0, 500, 400)
+        with pytest.raises(ValueError, match=message):
+            build_discrete_legend(["#ff0000"], ["A"], vb, **kwargs)
+
+    def test_color_and_label_counts_must_match(self):
+        vb = ViewBox(0, 0, 500, 400)
+        with pytest.raises(ValueError, match="exactly 2"):
+            build_discrete_legend(["#ff0000", "#00ff00"], ["A"], vb)
 
 
 class TestResolveLegendKind:

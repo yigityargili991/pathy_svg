@@ -5,7 +5,7 @@ from lxml import etree
 
 from pathy_svg._constants import get_secure_parser
 from pathy_svg.document import SVGDocument
-from pathy_svg.pattern import PatternSpec, CustomPatternSpec, apply_pattern_fill
+from pathy_svg.pattern import CustomPatternSpec, PatternSpec, apply_pattern_fill
 
 
 def _make_tree():
@@ -165,7 +165,6 @@ class TestApplyPatternFill:
             },
         )
 
-        svg_str = etree.tostring(tree, encoding="unicode")
         # Two patterns should be created
         ns = "{http://www.w3.org/2000/svg}"
         patterns = tree.getroot().findall(f".//{ns}pattern")
@@ -188,6 +187,23 @@ class TestApplyPatternFill:
         assert c1.get("fill", "").startswith("url(#pathy-pat-")
         assert c2.get("fill", "").startswith("url(#pathy-pat-")
 
+    @pytest.mark.parametrize(
+        "patterns",
+        [
+            {"grp": "crosshatch", "c1": "dots"},
+            {"c1": "dots", "grp": "crosshatch"},
+        ],
+    )
+    def test_explicit_descendant_overrides_group_in_both_orders(self, patterns):
+        tree = _make_grouped_tree()
+
+        apply_pattern_fill(tree, patterns)
+
+        ns = "{http://www.w3.org/2000/svg}"
+        c1 = tree.getroot().find(f".//{ns}path[@id='c1']")
+        c2 = tree.getroot().find(f".//{ns}path[@id='c2']")
+        assert c1.get("fill") != c2.get("fill")
+
     def test_opacity(self):
         tree = _make_tree()
         apply_pattern_fill(tree, {"a": "dots"}, opacity=0.5)
@@ -195,6 +211,19 @@ class TestApplyPatternFill:
         ns = "{http://www.w3.org/2000/svg}"
         elem = tree.getroot().find(f".//{ns}path[@id='a']")
         assert elem.get("fill-opacity") == "0.5"
+
+    def test_full_opacity_resets_attribute_and_inline_style(self):
+        tree = _make_tree()
+        ns = "{http://www.w3.org/2000/svg}"
+        elem = tree.getroot().find(f".//{ns}path[@id='a']")
+        elem.set("fill-opacity", "0.2")
+        elem.set("style", "fill-opacity:0.3;fill:#fff")
+
+        apply_pattern_fill(tree, {"a": "dots"}, opacity=1.0)
+
+        assert elem.get("fill-opacity") == "1.0"
+        assert "fill-opacity:1.0" in elem.get("style", "")
+        assert "fill-opacity:0.3" not in elem.get("style", "")
 
 
 class TestPatternFillMixin:

@@ -27,7 +27,7 @@ class StyleMixin:
 
         Args:
             gradients: Dict mapping element attribute values to GradientSpec objects.
-            opacity: Opacity for the filled elements.
+            opacity: Opacity in the range 0–1. ``None`` preserves existing opacity.
             preserve_stroke: Whether to preserve original stroke styling.
             key_attr: Element attribute used to match data keys (default ``"id"``).
 
@@ -59,7 +59,7 @@ class StyleMixin:
 
         Args:
             patterns: Dict mapping element attribute values to PatternSpec objects or pattern name strings.
-            opacity: Opacity for the filled elements.
+            opacity: Opacity in the range 0–1. ``None`` preserves existing opacity.
             preserve_stroke: Whether to preserve original stroke styling.
             key_attr: Element attribute used to match data keys (default ``"id"``).
 
@@ -100,7 +100,7 @@ class StyleMixin:
             palette: Colormap name for stroke color. None to skip color mapping.
             vmin: Minimum value for the scale.
             vmax: Maximum value for the scale.
-            opacity: Stroke opacity.
+            opacity: Stroke opacity in the range 0–1. ``None`` preserves it.
             na_width: Stroke width for NaN values.
             na_color: Stroke color for NaN values.
             key_attr: Element attribute used to match data keys (default ``"id"``).
@@ -188,7 +188,7 @@ class StyleMixin:
             vcenter: Center value for diverging color scales.
             na_color: Color for NaN values within groups.
             breaks: Boundary values for discrete color scales.
-            opacity: Opacity for colored groups.
+            opacity: Opacity in the range 0–1. ``None`` preserves existing opacity.
             preserve_stroke: Whether to preserve original stroke styling.
             key_attr: Element attribute used to match data keys (default ``"id"``).
 

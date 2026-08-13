@@ -2,13 +2,20 @@
 
 from __future__ import annotations
 
-import copy
 import math
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Literal
 
 from lxml import etree
 
+from pathy_svg._composition import (
+    composition_size,
+    composition_translation,
+    copy_svg_panel,
+    place_svg_panel,
+    plan_svg_panels,
+    validate_composition_layout,
+)
 from pathy_svg._constants import SVG_NS, Layout
 from pathy_svg.transform import ViewBox
 
@@ -56,27 +63,23 @@ def compose_side_by_side(
     """
     if not docs:
         raise ValueError("No documents to compose")
+    validate_composition_layout(layout)
 
     viewboxes = []
-    trees = []
     for doc in docs:
         vb = doc.viewbox
         if vb is None:
             vb = ViewBox(0, 0, 500, 500)
         viewboxes.append(vb)
-        trees.append(doc._tree)
 
+    total_w, total_h = composition_size(
+        [(vb.width, vb.height) for vb in viewboxes], layout, spacing
+    )
+    title_offset = title_size * 1.5 if titles else 0
     if layout == "horizontal":
-        total_w = sum(vb.width for vb in viewboxes) + spacing * (len(docs) - 1)
-        max_h = max(vb.height for vb in viewboxes)
-        title_offset = title_size * 1.5 if titles else 0
-        total_h = max_h + title_offset
-    else:  # vertical
-        max_w = max(vb.width for vb in viewboxes)
-        total_h = sum(vb.height for vb in viewboxes) + spacing * (len(docs) - 1)
-        title_offset = title_size * 1.5 if titles else 0
+        total_h += title_offset
+    else:
         total_h += title_offset * len(docs) if titles else 0
-        total_w = max_w
 
     new_root = etree.Element(
         f"{{{SVG_NS}}}svg",
@@ -88,8 +91,9 @@ def compose_side_by_side(
 
     x_offset = 0.0
     y_offset = 0.0
+    plans = plan_svg_panels([doc._root for doc in docs])
 
-    for i, (doc, vb) in enumerate(zip(docs, viewboxes)):
+    for i, (doc, vb, plan) in enumerate(zip(docs, viewboxes, plans)):
         if titles and i < len(titles):
             txt = etree.SubElement(new_root, f"{{{SVG_NS}}}text")
             if layout == "horizontal":
@@ -105,20 +109,16 @@ def compose_side_by_side(
             )
             txt.text = titles[i]
 
-        g = etree.SubElement(new_root, f"{{{SVG_NS}}}g")
+        g = copy_svg_panel(doc._root, new_root, plan, vb.width, vb.height)
         if layout == "horizontal":
-            tx = x_offset - vb.x
-            ty = title_offset - vb.y
-            g.set("transform", f"translate({tx},{ty})")
+            tx, ty = composition_translation(layout, x_offset, title_offset)
+            place_svg_panel(g, f"translate({tx},{ty})")
         else:
-            tx = -vb.x
-            ty = y_offset + (title_offset if titles else 0) - vb.y
-            g.set("transform", f"translate({tx},{ty})")
-
-        # Copy all children of the source root
-        source_root = doc._tree.getroot()
-        for child in source_root:
-            g.append(copy.deepcopy(child))
+            tx, ty = composition_translation(
+                layout,
+                y_offset + (title_offset if titles else 0),
+            )
+            place_svg_panel(g, f"translate({tx},{ty})")
 
         if layout == "horizontal":
             x_offset += vb.width + spacing

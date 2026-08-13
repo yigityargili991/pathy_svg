@@ -8,7 +8,6 @@ from lxml import etree
 from pathy_svg.coloring import aggregate_by_group
 from pathy_svg.document import SVGDocument
 
-
 DATA_ATTR_SVG = (
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">'
     '<path id="p1" data-region="north" d="M 50 50 L 190 50 L 190 190 Z" fill="#fff"/>'
@@ -67,6 +66,15 @@ DUPLICATE_ATTR_SVG = (
     "</svg>"
 )
 
+PARTIAL_ATTR_SVG = (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+    '<path id="matched" data-region="north" d="M0 0L10 0L10 10Z" fill="#fff"/>'
+    '<circle id="without-key" cx="20" cy="20" r="5" fill="#fff"/>'
+    '<rect data-marker="anonymous" x="30" y="30" width="5" height="5" fill="#fff"/>'
+    '<path id="unfilled" d="M40 40L50 40L50 50Z" fill="none"/>'
+    "</svg>"
+)
+
 
 class TestHeatmapKeyAttr:
     def test_match_by_data_attribute(self):
@@ -120,6 +128,20 @@ class TestHeatmapKeyAttr:
         assert na_fill != "#aabbcc"
         assert nb_fill != "#aabbcc"
 
+    def test_color_missing_covers_elements_outside_custom_key_index(self):
+        doc = SVGDocument.from_string(PARTIAL_ATTR_SVG)
+
+        result = doc.heatmap(
+            {"north": 1.0},
+            key_attr="data-region",
+            na_color="#aabbcc",
+        )
+
+        anonymous = result.root.xpath("//*[@data-marker='anonymous']")[0]
+        assert result._find_by_id("without-key").get("fill") == "#aabbcc"
+        assert anonymous.get("fill") == "#aabbcc"
+        assert result._find_by_id("unfilled").get("fill") == "none"
+
 
 class TestRecolorKeyAttr:
     def test_recolor_by_data_attribute(self):
@@ -142,6 +164,46 @@ class TestRecolorByCategoryKeyAttr:
         )
         assert result._find_by_id("p1").get("fill") == "#ff0000"
         assert result._find_by_id("p2").get("fill") == "#0000ff"
+
+    def test_categorical_na_color_for_unmatched_data_attribute(self):
+        doc = SVGDocument.from_string(DATA_ATTR_SVG)
+        result = doc.recolor_by_category(
+            {"north": "warm"},
+            palette={"warm": "#ff0000"},
+            na_color="#aabbcc",
+            key_attr="data-region",
+        )
+
+        assert result._find_by_id("p1").get("fill") == "#ff0000"
+        assert result._find_by_id("p2").get("fill") == "#aabbcc"
+        assert result._find_by_id("p3").get("fill") == "#aabbcc"
+
+    def test_categorical_group_children_are_protected(self):
+        doc = SVGDocument.from_string(GROUP_BY_DATA_ATTR_SVG)
+        result = doc.recolor_by_category(
+            {"north": "warm"},
+            palette={"warm": "#ff0000"},
+            na_color="#aabbcc",
+            key_attr="data-region",
+        )
+
+        assert result._find_by_id("na").get("fill") == "#ff0000"
+        assert result._find_by_id("nb").get("fill") == "#ff0000"
+
+    def test_na_color_covers_elements_outside_custom_key_index(self):
+        doc = SVGDocument.from_string(PARTIAL_ATTR_SVG)
+
+        result = doc.recolor_by_category(
+            {"north": "warm"},
+            palette={"warm": "#ff0000"},
+            na_color="#aabbcc",
+            key_attr="data-region",
+        )
+
+        anonymous = result.root.xpath("//*[@data-marker='anonymous']")[0]
+        assert result._find_by_id("without-key").get("fill") == "#aabbcc"
+        assert anonymous.get("fill") == "#aabbcc"
+        assert result._find_by_id("unfilled").get("fill") == "none"
 
 
 class TestStrokeMapKeyAttr:
@@ -265,6 +327,7 @@ class TestDuplicateKeyAttr:
         )
         assert result._find_by_id("d1").get("fill") == "#ff0000"
         assert result._find_by_id("d2").get("fill") == "#ff0000"
+        assert result._find_by_id("d3").get("fill") == "#cccccc"
 
 
 class TestUnsafeAttrValues:
@@ -309,7 +372,6 @@ class TestUnsafeAttrValues:
             },
             key_attr="data-name",
         )
-        svg_str = result.to_string()
         a_elem = result._find_by_id("a")
         b_elem = result._find_by_id("b")
         a_ref = a_elem.get("fill")

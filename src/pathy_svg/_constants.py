@@ -12,13 +12,53 @@ SVG_NS = "http://www.w3.org/2000/svg"
 Layout = Literal["horizontal", "vertical"]
 
 COLORABLE_TAGS = frozenset({"path", "rect", "circle", "ellipse", "polygon", "polyline"})
+NON_RENDERING_CONTAINERS = frozenset(
+    {
+        "clipPath",
+        "defs",
+        "filter",
+        "hatch",
+        "linearGradient",
+        "marker",
+        "mask",
+        "meshgradient",
+        "pattern",
+        "radialGradient",
+        "solidcolor",
+        "symbol",
+    }
+)
 
 
-def local_tag(tag: str) -> str:
-    """Strip namespace prefix from a tag, e.g. '{http://...}path' -> 'path'."""
+def local_tag(tag: object) -> str:
+    """Return a tag's local name, or ``""`` for non-element nodes.
+
+    lxml represents comment and processing-instruction tags with callable
+    sentinel objects rather than strings.  Treating them as having no local
+    element name lets callers safely skip them while walking a mixed XML tree.
+    """
+    if not isinstance(tag, str):
+        return ""
     if tag.startswith("{"):
         return tag.split("}", 1)[1]
     return tag
+
+
+def rendered_colorable_elements(root: etree._Element) -> list[etree._Element]:
+    """Return rendered geometry, pruning SVG definition/resource subtrees."""
+    elements: list[etree._Element] = []
+
+    def collect(element: etree._Element, *, in_resource: bool = False) -> None:
+        tag = local_tag(element.tag)
+        in_resource = in_resource or tag in NON_RENDERING_CONTAINERS
+        if not in_resource and tag in COLORABLE_TAGS:
+            elements.append(element)
+        for child in element:
+            if isinstance(child.tag, str):
+                collect(child, in_resource=in_resource)
+
+    collect(root)
+    return elements
 
 
 def svg_sub(parent, tag: str):

@@ -1,12 +1,16 @@
 """Tests for pathy_svg.coloring module."""
 
 import re
+from fractions import Fraction
+from typing import ClassVar
 
+import numpy as np
 import pytest
 from lxml import etree
 
 from pathy_svg.coloring import (
     _has_explicit_none_fill,
+    aggregate_by_group,
     apply_categorical,
     apply_heatmap,
     apply_recolor,
@@ -247,6 +251,63 @@ class TestRecolor:
         result = doc.recolor({"nonexistent": "#ff0000"})
         assert result is not None
 
+    def test_explicit_full_opacity_resets_existing_opacity(self):
+        doc = SVGDocument.from_string(
+            '<svg xmlns="http://www.w3.org/2000/svg">'
+            '<path id="a" fill="#fff" fill-opacity="0.2" '
+            'style="fill:#fff;fill-opacity:0.3"/>'
+            "</svg>"
+        )
+
+        result = doc.recolor({"a": "#ff0000"}, opacity=1.0)
+        elem = result._find_by_id("a")
+
+        assert elem.get("fill-opacity") == "1.0"
+        assert "fill-opacity:1.0" in elem.get("style", "")
+        assert "fill-opacity:0.3" not in elem.get("style", "")
+        assert doc._find_by_id("a").get("fill-opacity") == "0.2"
+
+    def test_none_opacity_preserves_existing_opacity(self):
+        doc = SVGDocument.from_string(
+            '<svg xmlns="http://www.w3.org/2000/svg">'
+            '<path id="a" fill="#fff" fill-opacity="0.2" '
+            'style="fill:#fff;fill-opacity:0.3"/>'
+            "</svg>"
+        )
+
+        elem = doc.recolor({"a": "#ff0000"}, opacity=None)._find_by_id("a")
+
+        assert elem.get("fill-opacity") == "0.2"
+        assert "fill-opacity:0.3" in elem.get("style", "")
+
+    @pytest.mark.parametrize(
+        "opacity",
+        [
+            -0.1,
+            1.1,
+            float("nan"),
+            True,
+            np.bool_(True),
+            np.array(0.5),
+            np.array([0.5]),
+        ],
+    )
+    def test_invalid_opacity_rejected(self, simple_svg_path, opacity):
+        doc = SVGDocument.from_file(simple_svg_path)
+        with pytest.raises((TypeError, ValueError), match="opacity"):
+            doc.recolor({"stomach": "#ff0000"}, opacity=opacity)
+
+    @pytest.mark.parametrize("opacity", [np.float32(0.5), np.float64(0.5), Fraction(1, 2)])
+    def test_real_scalar_opacity_is_normalized(self, simple_svg_path, opacity):
+        doc = SVGDocument.from_file(simple_svg_path)
+
+        elem = doc.recolor({"stomach": "#ff0000"}, opacity=opacity)._find_by_id(
+            "stomach"
+        )
+
+        assert elem.get("fill-opacity") == "0.5"
+        assert "fill-opacity:0.5" in elem.get("style", "")
+
 
 class TestRecolorByCategory:
     def test_basic_categorical(self, simple_svg_path):
@@ -277,6 +338,63 @@ class TestRecolorByCategory:
         h_fill = re.search(r"fill:(#[0-9a-fA-F]{6})", heart_style)
         assert s_fill and h_fill
         assert s_fill.group(1) == h_fill.group(1)
+
+    def test_na_color_applies_to_unmatched_elements(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+
+        result = doc.recolor_by_category(
+            {"stomach": "digestive"},
+            palette={"digestive": "#ff0000"},
+            na_color="#aabbcc",
+        )
+
+        assert result._find_by_id("stomach").get("fill") == "#ff0000"
+        assert result._find_by_id("liver").get("fill") == "#aabbcc"
+
+    @pytest.mark.parametrize("missing", [None, float("nan")])
+    def test_missing_category_value_uses_na_color(self, simple_svg_path, missing):
+        doc = SVGDocument.from_file(simple_svg_path)
+
+        result = doc.recolor_by_category(
+            {"stomach": missing},
+            palette={},
+            na_color="#aabbcc",
+        )
+
+        assert result._find_by_id("stomach").get("fill") == "#aabbcc"
+
+    def test_matched_group_children_are_not_overwritten(self, grouped_svg_path):
+        doc = SVGDocument.from_file(grouped_svg_path)
+
+        result = doc.recolor_by_category(
+            {"north": "selected"},
+            palette={"selected": "#ff0000"},
+            na_color="#aabbcc",
+        )
+
+        assert result._find_by_id("north_a").get("fill") == "#ff0000"
+        assert result._find_by_id("north_b").get("fill") == "#ff0000"
+        assert result._find_by_id("south_a").get("fill") == "#aabbcc"
+
+    @pytest.mark.parametrize(
+        "data",
+        [
+            {"north": "parent", "north_a": "child"},
+            {"north_a": "child", "north": "parent"},
+        ],
+    )
+    def test_explicit_descendant_overrides_group_in_both_orders(
+        self, grouped_svg_path, data
+    ):
+        doc = SVGDocument.from_file(grouped_svg_path)
+
+        result = doc.recolor_by_category(
+            data,
+            palette={"parent": "#ff0000", "child": "#0000ff"},
+        )
+
+        assert result._find_by_id("north_a").get("fill") == "#0000ff"
+        assert result._find_by_id("north_b").get("fill") == "#ff0000"
 
 
 class TestStyledSVG:
@@ -318,6 +436,134 @@ class TestGroupedSVG:
         assert "#cccccc" not in north_a_style
         assert "#cccccc" not in north_b_style
         assert "#cccccc" in south_a_style
+
+    def test_recolor_group_ignores_comments_and_processing_instructions(self):
+        doc = SVGDocument.from_string(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">'
+            '<g id="group">'
+            "<!-- region annotation -->"
+            '<?pathy status="draft"?>'
+            '<path id="region" d="M 0 0 L 10 0 L 10 10 Z" fill="#fff"/>'
+            "</g></svg>"
+        )
+
+        result = doc.recolor({"group": "#ff0000"})
+
+        assert "#ff0000" in result._find_by_id("region").get("style", "")
+
+    def test_group_aggregation_ignores_comments(self):
+        root = etree.fromstring(
+            b'<svg xmlns="http://www.w3.org/2000/svg"><g id="group">'
+            b"<!-- region annotation -->"
+            b'<path id="region" d="M 0 0 L 1 1"/>'
+            b"</g></svg>"
+        )
+
+        result = aggregate_by_group(
+            etree.ElementTree(root), {"region": 2.0}, agg="mean"
+        )
+
+        assert result == {"group": 2.0}
+
+    @pytest.mark.parametrize("mode", ["heatmap", "categorical"])
+    def test_anonymous_group_children_stay_protected_across_wrappers(self, mode):
+        svg = (
+            '<svg xmlns="http://www.w3.org/2000/svg">'
+            '<g id="group">'
+            '<path d="M0 0L10 0L10 10Z" fill="#fff"/>'
+            '<path id="named" d="M20 0L30 0L30 10Z" fill="#fff"/>'
+            "</g>"
+            '<path id="outside" d="M40 0L50 0L50 10Z" fill="#fff"/>'
+            "</svg>"
+        )
+
+        for _ in range(50):
+            doc = SVGDocument.from_string(svg)
+            # Exercise multiple lxml access paths before the coloring pass so
+            # protection cannot depend on a particular Python wrapper object.
+            for _ in range(5):
+                doc.root.xpath("//*[local-name()='path']")
+
+            if mode == "heatmap":
+                result = doc.heatmap({"group": 1.0}, na_color="#aabbcc")
+                expected = result._find_by_id("named").get("fill")
+            else:
+                result = doc.recolor_by_category(
+                    {"group": "selected"},
+                    palette={"selected": "#ff0000"},
+                    na_color="#aabbcc",
+                )
+                expected = "#ff0000"
+
+            group_paths = result.root.xpath(
+                "//*[local-name()='g' and @id='group']/*[local-name()='path']"
+            )
+            assert [path.get("fill") for path in group_paths] == [expected, expected]
+            assert expected != "#aabbcc"
+            assert result._find_by_id("outside").get("fill") == "#aabbcc"
+
+
+class TestResourceGeometry:
+    RESOURCE_SVG = (
+        '<svg xmlns="http://www.w3.org/2000/svg">'
+        '<defs><path id="in-defs" fill="#111111"/></defs>'
+        '<symbol id="symbol"><rect id="in-symbol" fill="#222222"/></symbol>'
+        '<clipPath id="clip"><circle id="in-clip" fill="#333333"/></clipPath>'
+        '<mask id="mask"><ellipse id="in-mask" fill="#444444"/></mask>'
+        '<pattern id="pattern"><polygon id="in-pattern" fill="#555555"/></pattern>'
+        '<marker id="marker"><polyline id="in-marker" fill="#666666"/></marker>'
+        '<filter id="filter"><path id="in-filter" fill="#777777"/></filter>'
+        '<linearGradient id="linear"><path id="in-linear" fill="#888888"/></linearGradient>'
+        '<radialGradient id="radial"><path id="in-radial" fill="#999999"/></radialGradient>'
+        '<path id="visible" fill="#ffffff"/>'
+        '<rect id="missing" fill="#ffffff"/>'
+        "</svg>"
+    )
+    RESOURCE_FILLS: ClassVar[dict[str, str]] = {
+        "in-defs": "#111111",
+        "in-symbol": "#222222",
+        "in-clip": "#333333",
+        "in-mask": "#444444",
+        "in-pattern": "#555555",
+        "in-marker": "#666666",
+        "in-filter": "#777777",
+        "in-linear": "#888888",
+        "in-radial": "#999999",
+    }
+
+    @pytest.mark.parametrize("mode", ["heatmap", "categorical"])
+    def test_missing_fallback_skips_resource_subtrees(self, mode):
+        doc = SVGDocument.from_string(self.RESOURCE_SVG)
+
+        if mode == "heatmap":
+            result = doc.heatmap({"visible": 1.0}, na_color="#aabbcc")
+        else:
+            result = doc.recolor_by_category(
+                {"visible": "selected"},
+                palette={"selected": "#ff0000"},
+                na_color="#aabbcc",
+            )
+
+        for element_id, original_fill in self.RESOURCE_FILLS.items():
+            assert result._find_by_id(element_id).get("fill") == original_fill
+        assert result._find_by_id("missing").get("fill") == "#aabbcc"
+
+    @pytest.mark.parametrize("mode", ["heatmap", "categorical"])
+    def test_explicit_resource_geometry_target_is_still_colored(self, mode):
+        doc = SVGDocument.from_string(self.RESOURCE_SVG)
+
+        if mode == "heatmap":
+            result = doc.heatmap(
+                {"in-defs": 1.0},
+                color_missing=False,
+            )
+            assert result._find_by_id("in-defs").get("fill") != "#111111"
+        else:
+            result = doc.recolor_by_category(
+                {"in-defs": "selected"},
+                palette={"selected": "#ff0000"},
+            )
+            assert result._find_by_id("in-defs").get("fill") == "#ff0000"
 
 
 class TestPreserveStroke:
@@ -418,9 +664,7 @@ class TestApplyCategoricalDirect:
 
     def test_group_coloring(self):
         tree = self._make_tree()
-        cat_pal = apply_categorical(
-            tree, {"grp": "group_a"}, palette={"group_a": "#ff0000"}
-        )
+        apply_categorical(tree, {"grp": "group_a"}, palette={"group_a": "#ff0000"})
         grp = tree.getroot().find(".//{http://www.w3.org/2000/svg}g")
         for child in grp:
             if child.tag.endswith("}path"):

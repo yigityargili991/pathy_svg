@@ -7,6 +7,7 @@ from lxml import etree
 
 from pathy_svg._constants import COLORABLE_TAGS, build_id_index, local_tag
 from pathy_svg._css import set_style_property
+from pathy_svg.coloring import _matched_items_ancestor_first, _validate_opacity
 from pathy_svg.themes import ColorScale
 
 
@@ -25,7 +26,7 @@ def _set_stroke(
     if width is not None:
         element.set("stroke-width", str(width))
         style = set_style_property(style, "stroke-width", str(width))
-    if opacity is not None and opacity < 1.0:
+    if opacity is not None:
         element.set("stroke-opacity", str(opacity))
         style = set_style_property(style, "stroke-opacity", str(opacity))
     if style is not None:
@@ -49,6 +50,7 @@ def apply_stroke_map(
 
     Returns the fitted ColorScale if palette was used, else None.
     """
+    opacity = _validate_opacity(opacity)
     if not data:
         return None
 
@@ -72,11 +74,7 @@ def apply_stroke_map(
         scale = ColorScale(palette, vmin=vmin, vmax=vmax)
         scale.fit(list(data.values()))
 
-    for eid, value in data.items():
-        elem = id_to_elem.get(eid)
-        if elem is None:
-            continue
-
+    for _, value, elem in _matched_items_ancestor_first(data, id_to_elem):
         is_nan = not np.isfinite(value)
 
         # Compute stroke width

@@ -49,17 +49,40 @@ class SVGDocumentBase:
         """Initialize from a parsed lxml ElementTree.
 
         Use the ``from_file``, ``from_string``, or ``from_url`` classmethods
-        instead of calling this directly.
+        instead of calling this directly. The input tree is copied so later
+        changes made by its owner cannot mutate this document.
 
         Args:
             tree: A parsed lxml ElementTree containing the SVG document.
             _nsmap: Pre-detected namespace mapping (internal use).
         """
+        self._initialize(copy.deepcopy(tree), _nsmap=_nsmap)
+
+    def _initialize(
+        self, tree: etree._ElementTree, *, _nsmap: dict[str, str] | None = None
+    ) -> None:
+        """Initialize from a tree whose ownership has been transferred."""
         self._tree = tree
-        self._nsmap = _nsmap if _nsmap is not None else self._detect_namespaces()
+        self._nsmap = dict(_nsmap) if _nsmap is not None else self._detect_namespaces()
         self._last_scale = None
         self._last_categorical_palette = None
         self._id_index = None
+
+    @classmethod
+    def _from_owned_tree(
+        cls, tree: etree._ElementTree, *, _nsmap: dict[str, str] | None = None
+    ):
+        """Build from a fresh internal tree, honoring custom subclass setup."""
+        if cls.__init__ is SVGDocumentBase.__init__ and cls.__new__ is object.__new__:
+            instance = cls.__new__(cls)
+            instance._initialize(tree, _nsmap=_nsmap)
+            return instance
+
+        # Match the historical subclass contract: factory constructors call
+        # the subclass initializer with the tree. Its call to super().__init__
+        # defensively copies the tree, which is preferable to bypassing custom
+        # initialization merely to save a copy on this uncommon path.
+        return cls(tree)
 
     @classmethod
     def from_file(cls, path: str | PathLike):
@@ -82,7 +105,7 @@ class SVGDocumentBase:
             tree = etree.parse(str(path), get_secure_parser())
         except etree.XMLSyntaxError as exc:
             raise SVGParseError(f"Failed to parse SVG: {exc}") from exc
-        return cls(tree)
+        return cls._from_owned_tree(tree)
 
     @classmethod
     def from_string(cls, svg: str | bytes):
@@ -103,7 +126,7 @@ class SVGDocumentBase:
             tree = etree.ElementTree(etree.fromstring(svg, get_secure_parser()))
         except etree.XMLSyntaxError as exc:
             raise SVGParseError(f"Failed to parse SVG: {exc}") from exc
-        return cls(tree)
+        return cls._from_owned_tree(tree)
 
     @classmethod
     def from_url(cls, url: str, *, timeout: float = 10.0):
@@ -124,7 +147,17 @@ class SVGDocumentBase:
 
     @property
     def root(self) -> etree._Element:
-        """The root ``<svg>`` element."""
+        """An independent snapshot of the root ``<svg>`` element.
+
+        The returned element can be inspected with the normal lxml APIs, but
+        mutating it does not change this immutable document. Use the document's
+        transformation methods to create a modified copy.
+        """
+        return copy.deepcopy(self._root)
+
+    @property
+    def _root(self) -> etree._Element:
+        """The live root element for trusted internal operations."""
         return self._tree.getroot()
 
     @property
@@ -145,7 +178,7 @@ class SVGDocumentBase:
     @property
     def viewbox(self) -> ViewBox | None:
         """The parsed viewBox, or None if not set."""
-        vb = self.root.get("viewBox")
+        vb = self._root.get("viewBox")
         if vb:
             return parse_viewbox(vb)
         return None
@@ -153,8 +186,8 @@ class SVGDocumentBase:
     @property
     def dimensions(self) -> tuple[float | None, float | None]:
         """(width, height) in pixels, or (None, None) if not set."""
-        w = _parse_dimension(self.root.get("width"))
-        h = _parse_dimension(self.root.get("height"))
+        w = _parse_dimension(self._root.get("width"))
+        h = _parse_dimension(self._root.get("height"))
         return (w, h)
 
     @property
@@ -167,10 +200,12 @@ class SVGDocumentBase:
         """Title and description from the SVG, if present."""
         ns = self._svg_ns_prefix()
         title_elem = (
-            self.root.find(f"{ns}title", self._nsmap) if ns else self.root.find("title")
+            self._root.find(f"{ns}title", self._nsmap)
+            if ns
+            else self._root.find("title")
         )
         desc_elem = (
-            self.root.find(f"{ns}desc", self._nsmap) if ns else self.root.find("desc")
+            self._root.find(f"{ns}desc", self._nsmap) if ns else self._root.find("desc")
         )
         return {
             "title": title_elem.text if title_elem is not None else None,
@@ -285,27 +320,42 @@ class SVGDocumentBase:
         return validate_ids(self._tree, ids)
 
     def _clone(self):
-        """Return a deep copy of this document."""
-        new = type(self)(
+        """Return an independent copy of this document."""
+        return self._with_owned_tree(
             copy.deepcopy(self._tree),
-            _nsmap=dict(self._nsmap),
+            _nsmap=self._nsmap,
         )
-        new._last_scale = self._last_scale
-        new._last_categorical_palette = self._last_categorical_palette
+
+    def _with_owned_tree(
+        self, tree: etree._ElementTree, *, _nsmap: dict[str, str] | None = None
+    ):
+        """Deep-copy instance state while adopting a fresh internal tree.
+
+        Custom subclass state must support Python's ``copy.deepcopy`` protocol.
+        The SVG tree and ID cache are supplied through the copy memo so lxml is
+        not copied a second time and cached elements cannot survive the clone.
+        """
+        new_nsmap = (
+            dict(_nsmap)
+            if _nsmap is not None
+            else _detect_namespace_map(tree.getroot())
+        )
+        memo: dict[int, object] = {
+            id(self._tree): tree,
+            id(self._nsmap): new_nsmap,
+        }
+        if self._id_index is not None:
+            memo[id(self._id_index)] = None
+
+        new = copy.deepcopy(self, memo)
+        new._tree = tree
+        new._nsmap = new_nsmap
+        new._id_index = None
         return new
 
     def _detect_namespaces(self) -> dict[str, str]:
         """Detect all XML namespaces from the root element."""
-        root = self._tree.getroot()
-        if not root.nsmap:
-            return {"svg": SVG_NS}
-        nsmap = {
-            ("svg" if prefix is None else prefix): uri
-            for prefix, uri in root.nsmap.items()
-        }
-        if "svg" not in nsmap and SVG_NS not in nsmap.values():
-            nsmap["svg"] = SVG_NS
-        return nsmap
+        return _detect_namespace_map(self._root)
 
     def _svg_ns_prefix(self) -> str:
         """Return the XPath prefix for the SVG namespace, e.g. 'svg:'."""
@@ -321,3 +371,15 @@ def _parse_dimension(val: str | None) -> float | None:
         return None
     match = re.match(r"([+-]?\d*\.?\d+)", val.strip())
     return float(match.group(1)) if match else None
+
+
+def _detect_namespace_map(root: etree._Element) -> dict[str, str]:
+    """Detect namespaces from an SVG root element."""
+    if not root.nsmap:
+        return {"svg": SVG_NS}
+    nsmap = {
+        ("svg" if prefix is None else prefix): uri for prefix, uri in root.nsmap.items()
+    }
+    if "svg" not in nsmap and SVG_NS not in nsmap.values():
+        nsmap["svg"] = SVG_NS
+    return nsmap

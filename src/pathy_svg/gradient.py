@@ -15,6 +15,7 @@ from pathy_svg._constants import (
     svg_sub,
 )
 from pathy_svg._css import set_style_property
+from pathy_svg.coloring import _matched_items_ancestor_first, _validate_opacity
 
 DIRECTION_MAP = {
     "horizontal": ("0", "0", "1", "0"),
@@ -88,7 +89,7 @@ def _set_gradient_ref(
     ref = f"url(#{grad_id})"
     element.set("fill", ref)
     style = set_style_property(element.get("style"), "fill", ref)
-    if opacity is not None and opacity < 1.0:
+    if opacity is not None:
         element.set("fill-opacity", str(opacity))
         style = set_style_property(style, "fill-opacity", str(opacity))
     if not preserve_stroke:
@@ -106,16 +107,13 @@ def apply_gradient_fill(
     id_to_elem: dict[str, etree._Element] | None = None,
 ) -> None:
     """Apply gradient fills to SVG elements. Modifies tree in-place."""
+    opacity = _validate_opacity(opacity)
     if id_to_elem is None:
         id_to_elem = build_id_index(tree)
 
     defs = None  # lazily created
 
-    for eid, spec in gradients.items():
-        elem = id_to_elem.get(eid)
-        if elem is None:
-            continue
-
+    for eid, spec, elem in _matched_items_ancestor_first(gradients, id_to_elem):
         if defs is None:
             defs = _get_or_create_defs(tree)
 

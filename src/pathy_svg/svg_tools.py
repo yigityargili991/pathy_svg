@@ -4,6 +4,14 @@ from __future__ import annotations
 
 import copy
 
+from pathy_svg._composition import (
+    composition_size,
+    composition_translation,
+    copy_svg_panel,
+    place_svg_panel,
+    plan_svg_panels,
+    validate_composition_layout,
+)
 from pathy_svg._constants import SVG_NS, Layout, local_tag
 
 _CRUFT_NS = frozenset(
@@ -88,7 +96,7 @@ def merge_svgs(svgs, layout: Layout = "horizontal", spacing: float = 20):
         A new SVGDocument containing all inputs arranged according to layout.
 
     Raises:
-        ValueError: If the svgs iterable is empty.
+        ValueError: If the svgs iterable is empty or layout is unsupported.
     """
     from lxml import etree
 
@@ -97,6 +105,7 @@ def merge_svgs(svgs, layout: Layout = "horizontal", spacing: float = 20):
     docs = list(svgs)
     if not docs:
         raise ValueError("svgs must be non-empty")
+    validate_composition_layout(layout)
 
     infos = []
     for doc in docs:
@@ -109,38 +118,30 @@ def merge_svgs(svgs, layout: Layout = "horizontal", spacing: float = 20):
         else:
             infos.append({"w": 500.0, "h": 500.0, "vb": None})
 
-    if layout == "horizontal":
-        total_w = sum(info["w"] for info in infos) + spacing * (len(infos) - 1)
-        total_h = max(info["h"] for info in infos)
-    else:
-        total_w = max(info["w"] for info in infos)
-        total_h = sum(info["h"] for info in infos) + spacing * (len(infos) - 1)
+    total_w, total_h = composition_size(
+        [(info["w"], info["h"]) for info in infos], layout, spacing
+    )
 
     root = etree.Element(
         f"{{{SVG_NS}}}svg",
         nsmap={None: SVG_NS},
     )
     root.set("viewBox", f"0 0 {total_w} {total_h}")
-    root.set("xmlns", SVG_NS)
 
+    plans = plan_svg_panels([doc._root for doc in docs])
     offset = 0.0
-    for i, (doc, info) in enumerate(zip(docs, infos)):
+    for doc, info, plan in zip(docs, infos, plans):
+        tx, ty = composition_translation(layout, main_offset=offset)
         if layout == "horizontal":
-            tx, ty = offset, 0.0
             offset += info["w"] + spacing
         else:
-            tx, ty = 0.0, offset
             offset += info["h"] + spacing
 
-        g = etree.SubElement(root, f"{{{SVG_NS}}}g")
-        g.set("transform", f"translate({tx}, {ty})")
-
-        src_root = doc.root
-        for child in src_root:
-            g.append(copy.deepcopy(child))
+        g = copy_svg_panel(doc._root, root, plan, info["w"], info["h"])
+        place_svg_panel(g, f"translate({tx}, {ty})")
 
     tree = etree.ElementTree(root)
-    return SVGDocument(tree)
+    return SVGDocument._from_owned_tree(tree)
 
 
 def strip_metadata(doc):
@@ -164,10 +165,8 @@ def strip_metadata(doc):
     """
     from lxml import etree
 
-    from pathy_svg.document import SVGDocument
-
     clone = doc._clone()
-    root = clone.root
+    root = clone._root
 
     def _is_cruft(elem: etree._Element) -> bool:
         tag = elem.tag
@@ -195,7 +194,7 @@ def strip_metadata(doc):
         for child in root:
             new_root.append(copy.deepcopy(child))
         new_tree = etree.ElementTree(new_root)
-        return SVGDocument(new_tree)
+        return clone._with_owned_tree(new_tree)
 
     return clone
 
@@ -244,7 +243,7 @@ def optimize_svg(doc):
         for elem in to_remove:
             parent.remove(elem)
 
-    _optimize(clone.root)
+    _optimize(clone._root)
     return clone
 
 
@@ -265,7 +264,7 @@ def extract_styles(doc):
     from lxml import etree
 
     clone = doc._clone()
-    root = clone.root
+    root = clone._root
 
     style_to_class: dict[str, str] = {}
     elements_with_style: list[tuple] = []

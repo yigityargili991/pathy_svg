@@ -95,25 +95,25 @@ def bbox_of_element(
     Returns:
         The computed BBox, or None if it cannot be computed.
     """
-    # Build this element's full transform: parent's accumulated @ own local
-    local_attr = element.get("transform")
-    local_matrix = _parse_transform(local_attr) if local_attr else None
+    tag = local_tag(element.tag)
+
+    # Build this element's full transform: parent's accumulated @ own local.
+    # A nested <svg> additionally maps its child user space through its viewport.
+    local_matrix = _element_coordinate_transform(element)
 
     if _accumulated_transform is None:
         # Top-level call: walk ancestors once to seed the accumulated transform
         _accumulated_transform = _get_ancestor_transform(element)
 
-    if local_matrix is not None:
-        current_transform = _accumulated_transform @ local_matrix
-    else:
-        current_transform = _accumulated_transform
-
-    tag = local_tag(element.tag)
+    current_transform = _accumulated_transform @ local_matrix
 
     if tag == "path":
         d = element.get("d")
-        if d:
-            box = bbox_from_path_d(d)
+        if d and d.strip().lower() != "none":
+            # Path candidates must be evaluated after the affine transform.
+            # Transforming a local AABB would include empty corner regions and
+            # substantially overestimate rotated/skewed partial arcs.
+            return bbox_from_path_d(d, _matrix_as_affine(current_transform))
         else:
             return None
     elif tag == "rect":
@@ -126,12 +126,11 @@ def bbox_of_element(
         cx = float(element.get("cx", 0))
         cy = float(element.get("cy", 0))
         if tag == "circle":
-            r = float(element.get("r", 0))
-            box = BBox(cx - r, cy - r, 2 * r, 2 * r)
+            rx = ry = float(element.get("r", 0))
         else:
             rx = float(element.get("rx", 0))
             ry = float(element.get("ry", 0))
-            box = BBox(cx - rx, cy - ry, 2 * rx, 2 * ry)
+        return _transformed_ellipse_bbox(cx, cy, rx, ry, current_transform)
     elif tag in ("polygon", "polyline"):
         points_attr = element.get("points", "")
         coords = re.split(r"[\s,]+", points_attr.strip())
@@ -145,7 +144,7 @@ def bbox_of_element(
                 return None
         else:
             return None
-    elif tag == "g":
+    elif tag in ("g", "svg"):
         child_boxes = []
         for child in element:
             child_box = bbox_of_element(
@@ -228,6 +227,37 @@ def _matrix(a: float, b: float, c: float, d: float, e: float, f: float) -> np.nd
     return np.array([[a, c, e], [b, d, f], [0, 0, 1]], dtype=np.float64)
 
 
+def _matrix_as_affine(
+    matrix: np.ndarray,
+) -> tuple[float, float, float, float, float, float]:
+    """Return an SVG-style affine tuple from a homogeneous matrix."""
+    return (
+        float(matrix[0, 0]),
+        float(matrix[1, 0]),
+        float(matrix[0, 1]),
+        float(matrix[1, 1]),
+        float(matrix[0, 2]),
+        float(matrix[1, 2]),
+    )
+
+
+def _transformed_ellipse_bbox(
+    cx: float, cy: float, rx: float, ry: float, matrix: np.ndarray
+) -> BBox:
+    """Return the exact AABB of an axis-aligned ellipse after an affine transform."""
+    transformed_center = matrix @ np.array([cx, cy, 1.0])
+    x_radius = math.hypot(matrix[0, 0] * rx, matrix[0, 1] * ry)
+    y_radius = math.hypot(matrix[1, 0] * rx, matrix[1, 1] * ry)
+    center_x = float(transformed_center[0])
+    center_y = float(transformed_center[1])
+    return BBox(
+        center_x - x_radius,
+        center_y - y_radius,
+        2 * x_radius,
+        2 * y_radius,
+    )
+
+
 def _parse_transform(attr: str) -> np.ndarray:
     """Parse an SVG transform attribute into a single 3x3 transformation matrix.
 
@@ -266,20 +296,84 @@ def _parse_transform(attr: str) -> np.ndarray:
 
 
 def _get_ancestor_transform(element) -> np.ndarray:
-    """Walk from element's parent up to root, composing all ancestor transform attributes.
+    """Walk upward, composing ancestor transforms and nested SVG viewports.
 
     Unlike the element's own transform (handled in bbox_of_element), this only
-    collects transforms from parent elements upward.
+    collects coordinate mappings from parent elements upward.
     """
     result = _identity()
     current = element.getparent()
     while current is not None:
-        transform_attr = current.get("transform")
-        if transform_attr:
-            local_matrix = _parse_transform(transform_attr)
-            result = local_matrix @ result
+        result = _element_coordinate_transform(current) @ result
         current = current.getparent()
     return result
+
+
+def _element_coordinate_transform(element) -> np.ndarray:
+    """Return the mapping from an element's child user space to its parent."""
+    viewport = _identity()
+    if local_tag(element.tag) == "svg" and element.getparent() is not None:
+        viewport = _svg_viewport_transform(element)
+
+    transform_attr = element.get("transform")
+    if transform_attr:
+        return _parse_transform(transform_attr) @ viewport
+    return viewport
+
+
+def _svg_viewport_transform(element) -> np.ndarray:
+    """Map a nested ``svg`` viewBox into its viewport.
+
+    Supports the default ``xMidYMid meet``, ``none``, and all standard
+    xMin/xMid/xMax + YMin/YMid/YMax alignments with ``meet`` or ``slice``.
+    """
+    x = float(element.get("x", 0))
+    y = float(element.get("y", 0))
+    viewbox_attr = element.get("viewBox")
+    if not viewbox_attr:
+        return _translate(x, y)
+
+    viewbox = parse_viewbox(viewbox_attr)
+    if viewbox.width == 0 or viewbox.height == 0:
+        return _translate(x, y)
+
+    width = float(element.get("width", viewbox.width))
+    height = float(element.get("height", viewbox.height))
+    scale_x = width / viewbox.width
+    scale_y = height / viewbox.height
+
+    preserve = element.get("preserveAspectRatio", "xMidYMid meet").strip().split()
+    if preserve and preserve[0] == "defer":
+        preserve = preserve[1:]
+    alignment = preserve[0] if preserve else "xMidYMid"
+    if alignment == "none":
+        return (
+            _translate(x, y)
+            @ _scale(scale_x, scale_y)
+            @ _translate(-viewbox.x, -viewbox.y)
+        )
+
+    meet_or_slice = preserve[1] if len(preserve) > 1 else "meet"
+    uniform_scale = (
+        max(scale_x, scale_y) if meet_or_slice == "slice" else min(scale_x, scale_y)
+    )
+    remaining_x = width - viewbox.width * uniform_scale
+    remaining_y = height - viewbox.height * uniform_scale
+    x_alignment = 0.0 if alignment.startswith("xMin") else 1.0
+    if alignment.startswith("xMid"):
+        x_alignment = 0.5
+    y_alignment = 0.0 if "YMin" in alignment else 1.0
+    if "YMid" in alignment:
+        y_alignment = 0.5
+
+    return (
+        _translate(
+            x + remaining_x * x_alignment,
+            y + remaining_y * y_alignment,
+        )
+        @ _scale(uniform_scale)
+        @ _translate(-viewbox.x, -viewbox.y)
+    )
 
 
 def _transform_bbox(bbox: BBox, matrix: np.ndarray) -> BBox:
