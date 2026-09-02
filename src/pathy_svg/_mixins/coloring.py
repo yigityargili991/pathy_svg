@@ -7,8 +7,10 @@ from typing import Any
 
 from typing_extensions import Self
 
+from pathy_svg._mixins.host import _DocumentMixinHost
 
-class ColoringMixin:
+
+class ColoringMixin(_DocumentMixinHost):
     """Heatmap, recolor, and categorical coloring methods."""
 
     __slots__ = ()

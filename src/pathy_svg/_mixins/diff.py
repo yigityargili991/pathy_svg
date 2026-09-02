@@ -8,10 +8,11 @@ from typing import Any
 from typing_extensions import Self
 
 from pathy_svg._constants import Layout
+from pathy_svg._mixins.host import _DocumentMixinHost
 from pathy_svg.diff import DiffMode
 
 
-class DiffMixin:
+class DiffMixin(_DocumentMixinHost):
     """Diff and side-by-side comparison methods."""
 
     __slots__ = ()

@@ -30,8 +30,8 @@ jobs:
           pip install -e ".[full]" --group dev
       - name: Lint with ruff
         run: ruff check src/pathy_svg
-      - name: Type check with pyrefly
-        run: pyrefly check
+      - name: Type check with ty
+        run: ty check
       - name: Build distributions
         run: python -m build --sdist --wheel --no-isolation
       - name: Run tests

@@ -8,6 +8,7 @@ from lxml import etree
 from typing_extensions import Self
 
 from pathy_svg._constants import SVG_NS
+from pathy_svg._mixins.host import _DocumentMixinHost
 from pathy_svg.annotations import Placement, TooltipMethod
 
 
@@ -18,7 +19,7 @@ def _frange(start: float, stop: float, step: float):
         yield start + i * step
 
 
-class AnnotationMixin:
+class AnnotationMixin(_DocumentMixinHost):
     """Annotate, tooltip, and text replacement methods."""
 
     __slots__ = ()

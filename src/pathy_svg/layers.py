@@ -5,9 +5,10 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from typing import Generic, TypeVar
 
+from pathy_svg._mixins.host import _DocumentMixinHost
 from pathy_svg.exceptions import ValidationError
 
-_DocumentT = TypeVar("_DocumentT")
+_DocumentT = TypeVar("_DocumentT", bound=_DocumentMixinHost)
 
 
 class LayerManager(Generic[_DocumentT]):

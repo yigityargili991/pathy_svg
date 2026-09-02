@@ -7,7 +7,7 @@ import re
 import urllib.request
 from collections.abc import Iterable, Mapping
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from lxml import etree
 from typing_extensions import Self
@@ -202,7 +202,9 @@ class SVGDocumentBase:
         result = self._tree.xpath(
             expression,
             namespaces=dict(namespaces) if namespaces is not None else None,
-            **variables,
+            # XPath variables may be any lxml-supported value; the published
+            # lxml stubs only accept a narrower subset.
+            **variables,  # ty: ignore[invalid-argument-type]
         )
         return _snapshot_xpath_result(result)
 
@@ -330,7 +332,12 @@ class SVGDocumentBase:
 
     def _find_all_by_tag(self, local_tag: str) -> list[etree._Element]:
         """Find all elements with a given local tag name (ignoring namespace)."""
-        return self._tree.xpath(f"//*[local-name()='{local_tag}']")
+        # The ``//*[local-name()=...]`` pattern always yields elements; the
+        # lxml stubs type the generic xpath() return as a wider union.
+        return cast(
+            "list[etree._Element]",
+            self._tree.xpath(f"//*[local-name()='{local_tag}']"),
+        )
 
     def _ids_for_tag(self, local_tag: str) -> list[str]:
         """Get all IDs for elements with a given tag name."""

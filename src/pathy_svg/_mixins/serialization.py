@@ -7,11 +7,13 @@ from typing import TYPE_CHECKING
 
 from lxml import etree
 
+from pathy_svg._mixins.host import _DocumentMixinHost
+
 if TYPE_CHECKING:
     from os import PathLike
 
 
-class SerializationMixin:
+class SerializationMixin(_DocumentMixinHost):
     """SVG serialization and Jupyter repr methods."""
 
     __slots__ = ()

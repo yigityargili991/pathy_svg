@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-09-02
+
+### Added
+- Type checking with Astral's `ty`, replacing pyrefly in CI and dev dependencies, with accurate `lxml` types via `lxml-stubs`
+
+### Changed
+- `LayerManager` is now bounded so `flatten()` returns an accurately typed document
+- `aggregate_by_group()`'s `agg` parameter is typed as `str | Callable[[list[float]], float]`
+
 ## [0.4.0] - 2026-08-13
 
 ### Added
@@ -118,6 +127,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Coordinate grid overlay (xy_guide)
 - US states example workflow with 2023 Census data
 
+[0.4.1]: https://github.com/yigityargili991/pathy_svg/releases/tag/v0.4.1
 [0.4.0]: https://github.com/yigityargili991/pathy_svg/releases/tag/v0.4.0
 [0.3.1]: https://github.com/yigityargili991/pathy_svg/releases/tag/v0.3.1
 [0.3.0]: https://github.com/yigityargili991/pathy_svg/releases/tag/v0.3.0

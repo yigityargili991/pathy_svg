@@ -46,6 +46,12 @@ class TestCallableAgg:
         with pytest.raises(ValueError, match="Unknown aggregation"):
             aggregate_by_group(tree, {"north_a": 10.0}, agg="invalid")
 
+    def test_non_callable_agg_raises(self):
+        tree = _make_grouped_tree()
+        for invalid in (None, 1, ["mean"]):
+            with pytest.raises(ValueError, match="Unknown aggregation"):
+                aggregate_by_group(tree, {"north_a": 10.0}, agg=invalid)
+
     def test_callable_via_mixin(self, grouped_svg_path):
         doc = SVGDocument.from_file(grouped_svg_path)
         data = {"north_a": 10.0, "north_b": 30.0, "south_a": 5.0, "south_b": 15.0}

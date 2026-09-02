@@ -7,10 +7,11 @@ from numbers import Real
 
 from typing_extensions import Self
 
+from pathy_svg._mixins.host import _DocumentMixinHost
 from pathy_svg.animation import AnimationEffect
 
 
-class AnimationMixin:
+class AnimationMixin(_DocumentMixinHost):
     """CSS animation methods."""
 
     __slots__ = ()

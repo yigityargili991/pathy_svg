@@ -7,12 +7,14 @@ from typing import TYPE_CHECKING
 
 from typing_extensions import Self
 
+from pathy_svg._mixins.host import _DocumentMixinHost
+
 if TYPE_CHECKING:
     from pathy_svg.gradient import GradientSpec
     from pathy_svg.pattern import PatternSpec
 
 
-class StyleMixin:
+class StyleMixin(_DocumentMixinHost):
     """Gradient fills, pattern fills, stroke mapping, highlight/dim, and group aggregation."""
 
     __slots__ = ()

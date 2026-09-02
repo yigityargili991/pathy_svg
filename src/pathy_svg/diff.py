@@ -82,9 +82,11 @@ def compose_side_by_side(
     else:
         total_h += title_offset * len(docs) if titles else 0
 
+    # A None prefix sets the default namespace at runtime; lxml-stubs only
+    # model prefixed namespace maps.
     new_root = etree.Element(
         f"{{{SVG_NS}}}svg",
-        nsmap={None: SVG_NS},
+        nsmap={None: SVG_NS},  # ty: ignore[invalid-argument-type]
     )
     new_root.set("viewBox", f"0 0 {total_w} {total_h}")
     new_root.set("width", str(total_w))

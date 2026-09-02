@@ -239,7 +239,7 @@ layered.save("layered.svg")
 Full source: [`examples/us_states_workflow.py`](https://github.com/yigityargili991/pathy_svg/blob/main/examples/us_states_workflow.py)
 """
 
-__version__ = "0.4.0"
+__version__ = "0.4.1"
 
 from pathy_svg._constants import Layout
 from pathy_svg.animation import AnimationEffect

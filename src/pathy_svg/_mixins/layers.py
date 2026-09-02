@@ -6,11 +6,13 @@ from typing import TYPE_CHECKING
 
 from typing_extensions import Self
 
+from pathy_svg._mixins.host import _DocumentMixinHost
+
 if TYPE_CHECKING:
     from pathy_svg.layers import LayerManager
 
 
-class LayerMixin:
+class LayerMixin(_DocumentMixinHost):
     """Provides the layers() method for multi-layer composition."""
 
     __slots__ = ()

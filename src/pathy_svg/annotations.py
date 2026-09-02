@@ -134,10 +134,12 @@ def add_tooltips(
 
             elem.set("data-tooltip", tip_text)
 
-            for existing in tree.xpath(
-                "//*[@data-tooltip-for=$val]",
-                val=eid,
-            ):
+            matches = tree.xpath("//*[@data-tooltip-for=$val]", val=eid)
+            if not isinstance(matches, list):
+                continue
+            for existing in matches:
+                if not isinstance(existing, etree._Element):
+                    continue
                 parent = existing.getparent()
                 if parent is not None:
                     parent.remove(existing)

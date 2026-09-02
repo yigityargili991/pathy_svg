@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from math import isfinite
 from numbers import Real
-from typing import TypeVar
+from typing import TypedDict, TypeVar, cast
 
 import numpy as np
 from lxml import etree
@@ -69,6 +69,11 @@ def _stable_element_path(element: etree._Element) -> str:
     return element.getroottree().getpath(element)
 
 
+class _FillKwargs(TypedDict, total=False):
+    opacity: float | None
+    preserve_stroke: bool
+
+
 def _set_fill(
     element: etree._Element,
     color: str,
@@ -126,11 +131,11 @@ def _library_generated(element: etree._Element) -> bool:
 
 def _color_missing_indexed(
     tree: etree._ElementTree,
-    data: dict[str, object],
+    data: Mapping[str, object],
     id_to_elem: dict[str, etree._Element],
     protected_paths: set[str],
     na_color: str,
-    fill_kwargs: dict[str, object],
+    fill_kwargs: _FillKwargs,
 ) -> None:
     """Paint indexed rendered elements absent from *data* with *na_color*.
 
@@ -214,7 +219,7 @@ def apply_heatmap(
     if not data:
         return None
 
-    fill_kwargs = {"opacity": opacity, "preserve_stroke": preserve_stroke}
+    fill_kwargs: _FillKwargs = {"opacity": opacity, "preserve_stroke": preserve_stroke}
     if id_to_elem is None:
         id_to_elem = build_id_index(tree)
 
@@ -270,7 +275,7 @@ def apply_recolor(
         preserve_stroke: Whether to preserve original stroke styling.
     """
     opacity = _validate_opacity(opacity)
-    fill_kwargs = {"opacity": opacity, "preserve_stroke": preserve_stroke}
+    fill_kwargs: _FillKwargs = {"opacity": opacity, "preserve_stroke": preserve_stroke}
     if id_to_elem is None:
         id_to_elem = build_id_index(tree)
 
@@ -310,7 +315,7 @@ def apply_categorical(
     """
     opacity = _validate_opacity(opacity)
     cat_palette = CategoricalPalette(palette)
-    fill_kwargs = {"opacity": opacity, "preserve_stroke": preserve_stroke}
+    fill_kwargs: _FillKwargs = {"opacity": opacity, "preserve_stroke": preserve_stroke}
     if id_to_elem is None:
         id_to_elem = build_id_index(tree)
 
@@ -318,7 +323,10 @@ def apply_categorical(
 
     for _, category, elem in _matched_items_ancestor_first(data, id_to_elem):
         _protect_explicit_match(elem, protected_paths)
-        color = na_color if _is_missing_category(category) else cat_palette(category)
+        if category is None or _is_missing_category(category):
+            color = na_color
+        else:
+            color = cat_palette(category)
         if local_tag(elem.tag) == "g":
             _set_fill_on_group(elem, color, **fill_kwargs)
         else:
@@ -345,7 +353,7 @@ def _is_missing_category(category: object) -> bool:
 def aggregate_by_group(
     tree: etree._ElementTree,
     data: dict[str, float],
-    agg: str | Callable = "mean",
+    agg: str | Callable[[list[float]], float] = "mean",
     key_attr: str = "id",
 ) -> dict[str, float]:
     """Walk <g> elements, aggregate matched children's values.
@@ -368,10 +376,15 @@ def aggregate_by_group(
         "max": np.max,
         "median": np.median,
     }
-    if callable(agg):
+    func: Callable[[list[float]], float]
+    if isinstance(agg, str):
+        if agg not in agg_funcs:
+            raise ValidationError(
+                f"Unknown aggregation: {agg!r}. Choose from {list(agg_funcs)}"
+            )
+        func = cast("Callable[[list[float]], float]", agg_funcs[agg])
+    elif callable(agg):
         func = agg
-    elif agg in agg_funcs:
-        func = agg_funcs[agg]
     else:
         raise ValidationError(
             f"Unknown aggregation: {agg!r}. Choose from {list(agg_funcs)}"

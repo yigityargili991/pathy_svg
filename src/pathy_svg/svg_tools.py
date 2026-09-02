@@ -133,7 +133,9 @@ def compose_svgs(
     ]
     total_w, total_h = composition_size(sizes, layout, spacing)
 
-    root = etree.Element(f"{{{SVG_NS}}}svg", nsmap={None: SVG_NS})
+    # A None prefix sets the default namespace at runtime; lxml-stubs only
+    # model prefixed namespace maps.
+    root = etree.Element(f"{{{SVG_NS}}}svg", nsmap={None: SVG_NS})  # ty: ignore[invalid-argument-type]
     root.set("viewBox", f"0 0 {total_w} {total_h}")
 
     plans = plan_svg_panels([doc._root for doc in docs])
@@ -247,7 +249,8 @@ def strip_metadata(doc: _DocumentT) -> _DocumentT:
 
     dirty_nsmap = {k: v for k, v in root.nsmap.items() if v not in _CRUFT_NS}
     if len(dirty_nsmap) < len(root.nsmap):
-        new_root = etree.Element(root.tag, attrib=dict(root.attrib), nsmap=dirty_nsmap)
+        # nsmap may keep a None (default-namespace) entry; accepted at runtime.
+        new_root = etree.Element(root.tag, attrib=dict(root.attrib), nsmap=dirty_nsmap)  # ty: ignore[invalid-argument-type]
         for child in root:
             new_root.append(copy.deepcopy(child))
         new_tree = etree.ElementTree(new_root)

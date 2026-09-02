@@ -8,6 +8,7 @@ from lxml import etree
 from typing_extensions import Self
 
 from pathy_svg._constants import SVG_NS
+from pathy_svg._mixins.host import _DocumentMixinHost
 from pathy_svg.legend import (
     _GENERATED_LEGEND_ATTR,
     _GENERATED_LEGEND_VALUE,
@@ -20,7 +21,7 @@ from pathy_svg.themes import CategoricalPalette, ColorScale
 from pathy_svg.transform import ViewBox
 
 
-class LegendMixin:
+class LegendMixin(_DocumentMixinHost):
     """Legend methods."""
 
     __slots__ = ()
