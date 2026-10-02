@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Any
-
-from typing_extensions import Self
+from typing import Any, Self
 
 from pathy_svg._mixins.host import _DocumentMixinHost
 

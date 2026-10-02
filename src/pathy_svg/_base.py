@@ -7,10 +7,9 @@ import re
 import urllib.request
 from collections.abc import Iterable, Mapping
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Self, TypeVar, cast
 
 from lxml import etree
-from typing_extensions import Self
 
 from pathy_svg._constants import (
     SVG_NS,

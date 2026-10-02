@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from typing import Self
 
 from lxml import etree
-from typing_extensions import Self
 
 from pathy_svg._constants import SVG_NS
 from pathy_svg._mixins.host import _DocumentMixinHost

@@ -8,9 +8,7 @@ implementation.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import TYPE_CHECKING, TypeVar
-
-from typing_extensions import Self
+from typing import TYPE_CHECKING, Self, TypeVar
 
 if TYPE_CHECKING:
     from lxml import etree
