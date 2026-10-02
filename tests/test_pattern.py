@@ -287,7 +287,6 @@ class TestCustomPatternSecurity:
             "]>"
             "<root>&xxe;</root>"
         )
-        root = etree.fromstring(xxe.encode(), get_secure_parser())
-        # resolve_entities=False means the entity is not expanded to file contents;
-        # lxml leaves root.text as None when the entity reference is suppressed.
-        assert root.text is None
+        # Only internal entities are expanded; an external one is undefined.
+        with pytest.raises(etree.XMLSyntaxError, match="xxe"):
+            etree.fromstring(xxe.encode(), get_secure_parser())

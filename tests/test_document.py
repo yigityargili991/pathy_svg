@@ -99,19 +99,24 @@ class TestXXEPrevention:
         "<text>&xxe;</text></svg>"
     )
 
-    def test_from_string_does_not_resolve_xxe(self):
-        doc = SVGDocument.from_string(self.XXE_STRING)
-        ns = {"svg": SVG_NS}
-        text_elem = doc.root.find(".//svg:text", ns)
-        assert not (text_elem.text and text_elem.text.strip())
+    def test_from_string_rejects_xxe(self):
+        with pytest.raises(SVGParseError, match="xxe") as exc_info:
+            SVGDocument.from_string(self.XXE_STRING)
+        assert "root:" not in str(exc_info.value)
 
-    def test_from_file_does_not_resolve_xxe(self, tmp_path):
+    def test_from_file_rejects_xxe(self, tmp_path):
         xxe_file = tmp_path / "xxe.svg"
         xxe_file.write_text(self.XXE_STRING)
-        doc = SVGDocument.from_file(xxe_file)
-        ns = {"svg": SVG_NS}
-        text_elem = doc.root.find(".//svg:text", ns)
-        assert not (text_elem.text and text_elem.text.strip())
+        with pytest.raises(SVGParseError, match="xxe") as exc_info:
+            SVGDocument.from_file(xxe_file)
+        assert "root:" not in str(exc_info.value)
+
+    def test_internal_entities_are_expanded(self):
+        doc = SVGDocument.from_string(
+            '<?xml version="1.0"?><!DOCTYPE svg [<!ENTITY paint "#ff0000">]>'
+            '<svg xmlns="http://www.w3.org/2000/svg"><rect id="r" fill="&paint;"/></svg>'
+        )
+        assert doc._find_by_id("r").get("fill") == "#ff0000"
 
 
 class TestProperties:

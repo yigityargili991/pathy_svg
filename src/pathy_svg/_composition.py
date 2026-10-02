@@ -88,6 +88,7 @@ _UNSAFE_CSS_AT_RULES = frozenset({"import", "property", "counter-style"})
 _SUPPORTED_CSS_AT_RULES = frozenset(
     {
         "-webkit-keyframes",
+        "charset",
         "container",
         "document",
         "font-face",
@@ -146,6 +147,12 @@ _NON_SYNCBASE_TIMING_RE = re.compile(
     r"(?:wallclock|accesskey|repeat)\s*\([^()]*\)(?:\s*[+-][^;]*)?)$",
     re.IGNORECASE,
 )
+# Serialized entity references are "&name;" outside comments, PIs and CDATA;
+# those three are matched first so a raw "&" inside them is never reported.
+_XML_ENTITY_REFERENCE_RE = re.compile(
+    rb"<!--.*?-->|<\?.*?\?>|<!\[CDATA\[.*?\]\]>|&(?!amp;|lt;|gt;|quot;|apos;|#)",
+    re.DOTALL,
+)
 
 
 @dataclass(frozen=True)
@@ -170,7 +177,6 @@ def composition_size(
     sizes: list[tuple[float, float]], layout: Layout, spacing: float
 ) -> tuple[float, float]:
     """Return the common untitled extent calculation for composed panels."""
-    validate_composition_layout(layout)
     if layout == "horizontal":
         return (
             sum(width for width, _ in sizes) + spacing * (len(sizes) - 1),
@@ -188,7 +194,6 @@ def composition_translation(
     cross_offset: float = 0.0,
 ) -> tuple[float, float]:
     """Place one nested panel viewport consistently for either layout."""
-    validate_composition_layout(layout)
     if layout == "horizontal":
         return main_offset, cross_offset
     return cross_offset, main_offset
@@ -215,7 +220,9 @@ def plan_svg_panels(source_roots: list[etree._Element]) -> list[PanelCopyPlan]:
     }
     claimed = set(preserved) | reserved
     next_suffixes: dict[str, int] = {}
-    plans: list[PanelCopyPlan] = []
+    planned: list[
+        tuple[tuple[str, str] | None, list[tuple[str, str]], dict[str, str]]
+    ] = []
 
     for index, (root, entries) in enumerate(zip(source_roots, panel_entries)):
         prefix = f"pathy-panel-{index}"
@@ -238,28 +245,20 @@ def plan_svg_panels(source_roots: list[etree._Element]) -> list[PanelCopyPlan]:
             descendant_ids.append((old_id, new_id))
             reference_map.setdefault(old_id, new_id)
 
-        plans.append(
-            PanelCopyPlan(
-                index=index,
-                wrapper_id=prefix,
-                root_id=planned_root_id,
-                descendant_ids=tuple(descendant_ids),
-                reference_map=reference_map,
-                blocked_ids=frozenset(),
-            )
-        )
+        planned.append((planned_root_id, descendant_ids, reference_map))
 
+    # Plans are built only once every panel has claimed its IDs.
     blocked_ids = frozenset(claimed)
     return [
         PanelCopyPlan(
-            index=plan.index,
-            wrapper_id=plan.wrapper_id,
-            root_id=plan.root_id,
-            descendant_ids=plan.descendant_ids,
-            reference_map=plan.reference_map,
+            index=index,
+            wrapper_id=f"pathy-panel-{index}",
+            root_id=root_id,
+            descendant_ids=tuple(descendant_ids),
+            reference_map=reference_map,
             blocked_ids=blocked_ids,
         )
-        for plan in plans
+        for index, (root_id, descendant_ids, reference_map) in enumerate(planned)
     ]
 
 
@@ -270,13 +269,12 @@ def _planned_id(
     claimed: set[str],
     next_suffixes: dict[str, int],
 ) -> str:
-    if old_id in preserved and _valid_output_id(old_id):
+    if old_id in preserved:
         return old_id
 
     base_id = f"{prefix}--{_sanitize_id_component(old_id)}"
     if base_id not in claimed:
         claimed.add(base_id)
-        next_suffixes.setdefault(base_id, 1)
         return base_id
 
     duplicate = next_suffixes.get(base_id, 1)
@@ -316,6 +314,16 @@ def copy_svg_panel(
     Passing ``None`` for *width* and *height* keeps the source's own
     dimension attributes, embedding the panel without a fabricated viewport.
     """
+    # Entity references would be copied without the DTD that defines them,
+    # leaving the composed XML malformed.
+    if any(
+        match.group().startswith(b"&")
+        for match in _XML_ENTITY_REFERENCE_RE.finditer(etree.tostring(source_root))
+    ):
+        raise CompositionError(
+            "Cannot safely compose SVG containing XML entity references; "
+            "expand them before composing"
+        )
     panel = etree.SubElement(target_root, f"{{{SVG_NS}}}g")
     panel.set("id", plan.wrapper_id)
     panel.set("data-panel-index", str(plan.index))
@@ -401,10 +409,12 @@ def _style_css_content(style: etree._Element) -> str:
 
 
 def place_svg_panel(panel: etree._Element, placement: str) -> None:
-    """Apply layout placement before any transform inherited from the source root."""
-    source_transform = panel.get("transform")
-    transform = f"{placement} {source_transform}" if source_transform else placement
-    panel.set("transform", transform)
+    """Apply the layout placement to a panel wrapper from copy_svg_panel().
+
+    The wrapper never carries a transform of its own; any source root
+    transform stays on the nested <svg>, inside this placement.
+    """
+    panel.set("transform", placement)
 
 
 class _ReferenceRewriter:
@@ -452,7 +462,10 @@ class _ReferenceRewriter:
                 rewritten = _rewrite_animation_declarations(
                     rewritten, self.keyframe_map
                 )
-            elif attr_local_name in _URL_REFERENCE_ATTRIBUTES:
+            elif attr_local_name in _URL_REFERENCE_ATTRIBUTES or (
+                attr_local_name in {"by", "from", "to", "values"}
+                and local_tag(elem.tag) in {"animate", "set"}
+            ):
                 rewritten = _rewrite_css_urls(value, self.map_fragment)
 
             if attr_local_name == "href":
@@ -537,11 +550,9 @@ def _find_css_keyframes(css: str) -> list[str]:
     names: list[str] = []
     index = 0
     while index < len(css):
-        if css.startswith("/*", index):
-            index = _consume_css_comment(css, index)
-            continue
-        if css[index] in "\"'":
-            index = _consume_css_string(css, index)
+        token_end = _skip_css_token(css, index)
+        if token_end > index:
+            index = token_end
             continue
         keyframe_end = _keyframes_keyword_end(css, index)
         if keyframe_end is not None:
@@ -553,11 +564,12 @@ def _find_css_keyframes(css: str) -> list[str]:
                     names.append(name)
                 index = name_end
                 continue
-        function_open = _css_function_open_paren(css, index)
+        name_end = _consume_css_identifier(css, index)
+        function_open = _css_function_open_paren(css, index, name_end=name_end)
         if function_open is not None:
-            index = _consume_balanced_function(css, function_open)
+            index = _consume_css_block(css, function_open)
             continue
-        index += 1
+        index = max(name_end, index + 1)
     return names
 
 
@@ -565,18 +577,17 @@ def _validate_css_for_composition(css: str) -> None:
     """Reject document-global CSS that cannot be safely panel-isolated."""
     index = 0
     while index < len(css):
-        if css.startswith("/*", index):
-            index = _consume_css_comment(css, index)
+        token_end = _skip_css_token(css, index)
+        if token_end > index:
+            index = token_end
             continue
-        if css[index] in "\"'":
-            index = _consume_css_string(css, index)
-            continue
-        function_open = _css_function_open_paren(css, index)
+        name_end = _consume_css_identifier(css, index)
+        function_open = _css_function_open_paren(css, index, name_end=name_end)
         if function_open is not None:
-            index = _consume_balanced_function(css, function_open)
+            index = _consume_css_block(css, function_open)
             continue
         if css[index] != "@":
-            index += 1
+            index = max(name_end, index + 1)
             continue
         end = _consume_css_identifier(css, index + 1)
         rule_name = _css_unescape(css[index + 1 : end]).lower()
@@ -616,26 +627,6 @@ def _reject_font_face_local_references(css: str, prelude_start: int) -> None:
         )
 
 
-def _consume_css_block(css: str, open_brace: int) -> int:
-    depth = 1
-    index = open_brace + 1
-    while index < len(css):
-        if css.startswith("/*", index):
-            index = _consume_css_comment(css, index)
-            continue
-        if css[index] in "\"'":
-            index = _consume_css_string(css, index)
-            continue
-        if css[index] == "{":
-            depth += 1
-        elif css[index] == "}":
-            depth -= 1
-            if depth == 0:
-                return index + 1
-        index += 1
-    return len(css)
-
-
 def _rewrite_css(
     css: str,
     id_map: dict[str, str],
@@ -652,20 +643,10 @@ def _rewrite_css(
     bracket_depth = 0
     index = 0
     while index < len(css):
-        if css.startswith("/*", index):
-            index = _consume_css_comment(css, index)
+        token_end = _skip_css_token(css, index)
+        if token_end > index:
+            index = token_end
             continue
-        if css[index] in "\"'":
-            index = _consume_css_string(css, index)
-            continue
-        url_open = _css_url_open_paren(css, index)
-        if url_open is not None:
-            end, _ = _rewrite_css_url_function(
-                css, index, url_open, lambda fragment: fragment
-            )
-            if end is not None:
-                index = end
-                continue
 
         char = css[index]
         if char == "(":
@@ -720,11 +701,11 @@ def _rewrite_css_header(
         )
         return rewritten, "keyframes"
 
-    stripped = header[content_start:]
-    if stripped.startswith("@"):
-        lower = _strip_css_comments(stripped).lower()
+    if header.startswith("@", content_start):
+        name_end = _consume_css_identifier(header, content_start + 1)
+        rule_name = _css_unescape(header[content_start + 1 : name_end]).lower()
         nested_parent = parent_context in {"declarations", "nested_rules"}
-        if lower.startswith("@scope"):
+        if rule_name == "scope":
             return (
                 _rewrite_scope_prelude(
                     header,
@@ -735,14 +716,12 @@ def _rewrite_css_header(
                 ),
                 "nested_rules" if nested_parent else "rules",
             )
-        if lower.startswith("@starting-style"):
+        if rule_name == "starting-style":
             return (
                 header,
                 "declarations" if nested_parent else "rules",
             )
-        if lower.startswith(
-            ("@media", "@supports", "@layer", "@container", "@document")
-        ):
+        if rule_name in {"media", "supports", "layer", "container", "document"}:
             return header, "nested_rules" if nested_parent else "rules"
         return header, "declarations"
     if parent_context == "keyframes":
@@ -767,16 +746,14 @@ def _rewrite_scope_prelude(
     replacements: list[tuple[int, int, str]] = []
     index = 0
     while index < len(header):
-        if header.startswith("/*", index):
-            index = _consume_css_comment(header, index)
-            continue
-        if header[index] in "\"'":
-            index = _consume_css_string(header, index)
+        token_end = _skip_css_token(header, index)
+        if token_end > index:
+            index = token_end
             continue
         if header[index] != "(":
             index += 1
             continue
-        end = _consume_balanced_function(header, index)
+        end = _consume_css_block(header, index)
         if end <= index + 1:
             break
         selector = header[index + 1 : end - 1]
@@ -815,17 +792,12 @@ def _rewrite_single_selector(
     output = [""]
     index = 0
     while index < len(selector):
-        if selector.startswith("/*", index):
-            end = _consume_css_comment(selector, index)
+        end = _skip_css_token(selector, index)
+        if end > index:
             output = [part + selector[index:end] for part in output]
             index = end
             continue
         char = selector[index]
-        if char in "\"'":
-            end = _consume_css_string(selector, index)
-            output = [part + selector[index:end] for part in output]
-            index = end
-            continue
         if char == "[":
             end = _consume_attribute_selector(selector, index)
             token = selector[index:end]
@@ -977,9 +949,16 @@ def _reject_unsafe_reference_selector(
     matched_reference = False
     changed_reference = False
     for old, new in candidates:
-        if matches(old):
-            matched_reference = True
-            changed_reference |= old != new
+        matched = matches(old)
+        matched_reference |= matched
+        if name == "href":
+            # Each "#old" href becomes "#new", so the selector stays safe while
+            # renaming keeps every match and non-match unchanged.
+            changed_reference |= matched != matches(new)
+        else:
+            # Renamed duplicate ids are absent from id_map, so any match on a
+            # renamed id is unsafe.
+            changed_reference |= matched and old != new
     if changed_reference:
         raise CompositionError(
             "Cannot safely compose partial CSS attribute selector on rewritten "
@@ -1025,13 +1004,8 @@ def _rewrite_root_pseudo(selector: str, nested_root: str) -> str:
     output: list[str] = []
     index = 0
     while index < len(selector):
-        if selector.startswith("/*", index):
-            end = _consume_css_comment(selector, index)
-            output.append(selector[index:end])
-            index = end
-            continue
-        if selector[index] in "\"'":
-            end = _consume_css_string(selector, index)
+        end = _skip_css_token(selector, index)
+        if end > index:
             output.append(selector[index:end])
             index = end
             continue
@@ -1092,11 +1066,9 @@ def _split_selector_list(selector: str) -> list[str]:
     bracket_depth = 0
     index = 0
     while index < len(selector):
-        if selector.startswith("/*", index):
-            index = _consume_css_comment(selector, index)
-            continue
-        if selector[index] in "\"'":
-            index = _consume_css_string(selector, index)
+        token_end = _skip_css_token(selector, index)
+        if token_end > index:
+            index = token_end
             continue
         char = selector[index]
         if char == "(":
@@ -1116,32 +1088,28 @@ def _split_selector_list(selector: str) -> list[str]:
 
 
 def _keyframes_keyword_end(css: str, index: int) -> int | None:
-    for keyword in ("@-webkit-keyframes", "@keyframes"):
-        end = index + len(keyword)
-        if css[index:end].lower() == keyword and (
-            end == len(css) or not _is_css_name_char(css[end])
-        ):
-            return end
-    return None
+    if not css.startswith("@", index):
+        return None
+    end = _consume_css_identifier(css, index + 1)
+    name = _css_unescape(css[index + 1 : end]).lower()
+    return end if name in {"keyframes", "-webkit-keyframes"} else None
 
 
 def _rewrite_animation_declarations(css: str, keyframe_map: dict[str, str]) -> str:
     replacements: list[tuple[int, int, str]] = []
     index = 0
     while index < len(css):
-        if css.startswith("/*", index):
-            index = _consume_css_comment(css, index)
-            continue
-        if css[index] in "\"'":
-            index = _consume_css_string(css, index)
-            continue
         name_end = _consume_css_identifier(css, index)
         if name_end == index:
-            index += 1
+            index = max(_skip_css_token(css, index), index + 1)
+            continue
+        url_end = _css_url_token_end(css, index, name_end)
+        if url_end is not None:
+            index = url_end
             continue
         function_open = _css_function_open_paren(css, index, name_end=name_end)
         if function_open is not None:
-            index = _consume_balanced_function(css, function_open)
+            index = _consume_css_block(css, function_open)
             continue
         property_name = _css_unescape(css[index:name_end]).lower()
         if property_name not in {
@@ -1177,9 +1145,6 @@ def _rewrite_animation_value(
         shorthand_name_seen = False
         index = item_start
         while index < item_end:
-            if value.startswith("/*", index):
-                index = _consume_css_comment(value, index)
-                continue
             if value[index].isspace():
                 index += 1
                 continue
@@ -1213,9 +1178,11 @@ def _rewrite_animation_value(
                         shorthand_roles.add("iteration-count")
                 index = end
                 continue
+            if value[index] == "!":
+                break  # "!important" is the declaration's priority, not a name
             end = _consume_css_identifier(value, index)
             if end == index:
-                index += 1
+                index = max(_skip_css_token(value, index), index + 1)
                 continue
             decoded = _css_unescape(value[index:end])
             function_open = _skip_css_gap(value, end)
@@ -1227,7 +1194,7 @@ def _rewrite_animation_value(
                     )
                 if shorthand and (role := _ANIMATION_FUNCTION_ROLES.get(lower)):
                     shorthand_roles.add(role)
-                index = _consume_balanced_function(value, function_open)
+                index = _consume_css_block(value, function_open)
                 continue
             lower = decoded.lower()
             if shorthand:
@@ -1282,14 +1249,12 @@ def _top_level_comma_ranges(value: str) -> list[tuple[int, int]]:
     start = 0
     index = 0
     while index < len(value):
-        if value.startswith("/*", index):
-            index = _consume_css_comment(value, index)
-            continue
-        if value[index] in "\"'":
-            index = _consume_css_string(value, index)
+        token_end = _skip_css_token(value, index)
+        if token_end > index:
+            index = token_end
             continue
         if value[index] == "(":
-            index = _consume_balanced_function(value, index)
+            index = _consume_css_block(value, index)
             continue
         if value[index] == ",":
             ranges.append((start, index))
@@ -1303,7 +1268,7 @@ def _consume_css_component(value: str, start: int, end: int) -> int:
     index = start + 1
     while index < end and not value[index].isspace() and value[index] not in ",;":
         if value[index] == "(":
-            return _consume_balanced_function(value, index)
+            return _consume_css_block(value, index)
         index += 1
     return index
 
@@ -1312,11 +1277,9 @@ def _consume_declaration_value(css: str, start: int) -> int:
     paren_depth = 0
     index = start
     while index < len(css):
-        if css.startswith("/*", index):
-            index = _consume_css_comment(css, index)
-            continue
-        if css[index] in "\"'":
-            index = _consume_css_string(css, index)
+        token_end = _skip_css_token(css, index)
+        if token_end > index:
+            index = token_end
             continue
         if css[index] == "(":
             paren_depth += 1
@@ -1334,8 +1297,6 @@ def _apply_replacements(text: str, replacements: list[tuple[int, int, str]]) -> 
     chunks: list[str] = []
     cursor = 0
     for start, end, replacement in sorted(replacements):
-        if start < cursor:
-            continue
         chunks.append(text[cursor:start])
         chunks.append(replacement)
         cursor = end
@@ -1344,19 +1305,11 @@ def _apply_replacements(text: str, replacements: list[tuple[int, int, str]]) -> 
 
 
 def _rewrite_css_urls(css: str, map_fragment: Callable[[str], str]) -> str:
+    if "(" not in css:
+        return css  # no url() possible; skips colors and keywords cheaply
     output: list[str] = []
     index = 0
     while index < len(css):
-        if css.startswith("/*", index):
-            end = _consume_css_comment(css, index)
-            output.append(css[index:end])
-            index = end
-            continue
-        if css[index] in "\"'":
-            end = _consume_css_string(css, index)
-            output.append(css[index:end])
-            index = end
-            continue
         url_open = _css_url_open_paren(css, index)
         if url_open is not None:
             end, replacement = _rewrite_css_url_function(
@@ -1366,17 +1319,19 @@ def _rewrite_css_urls(css: str, map_fragment: Callable[[str], str]) -> str:
                 output.append(replacement)
                 index = end
                 continue
-        output.append(css[index])
-        index += 1
+        end = max(_skip_css_token(css, index), index + 1)
+        output.append(css[index:end])
+        index = end
     return "".join(output)
 
 
 def _css_url_open_paren(css: str, index: int) -> int | None:
-    if css[index : index + 3].lower() != "url" or (
-        index > 0 and _is_css_name_char(css[index - 1])
-    ):
+    if css[index] not in "uU\\" or (index > 0 and _is_css_name_char(css[index - 1])):
         return None
-    cursor = _skip_css_gap(css, index + 3)
+    name_end = _consume_css_identifier(css, index)
+    if _css_unescape(css[index:name_end]).lower() != "url":
+        return None
+    cursor = _skip_css_gap(css, name_end)
     return cursor if cursor < len(css) and css[cursor] == "(" else None
 
 
@@ -1424,6 +1379,9 @@ def _rewrite_css_url_function(
     while cursor < len(css):
         if css[cursor] == ")":
             break
+        if css[cursor] in "\"'(" or css.startswith("/*", cursor):
+            # A bad url, or a url/**/( block: _skip_css_token knows its end.
+            return None, ""
         if css[cursor] == "\\":
             cursor = _consume_css_escape(css, cursor)
         else:
@@ -1451,19 +1409,66 @@ def _consume_css_comment(css: str, start: int) -> int:
     return len(css) if end == -1 else end + 2
 
 
-def _consume_balanced_function(css: str, open_paren: int) -> int:
+def _skip_css_token(css: str, index: int) -> int:
+    """Return the end of the comment, string, url() or escaped name at *index*.
+
+    Returns *index* when none starts there. Every CSS scanner skips these
+    tokens here, so all of them agree with CSS Syntax Level 3 (and therefore
+    with browsers) on where each one ends.
+    """
+    if css.startswith("/*", index):
+        return _consume_css_comment(css, index)
+    if css[index] in "\"'":
+        return _consume_css_string(css, index)
+    if index and _is_css_name_char(css[index - 1]):
+        return index
+    name_end = _consume_css_identifier(css, index)
+    if name_end == index:
+        return index
+    url_end = _css_url_token_end(css, index, name_end)
+    if url_end is not None:
+        return url_end
+    # Skip escaped names whole, so no scanner can read "\{" or "\"" as syntax.
+    return name_end if "\\" in css[index:name_end] else index
+
+
+def _css_url_token_end(css: str, start: int, name_end: int) -> int | None:
+    """Return the end of an unquoted url() token named by css[start:name_end].
+
+    Such a token runs to the first unescaped ")" even when it is a bad url, so
+    a quote inside it never opens a string. After "#" or "@" the name belongs
+    to a hash or at-keyword token instead.
+    """
+    if (
+        css[name_end : name_end + 1] != "("
+        or (start and css[start - 1] in "#@")
+        or _css_unescape(css[start:name_end]).lower() != "url"
+    ):
+        return None
+    cursor = name_end + 1
+    while cursor < len(css) and css[cursor] in " \t\n\r\f":
+        cursor += 1
+    if cursor < len(css) and css[cursor] in "\"'":
+        return None
+    while cursor < len(css) and css[cursor] != ")":
+        cursor = _consume_css_escape(css, cursor) if css[cursor] == "\\" else cursor + 1
+    return min(cursor + 1, len(css))
+
+
+def _consume_css_block(css: str, open_index: int) -> int:
+    """Return the end of the (...) or {...} block opened at *open_index*."""
+    opener = css[open_index]
+    closer = "}" if opener == "{" else ")"
     depth = 1
-    index = open_paren + 1
+    index = open_index + 1
     while index < len(css):
-        if css.startswith("/*", index):
-            index = _consume_css_comment(css, index)
+        token_end = _skip_css_token(css, index)
+        if token_end > index:
+            index = token_end
             continue
-        if css[index] in "\"'":
-            index = _consume_css_string(css, index)
-            continue
-        if css[index] == "(":
+        if css[index] == opener:
             depth += 1
-        elif css[index] == ")":
+        elif css[index] == closer:
             depth -= 1
             if depth == 0:
                 return index + 1
@@ -1503,6 +1508,8 @@ def _consume_css_string(css: str, start: int) -> int:
             index = _consume_css_escape(css, index)
         elif css[index] == quote:
             return index + 1
+        elif css[index] in "\n\r\f":
+            return index  # an unescaped newline ends a (bad) string
         else:
             index += 1
     return len(css)
@@ -1511,10 +1518,9 @@ def _consume_css_string(css: str, start: int) -> int:
 def _consume_attribute_selector(css: str, start: int) -> int:
     index = start + 1
     while index < len(css):
-        if css.startswith("/*", index):
-            index = _consume_css_comment(css, index)
-        elif css[index] in "\"'":
-            index = _consume_css_string(css, index)
+        token_end = _skip_css_token(css, index)
+        if token_end > index:
+            index = token_end
         elif css[index] == "]":
             return index + 1
         else:
@@ -1526,10 +1532,10 @@ def _consume_css_identifier(css: str, start: int) -> int:
     index = start
     while index < len(css):
         if css[index] == "\\":
-            next_index = _consume_css_escape(css, index)
-            if next_index == index + 1:
+            # A backslash before a newline (or at the end) is not an escape.
+            if css[index + 1 : index + 2] in {"", "\n", "\r", "\f"}:
                 break
-            index = next_index
+            index = _consume_css_escape(css, index)
         elif _is_css_name_char(css[index]):
             index += 1
         else:
@@ -1579,7 +1585,13 @@ def _css_unescape(value: str) -> str:
                 break
         if hex_digits:
             codepoint = int(hex_digits, 16)
-            if codepoint == 0 or codepoint > 0x10FFFF:
+            # NUL, surrogates and out-of-range values per CSS Syntax, plus the
+            # two noncharacters XML cannot carry.
+            if (
+                codepoint in (0, 0xFFFE, 0xFFFF)
+                or 0xD800 <= codepoint <= 0xDFFF
+                or codepoint > 0x10FFFF
+            ):
                 output.append("\N{REPLACEMENT CHARACTER}")
             else:
                 output.append(chr(codepoint))
