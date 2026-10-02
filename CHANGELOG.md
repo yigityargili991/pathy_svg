@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-02
+
 ### Added
 - Python 3.15 support; `requires-python` no longer has an upper bound
 - CI job that tests the lowest declared dependency versions
@@ -156,6 +158,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Coordinate grid overlay (xy_guide)
 - US states example workflow with 2023 Census data
 
+[0.5.0]: https://github.com/yigityargili991/pathy_svg/releases/tag/v0.5.0
 [0.4.1]: https://github.com/yigityargili991/pathy_svg/releases/tag/v0.4.1
 [0.4.0]: https://github.com/yigityargili991/pathy_svg/releases/tag/v0.4.0
 [0.3.1]: https://github.com/yigityargili991/pathy_svg/releases/tag/v0.3.1

@@ -74,10 +74,10 @@ def test_click_is_a_required_dependency():
     assert '"click>=8.0"' in text
 
 
-def test_release_metadata_declares_0_4_dependency_contract():
+def test_release_metadata_declares_0_5_dependency_contract():
     pyproject = (ROOT / "pyproject.toml").read_text()
 
-    assert __version__ == "0.4.1"
+    assert __version__ == "0.5.0"
     assert "dataframe =" in pyproject
     assert "tabular =" in pyproject
     assert '"Development Status :: 4 - Beta"' in pyproject
