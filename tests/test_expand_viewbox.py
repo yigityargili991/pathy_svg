@@ -1,5 +1,7 @@
 """Tests for expand_viewbox parameter on legend()."""
 
+import pytest
+
 from pathy_svg.document import SVGDocument
 from pathy_svg.themes import CategoricalPalette, ColorScale
 
@@ -97,6 +99,52 @@ class TestExpandViewbox:
         assert restored.root.get("viewBox") is None
         assert restored.root.get("width") == "120px"
         assert restored.root.get("height") == "80px"
+
+    def test_expansion_scales_declared_sizes_keeping_their_units(self):
+        doc = SVGDocument.from_string(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" '
+            'width="800" height="10cm"><path id="a" d="M10 10h30v30z"/></svg>'
+        )
+        scale = ColorScale("viridis", vmin=0, vmax=1)
+        scale.fit([0, 1])
+
+        result = doc.legend(scale=scale, position=(1.02, 1.02))
+
+        vb = result.viewbox
+        assert vb.width > 100
+        assert vb.height > 100
+        # The map keeps its 8 px per user unit and its centimetre height unit.
+        assert float(result.root.get("width")) == pytest.approx(8 * vb.width)
+        height = result.root.get("height")
+        assert height.endswith("cm")
+        assert float(height.removesuffix("cm")) == pytest.approx(vb.height / 10)
+
+    def test_expansion_does_not_add_missing_sizes(self):
+        doc = SVGDocument.from_string(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"/>'
+        )
+        scale = ColorScale("viridis", vmin=0, vmax=1)
+        scale.fit([0, 1])
+
+        result = doc.legend(scale=scale, position=(1.02, 0.1))
+
+        assert result.viewbox.width > 100
+        assert result.root.get("width") is None
+        assert result.root.get("height") is None
+
+    def test_expansion_keeps_percentage_sizes(self):
+        doc = SVGDocument.from_string(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" '
+            'width="100%" height="100%"/>'
+        )
+        scale = ColorScale("viridis", vmin=0, vmax=1)
+        scale.fit([0, 1])
+
+        result = doc.legend(scale=scale, position=(1.02, 0.1))
+
+        assert result.viewbox.width > 100
+        assert result.root.get("width") == "100%"
+        assert result.root.get("height") == "100%"
 
     def test_switching_expand_back_on_reuses_prelegend_canvas(self, simple_svg_path):
         source = SVGDocument.from_file(simple_svg_path).heatmap({"stomach": 0.5})

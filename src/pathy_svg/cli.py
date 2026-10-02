@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import logging
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 import click
@@ -173,7 +174,10 @@ def export(svg_file, fmt, width, dpi, output):
 @click.option("--vmin", type=float, default=None, help="Minimum value for color scale")
 @click.option("--vmax", type=float, default=None, help="Maximum value for color scale")
 @click.option(
-    "--vcenter", type=float, default=0, help="Center value for diverging scales"
+    "--vcenter",
+    type=float,
+    default=None,
+    help="Center value for diverging scales [default: 1 for ratio, else 0]",
 )
 @click.option("--opacity", type=float, default=None, help="Fill opacity")
 @click.option(
@@ -207,7 +211,7 @@ def diff(
         treatment,
         mode=mode,
         palette=palette,
-        vcenter=vcenter,
+        vcenter="auto" if vcenter is None else vcenter,
         vmin=vmin,
         vmax=vmax,
         opacity=opacity,
@@ -220,8 +224,18 @@ def diff(
 def _read_data(path: str, id_col: str, value_col: str) -> dict[str, float]:
     """Read a CSV/TSV/Parquet/Excel file and return {id: value} dict."""
     p = Path(path)
-    if p.suffix in (".csv", ".tsv", ".tab"):
+    df = _read_frame(p)
+    if df is None:
         return _read_csv_data(p, id_col, value_col)
+    from pathy_svg.data import dataframe_to_dict
+
+    return dataframe_to_dict(df, id_col, value_col)
+
+
+def _read_frame(p: Path):
+    """Load a Parquet/Excel file with pandas; return None for delimited text."""
+    if p.suffix in (".csv", ".tsv", ".tab"):
+        return None
     try:
         import pandas as pd
     except ImportError:
@@ -229,12 +243,17 @@ def _read_data(path: str, id_col: str, value_col: str) -> dict[str, float]:
             f"Reading {p.suffix} files requires pandas. Install with: pip install pandas"
         ) from None
     if p.suffix == ".parquet":
-        df = pd.read_parquet(p)
-    elif p.suffix in (".xls", ".xlsx"):
-        df = pd.read_excel(p)
-    else:
-        return _read_csv_data(p, id_col, value_col)
-    return _data_from_df(df, id_col, value_col)
+        return pd.read_parquet(p)
+    if p.suffix in (".xls", ".xlsx"):
+        return pd.read_excel(p)
+    return None
+
+
+def _check_columns(columns: Sequence[str] | None, path: Path, *names: str) -> None:
+    """Reject a data file that lacks one of the required columns."""
+    for name in names:
+        if columns and name not in columns:
+            raise click.BadParameter(f"Column '{name}' not found in {path}")
 
 
 def _read_csv_data(path: Path, id_col: str, value_col: str) -> dict[str, float]:
@@ -244,10 +263,7 @@ def _read_csv_data(path: Path, id_col: str, value_col: str) -> dict[str, float]:
     skipped = 0
     with path.open(encoding="utf-8") as f:
         reader = csv.DictReader(f, delimiter=delimiter)
-        if reader.fieldnames and id_col not in reader.fieldnames:
-            raise click.BadParameter(f"Column '{id_col}' not found in {path}")
-        if reader.fieldnames and value_col not in reader.fieldnames:
-            raise click.BadParameter(f"Column '{value_col}' not found in {path}")
+        _check_columns(reader.fieldnames, path, id_col, value_col)
         for row in reader:
             try:
                 data[row[id_col]] = float(row[value_col])
@@ -259,17 +275,15 @@ def _read_csv_data(path: Path, id_col: str, value_col: str) -> dict[str, float]:
     return data
 
 
-def _data_from_df(df, id_col: str, value_col: str) -> dict[str, float]:
-    """Extract {id: value} from a Pandas DataFrame."""
-    from pathy_svg.data import dataframe_to_dict
-
-    return dataframe_to_dict(df, id_col, value_col)
-
-
 def _read_ids(path: str, id_col: str) -> list[str]:
-    """Read a CSV/TSV and return list of IDs."""
+    """Read a CSV/TSV/Parquet/Excel file and return its IDs."""
     p = Path(path)
+    df = _read_frame(p)
+    if df is not None:
+        _check_columns(list(df.columns), p, id_col)
+        return df[id_col].astype(str).tolist()
     delimiter = "\t" if p.suffix in (".tsv", ".tab") else ","
     with p.open(encoding="utf-8") as f:
         reader = csv.DictReader(f, delimiter=delimiter)
-        return [row[id_col] for row in reader if id_col in row]
+        _check_columns(reader.fieldnames, p, id_col)
+        return [row[id_col] for row in reader]

@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, get_args
 
 from lxml import etree
 
 from pathy_svg._constants import SVG_NS, build_id_index, svg_sub
 from pathy_svg._css import set_style_property
+from pathy_svg._paint import get_or_create_defs
+from pathy_svg.exceptions import ValidationError
 from pathy_svg.transform import bbox_of_element, centroid_of_bbox
 
 Placement = Literal["centroid", "above", "below", "bbox_corner"]
 TooltipMethod = Literal["title", "css"]
+
+_ANNOTATIONS_ID = "pathy-annotations"
 
 
 def add_text_labels(
@@ -28,9 +32,14 @@ def add_text_labels(
     id_to_elem: dict[str, etree._Element] | None = None,
 ) -> None:
     """Add text labels to SVG elements. Modifies tree in-place."""
+    if placement not in get_args(Placement):
+        raise ValidationError(f"Unknown placement: {placement!r}")
     root = tree.getroot()
-    g = svg_sub(root, "g")
-    g.set("id", "pathy-annotations")
+    # Repeated calls share one annotation group instead of duplicating its id.
+    g = root.find(f"{{{SVG_NS}}}g[@id='{_ANNOTATIONS_ID}']")
+    if g is None:
+        g = svg_sub(root, "g")
+        g.set("id", _ANNOTATIONS_ID)
     if id_to_elem is None:
         id_to_elem = build_id_index(tree)
 
@@ -92,6 +101,8 @@ def add_tooltips(
         - "title": Adds a <title> child element (native SVG tooltip).
         - "css": Injects a CSS hover popup using a <style> block.
     """
+    if method not in get_args(TooltipMethod):
+        raise ValidationError(f"Unknown tooltip method: {method!r}")
     if id_to_elem is None:
         id_to_elem = build_id_index(tree)
     id_index = id_to_elem
@@ -111,11 +122,7 @@ def add_tooltips(
 
     elif method == "css":
         root = tree.getroot()
-        # Find or create <defs>
-        defs = root.find(f"{{{SVG_NS}}}defs")
-        if defs is None:
-            defs = etree.SubElement(root, f"{{{SVG_NS}}}defs")
-            root.insert(0, defs)
+        defs = get_or_create_defs(root)
 
         style = defs.find(f"{{{SVG_NS}}}style[@id='pathy-tooltip-style']")
         if style is None:

@@ -1,9 +1,11 @@
 """Tests for pathy_svg.inspect module."""
 
+import pytest
 from lxml import etree
 
 from pathy_svg._constants import local_tag
 from pathy_svg.document import SVGDocument
+from pathy_svg.exceptions import ValidationError
 
 
 class TestLocalTag:
@@ -123,3 +125,21 @@ class TestXYGuide:
         guide = doc.xy_guide(color="blue")
         g = guide._find_by_id("pathy-guide")
         assert "blue" in g.get("style", "")
+
+    def test_repeated_guides_share_one_group_and_keep_colors(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+
+        guide = doc.xy_guide(color="red").xy_guide(color="blue", step=100)
+
+        groups = guide.xpath("//*[@id='pathy-guide']")
+        assert len(groups) == 1
+        assert "stroke:red" in groups[0].get("style")
+        nested = groups[0].find("{http://www.w3.org/2000/svg}g")
+        assert "stroke:blue" in nested.get("style")
+        assert nested.findall("{http://www.w3.org/2000/svg}line")
+
+    @pytest.mark.parametrize("step", [0, -50])
+    def test_non_positive_step_raises(self, simple_svg_path, step):
+        doc = SVGDocument.from_file(simple_svg_path)
+        with pytest.raises(ValidationError, match="step"):
+            doc.xy_guide(step=step)

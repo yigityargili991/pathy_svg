@@ -5,7 +5,7 @@ description = "Color arbitrary SVG paths by data values — turn any SVG into a 
 readme = "README.md"
 license = "GPL-3.0-or-later"
 license-files = ["LICENSE"]
-requires-python = ">=3.10,<3.15"
+requires-python = ">=3.11"
 authors = [
     {name = "Yigit Yargili", email = "160510618+yigityargili991@users.noreply.github.com"},
 ]
@@ -16,11 +16,11 @@ classifiers = [
     "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
     "Topic :: Multimedia :: Graphics",
     "Topic :: Scientific/Engineering :: Visualization",
     "Typing :: Typed",
@@ -31,7 +31,6 @@ dependencies = [
     "lxml>=5.0",
     "matplotlib>=3.7",
     "numpy>=1.24",
-    "typing-extensions>=4.6",
 ]
 
 [project.urls]
@@ -79,13 +78,13 @@ testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 88
-target-version = "py310"
+target-version = "py311"
 
 [tool.ty.src]
 include = ["src/pathy_svg"]
 
 [tool.ty.environment]
-python-version = "3.10"
+python-version = "3.11"
 
 [tool.ty.analysis]
 allowed-unresolved-imports = ["pandas", "pandas.**"]

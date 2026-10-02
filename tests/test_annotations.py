@@ -1,9 +1,11 @@
 """Tests for pathy_svg.annotations module."""
 
+import pytest
 from lxml import etree
 
 from pathy_svg.annotations import add_tooltips, replace_text
 from pathy_svg.document import SVGDocument
+from pathy_svg.exceptions import ValidationError
 
 
 class TestAnnotate:
@@ -63,6 +65,20 @@ class TestAnnotate:
         assert "50%" in svg_str
         assert "80%" in svg_str
 
+    def test_repeated_calls_share_one_annotation_group(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+
+        result = doc.annotate({"stomach": "S"}).annotate({"liver": "L"})
+
+        groups = result.xpath("//*[@id='pathy-annotations']")
+        assert len(groups) == 1
+        assert [text.text for text in groups[0]] == ["S", "L"]
+
+    def test_unknown_placement_raises(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        with pytest.raises(ValidationError, match="Unknown placement"):
+            doc.annotate({"stomach": "S"}, placement="bogus")
+
 
 class TestTooltips:
     def test_title_tooltips(self, simple_svg_path):
@@ -86,6 +102,11 @@ class TestTooltips:
         orig_stomach = doc._find_by_id("stomach")
         has_title = any(c.tag.endswith("title") for c in orig_stomach)
         assert not has_title
+
+    def test_unknown_method_raises(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        with pytest.raises(ValidationError, match="Unknown tooltip method"):
+            doc.add_tooltips({"stomach": "tip"}, method="bogus")
 
 
 class TestTooltipsDirect:

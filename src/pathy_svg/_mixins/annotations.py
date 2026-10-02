@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from typing import Self
 
 from lxml import etree
-from typing_extensions import Self
 
 from pathy_svg._constants import SVG_NS
 from pathy_svg._mixins.host import _DocumentMixinHost
 from pathy_svg.annotations import Placement, TooltipMethod
+from pathy_svg.exceptions import ValidationError
 
 
 def _frange(start: float, stop: float, step: float):
@@ -67,7 +68,6 @@ class AnnotationMixin(_DocumentMixinHost):
             offset=offset,
             id_to_elem=resolved_index,
         )
-        clone._id_index = None
         return clone
 
     def add_tooltips(
@@ -98,7 +98,6 @@ class AnnotationMixin(_DocumentMixinHost):
             method=method,
             id_to_elem=resolved_index,
         )
-        clone._id_index = None
         return clone
 
     def replace_text(
@@ -124,6 +123,8 @@ class AnnotationMixin(_DocumentMixinHost):
 
     def xy_guide(self, *, color: str = "red", step: float = 50) -> Self:
         """Return a copy with a coordinate grid overlay for orientation."""
+        if not step > 0:
+            raise ValidationError("step must be a number greater than 0")
         clone = self._clone()
         vb = clone.viewbox
         if vb is None:
@@ -131,8 +132,16 @@ class AnnotationMixin(_DocumentMixinHost):
 
         root = clone._root
         ns = root.nsmap.get(None, SVG_NS)
-        g = etree.SubElement(root, f"{{{ns}}}g" if ns else "g", id="pathy-guide")
-        g.set("style", f"stroke:{color};stroke-width:0.5;fill:none;opacity:0.5")
+        g_tag = f"{{{ns}}}g" if ns else "g"
+        stroke = f"stroke:{color};stroke-width:0.5;fill:none"
+        g = root.find(f"{g_tag}[@id='pathy-guide']")
+        if g is None:
+            g = etree.SubElement(root, g_tag, id="pathy-guide")
+            g.set("style", f"{stroke};opacity:0.5")
+        else:
+            # Repeated guides share one group and its opacity; a nested group
+            # keeps this grid's own stroke color.
+            g = etree.SubElement(g, g_tag, style=stroke)
 
         for x in _frange(vb.x, vb.x + vb.width, step):
             line = etree.SubElement(g, f"{{{ns}}}line" if ns else "line")

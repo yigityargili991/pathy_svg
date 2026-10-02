@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
+from typing import Self
 
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
-from typing_extensions import Self
 
 from pathy_svg.exceptions import ColorScaleError
 

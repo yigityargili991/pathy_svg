@@ -78,7 +78,6 @@ def test_release_metadata_declares_0_4_dependency_contract():
     pyproject = (ROOT / "pyproject.toml").read_text()
 
     assert __version__ == "0.4.1"
-    assert '"typing-extensions>=4.6"' in pyproject
     assert "dataframe =" in pyproject
     assert "tabular =" in pyproject
     assert '"Development Status :: 4 - Beta"' in pyproject

@@ -8,9 +8,7 @@ implementation.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import TYPE_CHECKING, TypeVar
-
-from typing_extensions import Self
+from typing import TYPE_CHECKING, Self, TypeVar
 
 if TYPE_CHECKING:
     from lxml import etree
@@ -35,12 +33,6 @@ class _DocumentMixinHost:
         def _nsmap(self) -> dict[str, str]: ...
 
         @property
-        def _id_index(self) -> dict[str, etree._Element] | None: ...
-
-        @_id_index.setter
-        def _id_index(self, value: dict[str, etree._Element] | None) -> None: ...
-
-        @property
         def _last_scale(self) -> ColorScale | None: ...
 
         @_last_scale.setter
@@ -56,9 +48,6 @@ class _DocumentMixinHost:
 
         @property
         def _root(self) -> etree._Element: ...
-
-        @property
-        def _element_index(self) -> dict[str, etree._Element]: ...
 
         @property
         def viewbox(self) -> ViewBox | None: ...

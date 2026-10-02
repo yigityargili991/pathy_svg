@@ -4,9 +4,12 @@ from __future__ import annotations
 
 from lxml import etree
 
-from pathy_svg._constants import COLORABLE_TAGS, build_id_index, local_tag
+from pathy_svg._constants import build_id_index, rendered_colorable_elements
 from pathy_svg._css import set_style_property, style_property
+from pathy_svg._paint import paint_targets
+from pathy_svg.annotations import _ANNOTATIONS_ID
 from pathy_svg.color import parse_svg_color, rgb_to_hex
+from pathy_svg.legend import _GENERATED_LEGEND_ATTR
 
 
 def _desaturate_color(color_str: str) -> str:
@@ -55,7 +58,12 @@ def apply_highlight(
     desaturate: bool = True,
     id_to_elem: dict[str, etree._Element] | None = None,
 ) -> None:
-    """Highlight specified elements, dim all others. Modifies tree in-place."""
+    """Highlight specified elements, dim all others. Modifies tree in-place.
+
+    Shapes inside resource subtrees (``<defs>``, ``<pattern>``, ``<mask>``,
+    ...) and inside generated legends, annotations, and tooltips are never
+    dimmed.
+    """
     if id_to_elem is None:
         id_to_elem = build_id_index(tree)
 
@@ -63,21 +71,26 @@ def apply_highlight(
     highlighted_elems: set[etree._Element] = set()
     for eid in ids:
         elem = id_to_elem.get(eid)
-        if elem is None or not isinstance(elem.tag, str):
-            continue
-        if local_tag(elem.tag) == "g":
-            for child in elem.iter():
-                if child is not elem and local_tag(child.tag) in COLORABLE_TAGS:
-                    highlighted_elems.add(child)
-        elif local_tag(elem.tag) in COLORABLE_TAGS:
-            highlighted_elems.add(elem)
+        if elem is not None:
+            highlighted_elems.update(paint_targets(elem))
 
     # Dim everything that's not highlighted
-    for elem in tree.iter():
-        if not isinstance(elem.tag, str):
-            continue
-        if local_tag(elem.tag) not in COLORABLE_TAGS:
-            continue
+    for elem in rendered_colorable_elements(tree.getroot()):
         if elem in highlighted_elems:
             continue
+        if any(_generated_overlay(parent) for parent in elem.iterancestors()):
+            continue
         _dim_element(elem, dim_opacity=dim_opacity, desaturate=desaturate)
+
+
+def _generated_overlay(element: etree._Element) -> bool:
+    """Whether *element* is a legend, annotation, or tooltip group pathy_svg added.
+
+    Matched by their markers, not the generic ``pathy-`` id prefix, which
+    composition also gives to groups wrapping user geometry.
+    """
+    return (
+        element.get(_GENERATED_LEGEND_ATTR) is not None
+        or element.get("data-tooltip-for") is not None
+        or element.get("id") == _ANNOTATIONS_ID
+    )

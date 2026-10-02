@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
-from typing import Any
-
-from typing_extensions import Self
+from typing import Any, Literal, Self
 
 from pathy_svg._constants import Layout
 from pathy_svg._mixins.host import _DocumentMixinHost
@@ -24,7 +23,7 @@ class DiffMixin(_DocumentMixinHost):
         *,
         mode: DiffMode = "delta",
         palette: str | Sequence[str] = "coolwarm",
-        vcenter: float | None = 0,
+        vcenter: float | Literal["auto"] | None = "auto",
         vmin: float | None = None,
         vmax: float | None = None,
         **heatmap_kwargs: Any,
@@ -36,7 +35,9 @@ class DiffMixin(_DocumentMixinHost):
             treatment: Data dict for the treatment state.
             mode: The difference mode ("delta", "ratio", "log2ratio", or "percent_change").
             palette: Name of a matplotlib diverging colormap or a list of hex colors.
-            vcenter: Center value for the diverging color scale (typically 0).
+            vcenter: Center value for the diverging color scale. ``"auto"``
+                (the default) centers ``"ratio"`` at 1 and the other modes at 0;
+                ``None`` disables centering.
             vmin: Minimum value for the color scale.
             vmax: Maximum value for the color scale.
             **heatmap_kwargs: Additional arguments passed to `heatmap`.
@@ -46,6 +47,8 @@ class DiffMixin(_DocumentMixinHost):
         """
         from pathy_svg.diff import compute_diff
 
+        if vcenter == "auto":
+            vcenter = 1.0 if mode == "ratio" else 0.0
         diff_data = compute_diff(baseline, treatment, mode=mode)
         return self.heatmap(
             diff_data,
@@ -67,6 +70,10 @@ class DiffMixin(_DocumentMixinHost):
     ) -> Self:
         """Create side-by-side comparison of multiple datasets.
 
+        Unless ``vmin``/``vmax`` are given, all panels share one color range
+        spanning every dataset, so equal values get equal colors and
+        ``legend()`` describes every panel.
+
         Args:
             datasets: A mapping of dataset names to data dicts.
             palette: Name of a matplotlib colormap or a list of hex colors.
@@ -78,6 +85,24 @@ class DiffMixin(_DocumentMixinHost):
             A new merged SVGDocument containing the compared maps.
         """
         from pathy_svg.diff import compose_side_by_side
+
+        values = [
+            value
+            for data in datasets.values()
+            for value in data.values()
+            if math.isfinite(value)
+        ]
+        if values:
+            low, high = min(values), max(values)
+            vcenter = heatmap_kwargs.get("vcenter")
+            if vcenter is not None:
+                # Mirror one-sided data about vcenter, as a diverging fit does.
+                if low >= vcenter:
+                    low = 2 * vcenter - high
+                if high <= vcenter:
+                    high = 2 * vcenter - low
+            heatmap_kwargs.setdefault("vmin", low)
+            heatmap_kwargs.setdefault("vmax", high)
 
         colored_docs = []
         titles = []
@@ -91,4 +116,10 @@ class DiffMixin(_DocumentMixinHost):
             layout=layout,
             spacing=spacing,
         )
-        return self._with_owned_tree(new_tree)
+        result = self._with_owned_tree(new_tree)
+        result._last_scale = next(
+            (doc._last_scale for doc in colored_docs if doc._last_scale is not None),
+            None,
+        )
+        result._last_categorical_palette = None
+        return result

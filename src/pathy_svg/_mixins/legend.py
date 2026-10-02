@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
+from typing import Self
 
 from lxml import etree
-from typing_extensions import Self
 
 from pathy_svg._constants import SVG_NS
 from pathy_svg._mixins.host import _DocumentMixinHost
@@ -122,10 +123,15 @@ class LegendMixin(_DocumentMixinHost):
                 "viewBox",
                 f"{expanded.x} {expanded.y} {expanded.width} {expanded.height}",
             )
-            if expanded.width != vb.width:
-                root.set("width", str(expanded.width))
-            if expanded.height != vb.height:
-                root.set("height", str(expanded.height))
+            # Grow only the sizes the document declares, by the viewBox's own
+            # expansion ratio, so the drawing keeps its scale and units.
+            for attr, old, new in (
+                ("width", vb.width, expanded.width),
+                ("height", vb.height, expanded.height),
+            ):
+                value = root.get(attr)
+                if value is not None and old and new != old:
+                    root.set(attr, _scale_length(value, old, new))
 
         built.element.set("id", _unique_legend_id(root))
         result_attrs = {attr: root.get(attr) for attr in _CANVAS_ATTRS}
@@ -135,6 +141,7 @@ class LegendMixin(_DocumentMixinHost):
 
 
 _CANVAS_ATTRS = ("viewBox", "width", "height")
+_LENGTH_RE = re.compile(r"\s*([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)\s*(\S*)\s*")
 _PRIVATE_NS = "urn:pathy-svg:private:legend:v1"
 _PROVENANCE_ATTR = f"{{{_PRIVATE_NS}}}provenance"
 _PROVENANCE_VALUE = "pathy-generated-legend-v1"
@@ -142,6 +149,23 @@ _PROVENANCE_VALUE = "pathy-generated-legend-v1"
 
 def _private_attr(name: str) -> str:
     return f"{{{_PRIVATE_NS}}}{name}"
+
+
+def _scale_length(value: str, old: float, new: float) -> str:
+    """Scale an SVG length by ``new / old``, keeping its unit (``10cm``).
+
+    Percentages are left alone: they size the canvas to its container, so the
+    drawing should shrink to fit the legend rather than overflow it.
+    """
+    match = _LENGTH_RE.fullmatch(value)
+    if match is None:
+        return value
+    number, unit = match.groups()
+    if unit == "%":
+        return value
+    # A size equal to the viewBox's simply follows it, without float noise.
+    scaled = new if float(number) == old else float(number) * new / old
+    return f"{scaled}{unit}"
 
 
 def _store_source_canvas(

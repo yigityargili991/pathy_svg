@@ -1,6 +1,7 @@
 """Regression tests for pathy_svg._composition and composition in svg_tools."""
 
 import pytest
+from lxml import etree
 
 from pathy_svg.document import SVGDocument
 from pathy_svg.exceptions import CompositionError
@@ -17,6 +18,44 @@ def _doc(body: str, attrs: str = 'viewBox="0 0 100 100"') -> SVGDocument:
 def _nested_svg(merged: SVGDocument, index: int = 0):
     panel = merged.root.xpath(f"./svg:g[@data-panel-index='{index}']", namespaces=NS)[0]
     return panel.xpath("./svg:svg", namespaces=NS)[0]
+
+
+def _style_css(merged: SVGDocument, index: int = 0) -> str:
+    panel = merged.root.xpath(f"./svg:g[@data-panel-index='{index}']", namespaces=NS)[0]
+    return panel.xpath(".//svg:style", namespaces=NS)[0].text
+
+
+def _unscoped_selectors(css: str, scope: str) -> list[str]:
+    """Return the selectors a browser-grade CSS parser sees outside *scope*.
+
+    tinycss2 implements CSS Syntax Level 3 tokenization, so it agrees with
+    browsers on where strings, escapes and url() tokens end. Selector lists
+    are split naively on commas, which suffices for the inputs tested here.
+    """
+    tinycss2 = pytest.importorskip("tinycss2")
+    unscoped: list[str] = []
+
+    def walk(rules) -> None:
+        for rule in rules:
+            if rule.type == "qualified-rule":
+                for selector in tinycss2.serialize(rule.prelude).split(","):
+                    if not selector.strip().startswith(scope):
+                        unscoped.append(selector.strip())
+            elif rule.type == "at-rule" and rule.lower_at_keyword in {
+                "container",
+                "layer",
+                "media",
+                "scope",
+                "supports",
+            }:
+                walk(
+                    tinycss2.parse_rule_list(
+                        rule.content or [], skip_comments=True, skip_whitespace=True
+                    )
+                )
+
+    walk(tinycss2.parse_stylesheet(css, skip_comments=True, skip_whitespace=True))
+    return unscoped
 
 
 class TestPanelViewportDimensions:
@@ -227,7 +266,7 @@ class TestUnresolvedReferenceIsolation:
 
     def test_partial_selector_on_rewritten_id_raises_in_both_orders(self):
         other = _doc('<rect id="dup" width="5" height="5"/>')
-        style = "<style>use[href*='du']{stroke:red}</style>"
+        style = "<style>use[href^='#du']{stroke:red}</style>"
         body = '<rect id="dup" width="5" height="5"/><use href="#dup"/>'
         with pytest.raises(CompositionError, match="partial CSS attribute"):
             compose_svgs([_doc(style + body), other])
@@ -238,3 +277,226 @@ class TestUnresolvedReferenceIsolation:
         merged = merge_svgs([_doc(self.USE + self.USE)])
         hrefs = [use.get("href") for use in merged.root.iter(f"{{{SVG_NS}}}use")]
         assert hrefs == ["#pathy-panel-0--unresolved--missing"] * 2
+
+
+# Each stylesheet hides `rect {fill:red}` from a scanner that disagrees with
+# CSS Syntax Level 3 about escapes, bad strings, url() tokens or at-rule names.
+DESYNC_CSS = {
+    "escaped quote": r'.a\"b {fill:blue} rect {fill:red} .c {content:"x"}',
+    "escaped brace": r".a\{b {fill:blue} rect {fill:red}",
+    "newline ends string": '.a {content:"abc\n} rect {fill:red} .b {content:"y"}',
+    "escaped url name": r'.a {b:u\72l(x"y)} rect {fill:red} .c {d:"z"}',
+    "escaped at-rule name": r"@\6d edia screen { rect {fill:red} }",
+}
+
+
+class TestCssTokensMatchBrowsers:
+    @pytest.mark.parametrize("css", DESYNC_CSS.values(), ids=DESYNC_CSS.keys())
+    def test_escapes_and_bad_tokens_cannot_unscope_rules(self, css):
+        merged = merge_svgs([_doc(f"<style>{css}</style><rect/>")])
+        assert "#pathy-panel-0 rect {fill:red}" in _style_css(merged)
+
+    @pytest.mark.parametrize("css", DESYNC_CSS.values(), ids=DESYNC_CSS.keys())
+    def test_browser_tokenizer_sees_only_scoped_rules(self, css):
+        merged = merge_svgs([_doc(f"<style>{css}</style><rect/>")])
+        assert _unscoped_selectors(_style_css(merged), "#pathy-panel-0") == []
+
+    @pytest.mark.parametrize(
+        ("css", "expected"),
+        [
+            ('.p {q:url (x")" ) } rect {fill:url(#a)}', "url(#pathy-panel-0--a)"),
+            ('.p {q:url/**/(x/*)"*/) } rect {fill:url(#a)}', "url(#pathy-panel-0--a)"),
+            (r"rect {fill:\75rl(#a)}", r"\75rl(#pathy-panel-0--a)"),
+        ],
+        ids=[
+            "url-space-paren hides quote",
+            "url-comment-paren hides comment",
+            "escaped",
+        ],
+    )
+    def test_url_references_browsers_resolve_are_rewritten(self, css, expected):
+        doc = _doc(f'<linearGradient id="a"/><style>{css}</style><rect/>')
+        assert expected in _style_css(merge_svgs([doc, doc]))
+
+    @pytest.mark.parametrize(
+        "rule",
+        [
+            '@property --c {syntax:"*";inherits:false;initial-value:red}',
+            "@layer theme {rect {fill:red}}",
+            "@pathy-custom {}",
+        ],
+    )
+    def test_bad_url_cannot_hide_document_global_at_rules(self, rule):
+        doc = _doc(f'<style>.a {{background:url(x"y)}} {rule}</style><rect/>')
+        with pytest.raises(CompositionError, match="Cannot safely compose"):
+            merge_svgs([doc])
+
+    def test_bad_url_cannot_hide_keyframes_from_namespacing(self):
+        doc = _doc(
+            '<style>.a {background:url(x"y)} @keyframes spin {to {opacity:0}} '
+            ".b {animation:spin 1s}</style><rect class='b'/>"
+        )
+        merged = merge_svgs([doc, doc])
+        for index in range(2):
+            css = _style_css(merged, index)
+            assert f"@keyframes pathy-panel-{index}--keyframe--spin" in css
+            assert f"animation:pathy-panel-{index}--keyframe--spin 1s" in css
+
+    def test_escaped_keyframes_keyword_is_namespaced(self):
+        doc = _doc(
+            r"<style>@\6b eyframes spin {to {opacity:0}} .b {animation:spin 1s}"
+            "</style><rect class='b'/>"
+        )
+        css = _style_css(merge_svgs([doc]))
+        assert r"@\6b eyframes pathy-panel-0--keyframe--spin" in css
+        assert "animation:pathy-panel-0--keyframe--spin 1s" in css
+
+    def test_escaped_at_sign_in_class_name_is_not_an_at_rule(self):
+        css = _style_css(
+            merge_svgs([_doc(r"<style>.md\@lg {fill:red}</style><rect/>")])
+        )
+        assert r"#pathy-panel-0 .md\@lg {fill:red}" in css
+
+    def test_long_identifiers_are_scanned_in_linear_time(self):
+        import time
+
+        doc = _doc(f"<style>.a{'b' * 20_000} {{fill:red}}</style><rect/>")
+        started = time.perf_counter()
+        merge_svgs([doc])
+        assert time.perf_counter() - started < 3.0
+
+    @pytest.mark.parametrize("escape", [r"\D800", r"\DFFF", r"\FFFE", r"\FFFF"])
+    def test_invalid_code_point_escapes_become_replacement_characters(self, escape):
+        doc = _doc(
+            f"<style>#{escape} {{fill:red}} [id='{escape}'] {{fill:red}} "
+            f"@keyframes {escape} {{to {{opacity:0}}}} "
+            f".a {{animation-name:{escape}}}</style>"
+            f'<rect fill="url(#{escape})"/>'
+        )
+        out = merge_svgs([doc]).to_string()
+        assert "\N{REPLACEMENT CHARACTER}" in out
+        SVGDocument.from_string(out)
+
+
+class TestAnimationValueReferences:
+    def test_animation_values_rewrite_url_references(self):
+        doc = _doc(
+            '<linearGradient id="g"/><rect fill="red">'
+            '<set attributeName="fill" to="url(#g)"/>'
+            '<animate attributeName="fill" from="url(#g)" by="url(#g)" '
+            'values="url(#g);red" dur="1s"/></rect>'
+        )
+        merged = merge_svgs([doc, doc])
+        for index in range(2):
+            panel = merged.root.xpath(
+                f"./svg:g[@data-panel-index='{index}']", namespaces=NS
+            )[0]
+            expected = f"url(#pathy-panel-{index}--g)"
+            assert panel.xpath(".//svg:set", namespaces=NS)[0].get("to") == expected
+            animate = panel.xpath(".//svg:animate", namespaces=NS)[0]
+            assert animate.get("from") == expected
+            assert animate.get("by") == expected
+            assert animate.get("values") == f"{expected};red"
+
+    def test_animation_values_cannot_bind_another_panels_ids(self):
+        first = _doc(
+            '<rect fill="url(#only1)"><set attributeName="fill" to="url(#only1)"/>'
+            "</rect>"
+        )
+        second = _doc('<linearGradient id="only1"/>')
+        merged = merge_svgs([first, second])
+        set_elem = merged.root.xpath(
+            "./svg:g[@data-panel-index='0']//svg:set", namespaces=NS
+        )[0]
+        assert set_elem.get("to") == "url(#pathy-panel-0--unresolved--only1)"
+
+
+class TestValidCssIsNotRejected:
+    def test_important_animation_shorthand_composes(self):
+        doc = _doc(
+            "<style>@keyframes spin {to {opacity:0}} "
+            ".b {animation:spin 1s linear infinite !important}</style>"
+            "<rect class='b'/>"
+        )
+        css = _style_css(merge_svgs([doc]))
+        assert (
+            "animation:pathy-panel-0--keyframe--spin 1s linear infinite !important"
+            in css
+        )
+
+    def test_charset_rule_composes(self):
+        doc = _doc('<style>@charset "UTF-8"; rect {fill:red}</style><rect/>')
+        css = _style_css(merge_svgs([doc]))
+        assert '@charset "UTF-8";' in css
+        assert "#pathy-panel-0 rect {fill:red}" in css
+
+    def test_partial_href_selector_whose_matches_survive_renaming_composes(self):
+        doc = _doc(
+            '<style>use[href^="#"] {stroke:red}</style><path id="p"/><use href="#p"/>'
+        )
+        css = _style_css(merge_svgs([doc, doc]))
+        assert '#pathy-panel-0 use[href^="#"] {stroke:red}' in css
+
+
+class TestEntityReferences:
+    DTD = (
+        '<?xml version="1.0"?><!DOCTYPE svg [<!ENTITY css "rect {fill:red}">'
+        '<!ENTITY paint "url(#g)">]>'
+    )
+
+    BODIES = pytest.mark.parametrize(
+        "body",
+        [
+            "<style>&css;</style><rect/>",
+            '<linearGradient id="g"/><rect fill="&paint;"/>',
+        ],
+        ids=["element content", "attribute value"],
+    )
+
+    @pytest.mark.parametrize(
+        ("body", "expected"),
+        [
+            ("<style>&css;</style><rect/>", "#pathy-panel-1 rect {fill:red}"),
+            (
+                '<linearGradient id="g"/><rect fill="&paint;"/>',
+                'fill="url(#pathy-panel-1--g)"',
+            ),
+        ],
+        ids=["element content", "attribute value"],
+    )
+    def test_parsed_internal_entities_compose_well_formed(self, body, expected):
+        doc = SVGDocument.from_string(
+            f'{self.DTD}<svg xmlns="{SVG_NS}" viewBox="0 0 10 10">{body}</svg>'
+        )
+
+        out = merge_svgs([doc, doc]).to_string()
+
+        # Expanded at parse time, so the output needs no DTD and is scoped.
+        assert expected in out
+        SVGDocument.from_string(out)
+
+    @BODIES
+    @pytest.mark.parametrize("rewrap", [False, True], ids=["tree", "rewrapped"])
+    def test_unexpanded_entity_references_are_rejected(self, body, rewrap):
+        # Trees parsed by callers can still hold entity references.
+        source = f'{self.DTD}<svg xmlns="{SVG_NS}" viewBox="0 0 10 10">{body}</svg>'
+        parser = etree.XMLParser(resolve_entities=False)
+        doc = SVGDocument.from_tree(
+            etree.ElementTree(etree.fromstring(source.encode(), parser))
+        )
+        if rewrap:
+            # Copying the root drops the DTD but keeps the entity references.
+            doc = SVGDocument.from_tree(etree.ElementTree(doc.root_copy()))
+        with pytest.raises(CompositionError, match="entity references"):
+            merge_svgs([doc])
+
+    def test_entity_declared_namespace_still_composes(self):
+        doc = SVGDocument.from_string(
+            '<?xml version="1.0"?><!DOCTYPE svg ['
+            '<!ENTITY ns_ai "http://ns.adobe.com/AdobeIllustrator/10.0/">]>'
+            f'<svg xmlns="{SVG_NS}" xmlns:i="&ns_ai;" viewBox="0 0 10 10">'
+            '<rect i:knockout="Off"/></svg>'
+        )
+        out = merge_svgs([doc]).to_string()
+        assert "http://ns.adobe.com/AdobeIllustrator/10.0/" in out
+        SVGDocument.from_string(out)

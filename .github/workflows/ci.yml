@@ -15,19 +15,23 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        python-version: ["3.11", "3.12", "3.13", "3.14", "3.15"]
+    env:
+      # pyarrow (in "full") has no Python 3.15 wheels yet
+      EXTRAS: ${{ matrix.python-version == '3.15' && 'dataframe,export' || 'full' }}
     steps:
       - uses: actions/checkout@v7
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
+          allow-prereleases: true
           cache: pip
           cache-dependency-path: pyproject.toml
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[full]" --group dev
+          pip install -e ".[$EXTRAS]" --group dev
       - name: Lint with ruff
         run: ruff check src/pathy_svg
       - name: Type check with ty
@@ -36,3 +40,15 @@ jobs:
         run: python -m build --sdist --wheel --no-isolation
       - name: Run tests
         run: pytest
+
+  minimum-versions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+      - name: Install the lowest declared dependency versions
+        run: |
+          uv venv --python 3.11
+          uv pip install --resolution lowest-direct -e ".[full]" "pytest>=8.0"
+      - name: Run tests
+        run: .venv/bin/python -m pytest

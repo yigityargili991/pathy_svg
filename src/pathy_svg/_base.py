@@ -7,14 +7,12 @@ import re
 import urllib.request
 from collections.abc import Iterable, Mapping
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Self, TypeVar, cast
 
 from lxml import etree
-from typing_extensions import Self
 
 from pathy_svg._constants import (
     SVG_NS,
-    build_attr_index,
     build_id_index,
     get_secure_parser,
 )
@@ -281,21 +279,14 @@ class SVGDocumentBase:
         """Find an element by its id attribute using O(1) index lookup."""
         return self._element_index.get(eid)
 
-    def _build_index(self, key_attr: str) -> dict[str, etree._Element]:
-        """Return an element index for the given attribute.
-
-        Uses the cached ID index when *key_attr* is ``"id"``.
-        """
-        if key_attr == "id":
-            return self._element_index
-        return build_attr_index(self._tree, key_attr)
-
     def _resolve_key_attr(
         self, data: Mapping[str, _ValueT], key_attr: str
     ) -> tuple[dict[str, _ValueT], dict[str, etree._Element]]:
         """Expand *data* and build an element index for the given attribute.
 
-        For ``key_attr="id"`` this is a no-op: returns (*data*, id-index).
+        For ``key_attr="id"`` this returns (*data*, id-index). The index is
+        built fresh rather than cached, because callers go on to mutate the
+        tree and a cached index would then go stale.
 
         For non-ID attributes the same value may appear on many elements.
         This method creates a synthetic unique key per matching element so
@@ -303,7 +294,7 @@ class SVGDocumentBase:
         Unmatched elements are also included in the index (for color_missing).
         """
         if key_attr == "id":
-            return dict(data), self._element_index
+            return dict(data), build_id_index(self._tree)
 
         multi: dict[str, list[etree._Element]] = {}
         for elem in self._tree.iter():

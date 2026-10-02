@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Collection, Mapping, Sequence
-from typing import TYPE_CHECKING
-
-from typing_extensions import Self
+from typing import TYPE_CHECKING, Self
 
 from pathy_svg._mixins.host import _DocumentMixinHost
 
@@ -128,7 +126,9 @@ class StyleMixin(_DocumentMixinHost):
             na_color=na_color,
             id_to_elem=resolved_index,
         )
-        if scale is not None:
+        # Never replace a fill's scale; legend() uses the stroke scale only
+        # when the document has no scale yet.
+        if scale is not None and clone._last_scale is None:
             clone._last_scale = scale
         return clone
 
@@ -220,7 +220,7 @@ class StyleMixin(_DocumentMixinHost):
             opacity=opacity,
             preserve_stroke=preserve_stroke,
             color_missing=False,
-            id_to_elem=clone._element_index,
         )
         clone._last_scale = scale
+        clone._last_categorical_palette = None
         return clone

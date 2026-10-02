@@ -5,9 +5,13 @@ from __future__ import annotations
 import numpy as np
 from lxml import etree
 
-from pathy_svg._constants import COLORABLE_TAGS, build_id_index, local_tag
+from pathy_svg._constants import build_id_index
 from pathy_svg._css import set_style_property
-from pathy_svg.coloring import _matched_items_ancestor_first, _validate_opacity
+from pathy_svg._paint import (
+    matched_items_ancestor_first,
+    paint_targets,
+    validate_opacity,
+)
 from pathy_svg.themes import ColorScale
 
 
@@ -50,7 +54,7 @@ def apply_stroke_map(
 
     Returns the fitted ColorScale if palette was used, else None.
     """
-    opacity = _validate_opacity(opacity)
+    opacity = validate_opacity(opacity)
     if not data:
         return None
 
@@ -74,7 +78,7 @@ def apply_stroke_map(
         scale = ColorScale(palette, vmin=vmin, vmax=vmax)
         scale.fit(list(data.values()))
 
-    for _, value, elem in _matched_items_ancestor_first(data, id_to_elem):
+    for _, value, elem in matched_items_ancestor_first(data, id_to_elem):
         is_nan = not np.isfinite(value)
 
         # Compute stroke width
@@ -93,19 +97,13 @@ def apply_stroke_map(
 
         # Compute stroke color
         sc = None
-        if palette is not None:
+        if scale is not None:
             if is_nan:
                 sc = na_color
             else:
-                sc = scale(value)  # type: ignore
+                sc = scale(value)
 
-        kwargs = {"color": sc, "width": sw, "opacity": opacity}
-
-        if local_tag(elem.tag) == "g":
-            for child in elem.iter():
-                if child is not elem and local_tag(child.tag) in COLORABLE_TAGS:
-                    _set_stroke(child, **kwargs)
-        else:
-            _set_stroke(elem, **kwargs)
+        for target in paint_targets(elem):
+            _set_stroke(target, color=sc, width=sw, opacity=opacity)
 
     return scale

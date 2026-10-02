@@ -582,7 +582,7 @@ class TestColorMissingScope:
 
     def _gradient_bar_rects(self, doc):
         return doc.root.xpath(
-            "//*[local-name()='rect' and starts-with(@fill, 'url(#pathy-grad-')]"
+            "//*[local-name()='rect' and @fill='url(#pathy-legend-gradient)']"
         )
 
     def test_legend_survives_second_heatmap(self):
@@ -741,7 +741,8 @@ class TestApplyHeatmapDirect:
 
     def test_bad_palette_raises_color_scale_error(self):
         tree = self._make_tree()
-        with pytest.raises(ColorScaleError, match="Invalid palette"):
+        # The ColorScale error is raised once, not re-wrapped with a second prefix.
+        with pytest.raises(ColorScaleError, match=r"^Invalid color scale: .*xyz"):
             apply_heatmap(tree, {"a": 0.5}, palette="nonexistent_palette_xyz")
 
     def test_missing_elem_in_data_skipped(self):

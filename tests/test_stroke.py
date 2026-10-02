@@ -133,6 +133,28 @@ class TestApplyStrokeMapEdge:
         assert float(c1.get("stroke-width")) == pytest.approx(5.0)
         assert float(c2.get("stroke-width")) == pytest.approx(5.0)
 
+    def test_group_stroke_leaves_nested_pattern_shapes_alone(self):
+        svg = (
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+            '<g id="grp"><pattern id="hatch" width="4" height="4">'
+            '<rect id="tile" width="4" height="4" fill="#00ff00"/></pattern>'
+            '<path id="c1" d="M 0 0 L 50 50 Z" fill="url(#hatch)"/></g>'
+            "</svg>"
+        )
+        tree = etree.ElementTree(etree.fromstring(svg.encode()))
+
+        apply_stroke_map(
+            tree, {"grp": 1.0}, width_range=(1.0, 5.0), palette="Reds", vmin=0, vmax=1
+        )
+
+        ns = "{http://www.w3.org/2000/svg}"
+        tile = tree.getroot().find(f".//{ns}rect[@id='tile']")
+        c1 = tree.getroot().find(f".//{ns}path[@id='c1']")
+        assert tile.get("stroke") is None
+        assert tile.get("stroke-width") is None
+        assert tile.get("style") is None
+        assert float(c1.get("stroke-width")) == pytest.approx(5.0)
+
     @pytest.mark.parametrize(
         "data",
         [
@@ -209,3 +231,15 @@ class TestStrokeMapMixin:
         doc = SVGDocument.from_file(simple_svg_path)
         result = doc.stroke_map({"stomach": 0.5}, width_range=None, palette="viridis")
         assert result._last_scale is not None
+
+    def test_stroke_scale_does_not_replace_fill_scale(self, simple_svg_path):
+        filled = SVGDocument.from_file(simple_svg_path).heatmap(
+            {"stomach": 0.0, "liver": 1.0}
+        )
+
+        result = filled.stroke_map({"stomach": 100.0, "liver": 900.0}, palette="Greys")
+
+        legend = result.legend()._find_by_id("pathy-legend")
+        texts = [t.text for t in legend.iter("{http://www.w3.org/2000/svg}text")]
+        assert texts[0] == "0.00"
+        assert texts[-1] == "1.00"

@@ -7,18 +7,21 @@ from dataclasses import dataclass
 from lxml import etree
 
 from pathy_svg._constants import (
-    COLORABLE_TAGS,
     SVG_NS,
     build_id_index,
     get_secure_parser,
-    local_tag,
     safe_svg_id,
     svg_sub,
 )
-from pathy_svg._css import set_style_property
-from pathy_svg.coloring import _matched_items_ancestor_first, _validate_opacity
+from pathy_svg._paint import (
+    get_or_create_defs,
+    matched_items_ancestor_first,
+    paint_targets,
+    remove_def,
+    set_fill,
+    validate_opacity,
+)
 from pathy_svg.exceptions import ValidationError
-from pathy_svg.gradient import _get_or_create_defs, _remove_existing_def
 
 
 @dataclass
@@ -170,26 +173,6 @@ _PATTERN_BUILDERS = {
 }
 
 
-def _set_pattern_ref(
-    element: etree._Element,
-    pat_id: str,
-    *,
-    opacity: float | None = None,
-    preserve_stroke: bool = True,
-) -> None:
-    """Set an element's fill to reference a pattern."""
-    ref = f"url(#{pat_id})"
-    element.set("fill", ref)
-    style = set_style_property(element.get("style"), "fill", ref)
-    if opacity is not None:
-        element.set("fill-opacity", str(opacity))
-        style = set_style_property(style, "fill-opacity", str(opacity))
-    if not preserve_stroke:
-        element.set("stroke", "none")
-        style = set_style_property(style, "stroke", "none")
-    element.set("style", style)
-
-
 def apply_pattern_fill(
     tree: etree._ElementTree,
     patterns: dict[str, str | PatternSpec],
@@ -199,30 +182,30 @@ def apply_pattern_fill(
     id_to_elem: dict[str, etree._Element] | None = None,
 ) -> None:
     """Apply pattern fills to SVG elements. Modifies tree in-place."""
-    opacity = _validate_opacity(opacity)
+    opacity = validate_opacity(opacity)
     if id_to_elem is None:
         id_to_elem = build_id_index(tree)
 
     defs = None
 
-    for eid, spec_or_str, elem in _matched_items_ancestor_first(patterns, id_to_elem):
+    for eid, spec_or_str, elem in matched_items_ancestor_first(patterns, id_to_elem):
         if isinstance(spec_or_str, str):
             spec = PatternSpec(kind=spec_or_str)
         else:
             spec = spec_or_str
 
         if defs is None:
-            defs = _get_or_create_defs(tree)
+            defs = get_or_create_defs(tree.getroot())
 
         pat_id = f"pathy-pat-{safe_svg_id(eid)}"
         _validate_pattern_spec(pat_id, spec)
-        _remove_existing_def(defs, pat_id)
+        remove_def(defs, pat_id)
         _build_pattern_element(defs, pat_id, spec)
 
-        kwargs = {"opacity": opacity, "preserve_stroke": preserve_stroke}
-        if local_tag(elem.tag) == "g":
-            for child in elem.iter():
-                if child is not elem and local_tag(child.tag) in COLORABLE_TAGS:
-                    _set_pattern_ref(child, pat_id, **kwargs)
-        else:
-            _set_pattern_ref(elem, pat_id, **kwargs)
+        for target in paint_targets(elem):
+            set_fill(
+                target,
+                f"url(#{pat_id})",
+                opacity=opacity,
+                preserve_stroke=preserve_stroke,
+            )

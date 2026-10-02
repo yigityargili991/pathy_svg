@@ -67,8 +67,14 @@ def svg_sub(parent, tag: str):
 
 
 def get_secure_parser() -> etree.XMLParser:
-    """Create an XML parser that disables entity resolution and network access."""
-    return etree.XMLParser(resolve_entities=False, no_network=True)
+    """Create an XML parser that never loads external entities or the network.
+
+    Internal DTD entities, such as the ones Adobe Illustrator exports declare,
+    are expanded so documents stay well-formed when their DOCTYPE is dropped
+    (as composition does). Documents referencing external entities fail to parse.
+    """
+    # lxml >= 5 accepts "internal"; lxml-stubs only model a bool.
+    return etree.XMLParser(resolve_entities="internal", no_network=True)  # ty: ignore[invalid-argument-type]
 
 
 _UNSAFE_ID_RE = re.compile(r"[^A-Za-z0-9_-]")
