@@ -18,7 +18,6 @@ from pathy_svg._composition import (
 )
 from pathy_svg._constants import SVG_NS, Layout
 from pathy_svg.exceptions import CompositionError, ValidationError
-from pathy_svg.transform import ViewBox
 
 if TYPE_CHECKING:
     from pathy_svg.document import SVGDocument
@@ -62,20 +61,19 @@ def compose_side_by_side(
 
     Returns a new lxml ElementTree.
     """
+    # Imported here: svg_tools imports the document module, which imports this.
+    from pathy_svg.svg_tools import _panel_viewports
+
     if not docs:
         raise CompositionError("No documents to compose")
     validate_composition_layout(layout)
 
-    viewboxes = []
-    for doc in docs:
-        vb = doc.viewbox
-        if vb is None:
-            vb = ViewBox(0, 0, 500, 500)
-        viewboxes.append(vb)
-
-    total_w, total_h = composition_size(
-        [(vb.width, vb.height) for vb in viewboxes], layout, spacing
-    )
+    # Size panels like compose_svgs(): viewBox, else px width/height, else 500.
+    viewports = _panel_viewports(docs)
+    sizes = [
+        viewport if viewport is not None else (500.0, 500.0) for viewport in viewports
+    ]
+    total_w, total_h = composition_size(sizes, layout, spacing)
     title_offset = title_size * 1.5 if titles else 0
     if layout == "horizontal":
         total_h += title_offset
@@ -96,14 +94,16 @@ def compose_side_by_side(
     y_offset = 0.0
     plans = plan_svg_panels([doc._root for doc in docs])
 
-    for i, (doc, vb, plan) in enumerate(zip(docs, viewboxes, plans)):
+    for i, (doc, (width, height), viewport, plan) in enumerate(
+        zip(docs, sizes, viewports, plans)
+    ):
         if titles and i < len(titles):
             txt = etree.SubElement(new_root, f"{{{SVG_NS}}}text")
             if layout == "horizontal":
-                txt.set("x", str(x_offset + vb.width / 2))
+                txt.set("x", str(x_offset + width / 2))
                 txt.set("y", str(title_size))
             else:
-                txt.set("x", str(vb.width / 2))
+                txt.set("x", str(width / 2))
                 txt.set("y", str(y_offset + title_size))
             txt.set("text-anchor", "middle")
             txt.set(
@@ -112,7 +112,8 @@ def compose_side_by_side(
             )
             txt.text = titles[i]
 
-        g = copy_svg_panel(doc._root, new_root, plan, vb.width, vb.height)
+        panel_width, panel_height = viewport if viewport is not None else (None, None)
+        g = copy_svg_panel(doc._root, new_root, plan, panel_width, panel_height)
         if layout == "horizontal":
             tx, ty = composition_translation(layout, x_offset, title_offset)
             place_svg_panel(g, f"translate({tx},{ty})")
@@ -124,8 +125,8 @@ def compose_side_by_side(
             place_svg_panel(g, f"translate({tx},{ty})")
 
         if layout == "horizontal":
-            x_offset += vb.width + spacing
+            x_offset += width + spacing
         else:
-            y_offset += vb.height + spacing + (title_offset if titles else 0)
+            y_offset += height + spacing + (title_offset if titles else 0)
 
     return etree.ElementTree(new_root)

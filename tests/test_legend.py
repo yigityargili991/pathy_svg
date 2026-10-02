@@ -67,6 +67,14 @@ class TestGradientLegend:
         assert heatmapped._find_by_id("pathy-legend") is None
         assert with_legend._find_by_id("pathy-legend") is not None
 
+    def test_same_input_renders_identical_bytes(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+
+        def render():
+            return doc.heatmap({"stomach": 0.2, "liver": 0.8}).legend().to_bytes()
+
+        assert render() == render()
+
 
 class TestCategoricalLegend:
     def test_categorical_legend(self, simple_svg_path):
@@ -158,6 +166,31 @@ class TestExplicitScaleAndPalette:
         svg_str = result.to_string()
         assert "50.00" in svg_str
         assert "200.00" in svg_str
+
+
+class TestAutoLegendFollowsLatestColoring:
+    @pytest.mark.parametrize("method", ["heatmap", "heatmap_groups"])
+    def test_numeric_coloring_after_categories_gets_gradient_legend(
+        self, simple_svg_path, method
+    ):
+        categorized = SVGDocument.from_file(simple_svg_path).recolor_by_category(
+            {"liver": "A", "heart": "B"}
+        )
+        colored = getattr(categorized, method)({"liver": 1.0, "heart": 2.0})
+
+        legend = colored.legend()._find_by_id("pathy-legend")
+
+        assert legend.find(".//{http://www.w3.org/2000/svg}linearGradient") is not None
+        texts = [t.text for t in legend.iter("{http://www.w3.org/2000/svg}text")]
+        assert "A" not in texts
+
+    def test_categories_after_heatmap_clear_the_scale(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+
+        result = doc.heatmap({"liver": 1.0}).recolor_by_category({"liver": "A"})
+
+        assert result._last_scale is None
+        assert result._last_categorical_palette is not None
 
 
 class TestLegendChaining:

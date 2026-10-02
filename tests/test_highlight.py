@@ -110,6 +110,29 @@ class TestApplyHighlight:
             elem = tree.getroot().find(f".//{ns}path[@id='{eid}']")
             assert elem.get("fill-opacity") == "0.2"
 
+    def test_resource_shapes_are_not_dimmed(self):
+        svg = (
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs>'
+            '<pattern id="hatch" width="4" height="4">'
+            '<rect id="tile" width="4" height="4" fill="#00ff00"/></pattern>'
+            '<mask id="m"><rect id="cutout" width="100" height="100" fill="#ffffff"/>'
+            "</mask></defs>"
+            '<path id="a" d="M 0 0 L 50 50 Z" fill="url(#hatch)" mask="url(#m)"/>'
+            '<path id="b" d="M 10 10 L 60 60 Z" fill="#0000ff"/>'
+            "</svg>"
+        )
+        tree = etree.ElementTree(etree.fromstring(svg.encode()))
+
+        apply_highlight(tree, {"a"})
+
+        ns = "{http://www.w3.org/2000/svg}"
+        root = tree.getroot()
+        for rect_id, fill in (("tile", "#00ff00"), ("cutout", "#ffffff")):
+            rect = root.find(f".//{ns}rect[@id='{rect_id}']")
+            assert rect.get("fill") == fill
+            assert rect.get("fill-opacity") is None
+        assert root.find(f".//{ns}path[@id='b']").get("fill-opacity") == "0.2"
+
 
 class TestHighlightMixin:
     def test_returns_new_document(self, simple_svg_path):
@@ -124,3 +147,30 @@ class TestHighlightMixin:
         doc.highlight(["stomach"])
 
         assert doc._find_by_id("liver").get("fill-opacity") is None
+
+    def test_generated_legend_annotations_and_tooltips_are_not_dimmed(
+        self, simple_svg_path
+    ):
+        doc = SVGDocument.from_file(simple_svg_path)
+        decorated = (
+            doc.heatmap({"stomach": 1.0, "liver": 5.0}, breaks=[0, 3, 6])
+            .legend()
+            .annotate({"liver": "L"}, background="white")
+            .add_tooltips({"heart": "Heart"}, method="css")
+        )
+        overlay_rects = (
+            "//*[@data-pathy-legend or @id='pathy-annotations' or @data-tooltip-for]"
+            "//*[local-name()='rect']"
+        )
+
+        result = decorated.highlight(["liver"])
+
+        def paint(document):
+            return [
+                (rect.get("fill"), rect.get("fill-opacity"), rect.get("style"))
+                for rect in document.xpath(overlay_rects)
+            ]
+
+        assert len(paint(decorated)) >= 4  # 2 swatches, label and tooltip boxes
+        assert paint(result) == paint(decorated)
+        assert result._find_by_id("stomach").get("fill-opacity") == "0.2"

@@ -130,8 +130,6 @@ def to_jpeg(
     PIL = require_pillow()
     png_data = to_png(doc, width=width, height=height, dpi=dpi)
 
-    if png_data is None:
-        raise ExportError("PNG rendering returned no data")
     img = PIL.Image.open(io.BytesIO(png_data))
     if img.mode == "RGBA":
         bg = PIL.Image.new("RGB", img.size, (255, 255, 255))
@@ -158,8 +156,6 @@ def thumbnail(
 
     PIL = require_pillow()
     png_data = to_png(doc, width=width)
-    if png_data is None:
-        raise ExportError("PNG rendering returned no data")
     return PIL.Image.open(io.BytesIO(png_data))
 
 

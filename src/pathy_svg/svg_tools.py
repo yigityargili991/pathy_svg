@@ -115,19 +115,7 @@ def compose_svgs(
         raise CompositionError("svgs must be non-empty")
     validate_composition_layout(layout)
 
-    viewports: list[tuple[float, float] | None] = []
-    for doc in docs:
-        vb = doc.viewbox
-        if vb is not None:
-            viewports.append((vb.width, vb.height))
-            continue
-        w = _user_unit_length(doc._root.get("width"))
-        h = _user_unit_length(doc._root.get("height"))
-        if w is not None and h is not None:
-            viewports.append((w, h))
-        else:
-            viewports.append(None)
-
+    viewports = _panel_viewports(docs)
     sizes = [
         viewport if viewport is not None else (500.0, 500.0) for viewport in viewports
     ]
@@ -179,6 +167,23 @@ def merge_svgs(
         ValueError: If the svgs iterable is empty or layout is unsupported.
     """
     return compose_svgs(svgs, layout=layout, spacing=spacing).document
+
+
+def _panel_viewports(docs: Iterable[SVGDocument]) -> list[tuple[float, float] | None]:
+    """Return each document's user-unit viewport size, or None if it has none."""
+    viewports: list[tuple[float, float] | None] = []
+    for doc in docs:
+        vb = doc.viewbox
+        if vb is not None:
+            viewports.append((vb.width, vb.height))
+            continue
+        w = _user_unit_length(doc._root.get("width"))
+        h = _user_unit_length(doc._root.get("height"))
+        if w is not None and h is not None:
+            viewports.append((w, h))
+        else:
+            viewports.append(None)
+    return viewports
 
 
 _USER_UNIT_LENGTH_RE = re.compile(

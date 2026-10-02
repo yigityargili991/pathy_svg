@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import math
-import uuid
 from dataclasses import dataclass
 from typing import Literal
 
@@ -18,6 +17,9 @@ Direction = Literal["vertical", "horizontal"]
 LegendKind = Literal["auto", "gradient", "discrete", "categorical"]
 _GENERATED_LEGEND_ATTR = "data-pathy-legend"
 _GENERATED_LEGEND_VALUE = "generated"
+# Fixed so output is reproducible; legend() keeps one generated legend per
+# document, and the name stays clear of gradient_fill's ``pathy-grad-*`` ids.
+_LEGEND_GRADIENT_ID = "pathy-legend-gradient"
 
 
 @dataclass(frozen=True)
@@ -191,8 +193,6 @@ def _build_gradient_legend(
     if direction == "horizontal":
         w, h = h, w  # swap for horizontal
 
-    uid = uuid.uuid4().hex[:8]
-
     g = etree.Element(
         f"{{{SVG_NS}}}g",
         id="pathy-legend",
@@ -204,7 +204,7 @@ def _build_gradient_legend(
 
     if direction == "vertical":
         grad = etree.SubElement(
-            defs, f"{{{SVG_NS}}}linearGradient", id=f"pathy-grad-{uid}"
+            defs, f"{{{SVG_NS}}}linearGradient", id=_LEGEND_GRADIENT_ID
         )
         grad.set("x1", "0")
         grad.set("y1", "1")
@@ -212,7 +212,7 @@ def _build_gradient_legend(
         grad.set("y2", "0")
     else:
         grad = etree.SubElement(
-            defs, f"{{{SVG_NS}}}linearGradient", id=f"pathy-grad-{uid}"
+            defs, f"{{{SVG_NS}}}linearGradient", id=_LEGEND_GRADIENT_ID
         )
         grad.set("x1", "0")
         grad.set("y1", "0")
@@ -237,7 +237,7 @@ def _build_gradient_legend(
     bar.set("y", str(y))
     bar.set("width", str(w))
     bar.set("height", str(h))
-    bar.set("fill", f"url(#pathy-grad-{uid})")
+    bar.set("fill", f"url(#{_LEGEND_GRADIENT_ID})")
     if border:
         bar.set("stroke", border_color)
         bar.set("stroke-width", "0.5")

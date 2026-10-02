@@ -65,6 +65,7 @@ class ColoringMixin(_DocumentMixinHost):
             id_to_elem=resolved_index,
         )
         clone._last_scale = scale
+        clone._last_categorical_palette = None
         return clone
 
     def heatmap_from_dataframe(
@@ -197,4 +198,5 @@ class ColoringMixin(_DocumentMixinHost):
             id_to_elem=resolved_index,
         )
         clone._last_categorical_palette = cat_palette
+        clone._last_scale = None
         return clone

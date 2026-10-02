@@ -187,6 +187,25 @@ class TestApplyPatternFill:
         assert c1.get("fill", "").startswith("url(#pathy-pat-")
         assert c2.get("fill", "").startswith("url(#pathy-pat-")
 
+    def test_group_pattern_leaves_nested_pattern_shapes_alone(self):
+        svg = (
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+            '<g id="grp"><pattern id="hatch" width="4" height="4">'
+            '<rect id="tile" width="4" height="4" fill="#00ff00"/></pattern>'
+            '<path id="c1" d="M 0 0 L 50 50 Z" fill="url(#hatch)"/></g>'
+            "</svg>"
+        )
+        tree = etree.ElementTree(etree.fromstring(svg.encode()))
+
+        apply_pattern_fill(tree, {"grp": "dots"})
+
+        ns = "{http://www.w3.org/2000/svg}"
+        tile = tree.getroot().find(f".//{ns}rect[@id='tile']")
+        c1 = tree.getroot().find(f".//{ns}path[@id='c1']")
+        assert tile.get("fill") == "#00ff00"
+        assert tile.get("style") is None
+        assert c1.get("fill", "").startswith("url(#pathy-pat-")
+
     @pytest.mark.parametrize(
         "patterns",
         [

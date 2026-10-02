@@ -4,6 +4,7 @@ import pytest
 
 from pathy_svg.diff import compose_side_by_side, compute_diff
 from pathy_svg.document import SVGDocument
+from pathy_svg.themes import ColorScale
 
 
 class TestComputeDiff:
@@ -56,6 +57,40 @@ class TestDocDiff:
         assert result is not doc
         style = result._find_by_id("stomach").get("style", "")
         assert "fill:" in style
+
+    def test_ratio_mode_colors_unchanged_values_neutral(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+        baseline = {"liver": 2.0, "stomach": 1.0, "heart": 1.0}
+        treatment = {"liver": 1.0, "stomach": 1.0, "heart": 2.0}
+
+        result = doc.diff(baseline, treatment, mode="ratio")
+
+        neutral = ColorScale("coolwarm", vmin=-1, vmax=1)(0.0)
+        assert result._find_by_id("stomach").get("fill") == neutral
+
+    @pytest.mark.parametrize(
+        ("mode", "kwargs", "expected"),
+        [
+            ("ratio", {}, 1.0),
+            ("delta", {}, 0.0),
+            ("log2ratio", {}, 0.0),
+            ("percent_change", {}, 0.0),
+            ("ratio", {"vcenter": 2.0}, 2.0),
+        ],
+    )
+    def test_vcenter_defaults_by_mode_unless_given(
+        self, simple_svg_path, mode, kwargs, expected
+    ):
+        doc = SVGDocument.from_file(simple_svg_path)
+
+        result = doc.diff(
+            {"liver": 2.0, "heart": 1.0},
+            {"liver": 1.0, "heart": 4.0},
+            mode=mode,
+            **kwargs,
+        )
+
+        assert result._last_scale.vcenter == expected
 
 
 class TestComputeDiffEdgeCases:
@@ -179,6 +214,55 @@ class TestDocCompare:
         assert len(ids) == len(set(ids))
         assert "pathy-panel-0--shape" in ids
         assert "pathy-panel-1--shape" in ids
+
+    def test_compose_sizes_viewboxless_panels_from_their_dimensions(self):
+        doc = SVGDocument.from_string(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">'
+            '<rect id="r" width="200" height="100"/></svg>'
+        )
+
+        tree = compose_side_by_side([doc, doc], titles=None, spacing=20)
+
+        assert tree.getroot().get("viewBox") == "0 0 420.0 100.0"
+
+    def test_compare_panels_share_one_color_range(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+
+        result = doc.compare(
+            {
+                "low": {"liver": 1.0, "heart": 2.0},
+                "high": {"liver": 100.0, "heart": 200.0},
+            }
+        )
+
+        low_liver = result._find_by_id("pathy-panel-0--liver").get("fill")
+        high_liver = result._find_by_id("pathy-panel-1--liver").get("fill")
+        assert low_liver != high_liver
+        scale = result._last_scale
+        assert (scale.effective_vmin, scale.effective_vmax) == (1.0, 200.0)
+        legend_text = "".join(result.legend()._find_by_id("pathy-legend").itertext())
+        assert "1.00" in legend_text
+        assert "200.00" in legend_text
+
+    def test_compare_keeps_an_explicit_range(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+
+        result = doc.compare(
+            {"a": {"liver": 1.0}, "b": {"liver": 9.0}}, vmin=0, vmax=10
+        )
+
+        scale = result._last_scale
+        assert (scale.effective_vmin, scale.effective_vmax) == (0, 10)
+
+    def test_compare_shared_range_contains_a_one_sided_vcenter(self, simple_svg_path):
+        doc = SVGDocument.from_file(simple_svg_path)
+
+        result = doc.compare(
+            {"a": {"liver": 1.0}, "b": {"liver": 9.0}}, palette="coolwarm", vcenter=0
+        )
+
+        scale = result._last_scale
+        assert (scale.effective_vmin, scale.effective_vmax) == (-9.0, 9.0)
 
     def test_compare_titles_are_outside_panel_scoped_text_css(self):
         doc = SVGDocument.from_string(

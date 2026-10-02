@@ -7,6 +7,8 @@ import pytest
 from click.testing import CliRunner
 
 from pathy_svg.cli import _read_csv_data, _read_data, _read_ids, main
+from pathy_svg.document import SVGDocument
+from pathy_svg.themes import ColorScale
 
 
 @pytest.fixture
@@ -113,6 +115,27 @@ class TestValidateCommand:
         assert result.exit_code == 1
         assert "not found" in result.output
 
+    def test_validate_missing_id_column_fails(self, runner, simple_svg_path, data_csv):
+        result = runner.invoke(
+            main,
+            ["validate", str(simple_svg_path), data_csv, "--id-col", "no_such_col"],
+        )
+        assert result.exit_code != 0
+        assert "Column 'no_such_col' not found" in result.output
+
+    def test_validate_reads_parquet(self, runner, simple_svg_path, tmp_path):
+        pd = pytest.importorskip("pandas")
+        pytest.importorskip("pyarrow")
+        p = tmp_path / "data.parquet"
+        pd.DataFrame({"organ": ["stomach", "liver"]}).to_parquet(p)
+
+        result = runner.invoke(
+            main, ["validate", str(simple_svg_path), str(p), "--id-col", "organ"]
+        )
+
+        assert result.exit_code == 0
+        assert "All data IDs found" in result.output
+
 
 class TestDiffCommand:
     def test_diff(self, runner, simple_svg_path, tmp_path):
@@ -144,6 +167,41 @@ class TestDiffCommand:
         )
         assert result.exit_code == 0
         assert "Diff saved" in result.output
+
+    def test_diff_ratio_colors_unchanged_values_neutral(
+        self, runner, simple_svg_path, tmp_path
+    ):
+        baseline = tmp_path / "baseline.csv"
+        treatment = tmp_path / "treatment.csv"
+        for p, vals in [(baseline, [1.0, 2.0, 1.0]), (treatment, [1.0, 1.0, 2.0])]:
+            with open(p, "w", newline="") as f:
+                w = csv.writer(f)
+                w.writerow(["organ", "expression"])
+                for organ, val in zip(["stomach", "liver", "heart"], vals):
+                    w.writerow([organ, str(val)])
+        out = tmp_path / "diff.svg"
+
+        result = runner.invoke(
+            main,
+            [
+                "diff",
+                str(simple_svg_path),
+                str(baseline),
+                str(treatment),
+                "--id-col",
+                "organ",
+                "--value-col",
+                "expression",
+                "--mode",
+                "ratio",
+                "-o",
+                str(out),
+            ],
+        )
+
+        assert result.exit_code == 0
+        stomach = SVGDocument.from_file(out)._find_by_id("stomach")
+        assert stomach.get("fill") == ColorScale("coolwarm", vmin=-1, vmax=1)(0.0)
 
 
 class TestGuideCommand:

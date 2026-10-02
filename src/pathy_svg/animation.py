@@ -14,6 +14,7 @@ from pathy_svg._constants import SVG_NS, local_tag
 from pathy_svg._constants import (
     rendered_colorable_elements as _rendered_colorable_elements,
 )
+from pathy_svg._paint import get_or_create_defs
 from pathy_svg.exceptions import ValidationError
 
 AnimationEffect = Literal["pulse", "fade_in", "blink", "sequential"]
@@ -276,11 +277,7 @@ def inject_animation(
     _remove_generated_styles(root)
     keyframe_name = _unique_keyframe_name(root, effect)
 
-    # Find or create <defs>
-    defs = root.find(f"{{{SVG_NS}}}defs")
-    if defs is None:
-        defs = etree.SubElement(root, f"{{{SVG_NS}}}defs")
-        root.insert(0, defs)
+    defs = get_or_create_defs(root)
 
     iteration = "infinite" if loop else "1"
 

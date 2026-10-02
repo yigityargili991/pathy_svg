@@ -8,6 +8,7 @@ from lxml import etree
 from pathy_svg._constants import SVG_NS
 from pathy_svg.document import SVGDocument
 from pathy_svg.exceptions import PathNotFoundError, SVGParseError, ValidationError
+from pathy_svg.gradient import GradientSpec
 from pathy_svg.transform import ViewBox
 
 
@@ -443,6 +444,20 @@ class TestElementLookup:
     def test_find_by_id_missing(self, simple_svg_path):
         doc = SVGDocument.from_file(simple_svg_path)
         assert doc._find_by_id("nonexistent") is None
+
+    @pytest.mark.parametrize(
+        "fill",
+        [
+            lambda doc: doc.gradient_fill({"liver": GradientSpec("#f00", "#00f")}),
+            lambda doc: doc.pattern_fill({"liver": "dots"}),
+        ],
+        ids=["gradient_fill", "pattern_fill"],
+    )
+    def test_element_ids_include_defs_added_by_fills(self, simple_svg_path, fill):
+        result = fill(SVGDocument.from_file(simple_svg_path))
+
+        reparsed = SVGDocument.from_string(result.to_string())
+        assert result.element_ids == reparsed.element_ids
 
 
 class TestGeometricQueries:
