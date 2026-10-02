@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Python 3.15 support; `requires-python` no longer has an upper bound
+- CI job that tests the lowest declared dependency versions
+
+### Changed
+- **Breaking**: Python 3.11 is the minimum supported version (3.10 reached end of life on 2026-10-01), which also removes the `typing-extensions` runtime dependency
+- **Breaking**: `compare()` colors every panel on one shared range spanning all datasets unless `vmin`/`vmax` are given, so equal values get equal colors and `legend()` on the result describes every panel
+- **Breaking**: documents that reference external XML entities now fail to load with `SVGParseError` instead of loading with the reference left unexpanded; internal DTD entities (as in Adobe Illustrator exports) are expanded
+- `diff()`'s `vcenter` defaults to `"auto"`: 1 for `mode="ratio"` and 0 otherwise. The CLI `--vcenter` has the same default
+- Invalid `annotate(placement=...)`, `add_tooltips(method=...)`, `GradientSpec(direction=...)` and `xy_guide(step=...)` values raise `ValidationError` instead of silently falling back, doing nothing, or raising `ZeroDivisionError`
+- The legend gradient has the fixed id `pathy-legend-gradient` instead of a random one, so the same input renders byte-identical SVG
+- Composition accepts `!important` in the `animation` shorthand, `@charset`, class names with escaped `@` (such as `.md\@lg`), and `href` partial selectors whose matches survive renaming (such as `use[href^="#"]`)
+
+### Fixed
+- `diff(mode="ratio")` centered its color scale at 0 instead of 1, coloring unchanged regions as increases
+- `highlight()` dimmed shapes inside `<defs>`, `<pattern>` and `<mask>` (graying out a highlighted element's own pattern) and the library's legends, annotation labels and tooltips
+- `legend()` viewBox expansion wrote viewBox units into `width`/`height` on one axis only, shrinking and distorting documents whose size differs from their viewBox. Declared absolute sizes now scale by the same ratio and keep their units; percentages and missing sizes are left alone
+- The automatic legend follows the most recent coloring: `recolor_by_category(...).heatmap(...).legend()` no longer draws the stale categorical legend, and `stroke_map(palette=...)` no longer replaces an existing fill scale
+- `gradient_fill()`, `pattern_fill()` and `stroke_map()` on a group restyled shapes inside nested resources such as `<pattern>`
+- `element_ids` on documents returned by `gradient_fill()` and `pattern_fill()` missed the generated gradient and pattern ids
+- `compare()` sized panels without a viewBox at 500×500 instead of from their `width`/`height`
+- Repeated `annotate()` and `xy_guide()` calls created duplicate `pathy-annotations` / `pathy-guide` ids
+- CLI `validate` reported success when `--id-col` named a missing column (it now exits with status 2) and could not read the Parquet and Excel files `heatmap` accepts
+- Composition could leave one panel's CSS unscoped, letting it restyle every panel, when the CSS contained escaped quotes or braces, a newline inside a string, a bad `url()` token, or escaped at-rule names; the same inputs let rejected at-rules such as `@property` through and left `@keyframes` unrenamed
+- Composition left `url(#...)` references in `<animate>`/`<set>` values and escaped `\75rl(#...)` pointing at the original ids
+- Composing SVGs that use internal DTD entities, such as Adobe Illustrator exports, produced XML that was not well-formed
+- CSS escapes of surrogate code points crashed composition instead of decoding to U+FFFD, and very long identifiers made it take quadratic time
+- Palette errors from `heatmap()` repeated their message prefix
+
 ## [0.4.1] - 2026-09-02
 
 ### Added
